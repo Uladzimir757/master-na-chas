@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+sqlalchemy[asyncio]>=2.0
+asyncpg
+pydantic
+pydantic-settings
+email-validator
+bcrypt
+itsdangerous
+httpx
+pywebpush
+twilio
+python-dotenv
+# zoneinfo (stdlib) has no IANA tz database on Windows — needed for
+# app/slot_engine.py's BUSINESS_TZ. Linux/macOS usually have the system db
+# already, but this is a no-op there and guarantees it works on your machine.
+tzdata
