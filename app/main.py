@@ -23,6 +23,8 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,9 +58,35 @@ from app.schemas import (
 from app.security import hash_password, require_master_user_id, verify_password
 from app.slot_engine import SlotOut, get_availability
 
+# Without this, the root logger has no handler at all: Python's implicit
+# "handler of last resort" only prints WARNING+ to stderr, so anything logged
+# at INFO (e.g. app/notifications.py's "channel disabled, skipping send"
+# notices) would silently go nowhere in every environment, including Render's
+# log stream — not just less prominent, genuinely invisible. This makes the
+# configured LOG_LEVEL (app/config.py) actually take effect everywhere.
+logging.basicConfig(level=settings.LOG_LEVEL, format="%(levelname)s:%(name)s:%(message)s")
+
 logger = logging.getLogger("master_na_chas")
 
+
+def _client_ip(request: Request) -> str:
+    # Render (like most PaaS) terminates TLS at a reverse proxy, so
+    # request.client.host is the proxy's own address for every request —
+    # slowapi's default get_remote_address would rate-limit "everyone
+    # combined" as one client. The proxy sets X-Forwarded-For to the real
+    # client IP as the first entry; fall back to request.client for local
+    # dev, where there's no proxy in front at all.
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+limiter = Limiter(key_func=_client_ip)
+
 app = FastAPI(title="Мастер на час — API")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SessionMiddleware, secret_key=settings.SESSION_SECRET)
 # Этап 2: browser-side fetch() from the separately-deployed Next.js frontend
 # needs this or every request just fails silently in the browser (no server
@@ -128,7 +156,8 @@ async def get_availability_endpoint(
 
 
 @app.post("/api/bookings", response_model=BookingOut, status_code=status.HTTP_201_CREATED)
-async def create_booking(payload: BookingCreate, db: AsyncSession = Depends(get_db)) -> Booking:
+@limiter.limit("5/minute")
+async def create_booking(request: Request, payload: BookingCreate, db: AsyncSession = Depends(get_db)) -> Booking:
     service = await db.get(Service, payload.service_id)
     if service is None or not service.is_active:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Service not found")

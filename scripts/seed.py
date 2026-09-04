@@ -1,5 +1,12 @@
-"""One-time seed: one tenant, one starter service, two masters (you + friend).
-Run once against a fresh DB: python -m scripts.seed
+"""One-time seed: one tenant, one starter service, two provider rows (you +
+friend) with a placeholder working-hours template. Run once against a fresh
+DB: python -m scripts.seed
+
+This does NOT create master_user login accounts — those (and the real
+telegram_chat_id linkage) are created separately via POST /admin/masters +
+POST /admin/masters/{id}/telegram-link, not by this script. If a provider
+row created here doesn't yet have a matching master_user, that master can't
+log in until an admin creates one for it.
 
 Not a public registration form on purpose — see docs/decisions.md
 ("Мультитенантность — не строим... регистрация мастеров — только через

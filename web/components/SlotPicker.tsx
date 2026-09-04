@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError, type Booking, type Provider, type Service, type Slot } from "@/lib/api";
 import { addDays, dateKey, formatDayLabel, formatPriceRange, formatTime, toDateParam } from "@/lib/format";
+import { t } from "@/lib/i18n";
 import { Card, Centered } from "@/components/ui";
 
 const DAYS_AHEAD = 14;
@@ -50,7 +51,7 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
         return res.length > 0 ? dateKey(res[0].start_at) : null;
       });
     } catch {
-      setSlotsError("Не удалось загрузить свободные слоты.");
+      setSlotsError(t.slotsLoadError);
     }
   }, [service.id]);
 
@@ -62,7 +63,7 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
 
   const providerName = useMemo(() => {
     const map = new Map(providers.map((p) => [p.id, p.name]));
-    return (id: string) => map.get(id) ?? "мастер";
+    return (id: string) => map.get(id) ?? t.defaultMasterName;
   }, [providers]);
 
   const daysWithSlots = useMemo(() => {
@@ -97,11 +98,11 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
       setBooking(result);
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
-        setSubmitError("Это время только что заняли. Выберите другой слот.");
+        setSubmitError(t.slotTakenError);
         setSelectedSlot(null);
         await loadAvailability(); // any failure here surfaces via slotsError — no more silent catch
       } else {
-        setSubmitError("Не удалось создать запись. Попробуйте ещё раз.");
+        setSubmitError(t.genericSubmitError);
       }
     } finally {
       setSubmitting(false);
@@ -122,19 +123,17 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
       <Card>
         <div className="flex flex-col items-center gap-3 py-4 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-2xl">✓</div>
-          <h1 className="text-xl font-semibold">Запись создана</h1>
+          <h1 className="text-xl font-semibold">{t.bookingCreatedTitle}</h1>
           <p className="text-neutral-600">
             {service.name} · {providerName(booking.provider_id)}
             <br />
             {formatDayLabel(booking.start_at)}, {formatTime(booking.start_at)}
           </p>
           <p className="text-sm text-neutral-500">
-            {booking.status === "pending"
-              ? "Мастер подтвердит запись в ближайшее время."
-              : "Запись подтверждена."}
+            {booking.status === "pending" ? t.bookingPending : t.bookingConfirmed}
           </p>
           <button className="mt-4 rounded-lg bg-neutral-900 px-5 py-2.5 text-white" onClick={bookAgain}>
-            Записаться ещё раз
+            {t.bookAgain}
           </button>
         </div>
       </Card>
@@ -145,12 +144,12 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
     <Card>
       {showChangeService && (
         <button className="mb-3 text-sm text-neutral-500 hover:text-neutral-900" onClick={onChangeService}>
-          ← сменить услугу
+          {t.changeService}
         </button>
       )}
       <h1 className="mb-1 text-xl font-semibold">{service.name}</h1>
       <p className="mb-4 text-sm text-neutral-500">
-        {service.duration_minutes} мин
+        {t.durationMinutes(service.duration_minutes)}
         {formatPriceRange(service.price_min, service.price_max)
           ? ` · ${formatPriceRange(service.price_min, service.price_max)}`
           : ""}
@@ -158,10 +157,10 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
 
       {slotsError && <Centered>{slotsError}</Centered>}
 
-      {!slotsError && slots === null && <Centered>Загрузка слотов…</Centered>}
+      {!slotsError && slots === null && <Centered>{t.slotsLoading}</Centered>}
 
       {!slotsError && slots !== null && daysWithSlots.length === 0 && (
-        <Centered>На ближайшие {DAYS_AHEAD} дней свободных слотов нет.</Centered>
+        <Centered>{t.noSlotsInRange(DAYS_AHEAD)}</Centered>
       )}
 
       {!slotsError && daysWithSlots.length > 0 && (
@@ -208,13 +207,13 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
           <div className="flex flex-col gap-2">
             <input
               className="rounded-lg border border-neutral-200 px-3 py-2.5"
-              placeholder="Ваше имя"
+              placeholder={t.namePlaceholder}
               value={clientName}
               onChange={(e) => setClientName(e.target.value)}
             />
             <input
               className="rounded-lg border border-neutral-200 px-3 py-2.5"
-              placeholder="Телефон (для SMS о записи)"
+              placeholder={t.phonePlaceholder}
               type="tel"
               value={clientPhone}
               onChange={(e) => setClientPhone(e.target.value)}
@@ -225,7 +224,7 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
               className="mt-1 rounded-lg bg-neutral-900 px-5 py-2.5 text-white disabled:opacity-40"
               onClick={submitBooking}
             >
-              {submitting ? "Отправка…" : "Подтвердить запись"}
+              {submitting ? t.submitting : t.submitBooking}
             </button>
           </div>
         </div>

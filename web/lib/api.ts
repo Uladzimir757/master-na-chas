@@ -5,7 +5,23 @@
  * enough that hand-written types are the right amount of ceremony.
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+// NEXT_PUBLIC_* is inlined at BUILD time, not read at runtime — a missing
+// value here means every deployed visitor silently gets a dead API target
+// with no error anywhere obvious to a developer. Falling back to the local
+// dev backend is fine for `next dev`/`next build` run by hand without a
+// .env.local (NODE_ENV is "development" then); a production build (Render,
+// or anyone running `next build` directly) must fail loudly instead of
+// shipping that fallback to real visitors.
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ??
+  (process.env.NODE_ENV === "production"
+    ? (() => {
+        throw new Error(
+          "NEXT_PUBLIC_API_URL is not set. It must be provided as a build-time environment " +
+            "variable (e.g. in Render's service settings) — it cannot be set at runtime.",
+        );
+      })()
+    : "http://127.0.0.1:8000");
 
 export class ApiError extends Error {
   status: number;

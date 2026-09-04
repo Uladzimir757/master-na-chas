@@ -16,7 +16,10 @@ logger = logging.getLogger("notifications")
 
 async def send_telegram_message(chat_id: str, text: str) -> None:
     if not settings.TELEGRAM_BOT_TOKEN:
-        logger.warning("telegram_disabled: no TELEGRAM_BOT_TOKEN configured, skipping send")
+        # expected state whenever the platform bot token genuinely isn't
+        # configured (local dev without .env, mainly) — not an error, so
+        # not `warning`: that level should mean "something needs attention".
+        logger.info("telegram_disabled: no TELEGRAM_BOT_TOKEN configured, skipping send")
         return
     url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
     try:
@@ -29,7 +32,10 @@ async def send_telegram_message(chat_id: str, text: str) -> None:
 
 async def send_web_push(*, endpoint: str, p256dh: str, auth: str, payload: dict) -> None:
     if not settings.WEB_PUSH_ENABLED:
-        logger.warning("web_push_disabled, skipping send")
+        # expected — WEB_PUSH_ENABLED is off by default until the VAPID
+        # keypair is actually wired up; this fires on every booking with a
+        # push subscription until then, so it must not read as an error.
+        logger.info("web_push_disabled, skipping send")
         return
     try:
         # imported lazily, same reasoning as Garage System's WebPushSenderService:
@@ -50,7 +56,10 @@ async def send_web_push(*, endpoint: str, p256dh: str, auth: str, payload: dict)
 
 async def send_sms(*, to_phone: str, text: str) -> None:
     if not settings.SMS_ENABLED:
-        logger.warning("sms_disabled: skipping send to %s", to_phone)
+        # expected — SMS_ENABLED is off until Twilio is actually configured
+        # (see config.py); this fires on every booking with a phone number,
+        # so it must not read as an error each time it does.
+        logger.info("sms_disabled: skipping send to %s", to_phone)
         return
     try:
         from twilio.rest import Client as TwilioClient

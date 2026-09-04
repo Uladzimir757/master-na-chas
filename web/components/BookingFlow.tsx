@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api, type Provider, type Service } from "@/lib/api";
 import { formatPriceRange } from "@/lib/format";
+import { t } from "@/lib/i18n";
 import { Card, Centered } from "@/components/ui";
 import SlotPicker from "@/components/SlotPicker";
 
@@ -28,7 +29,7 @@ export default function BookingFlow() {
           setSelectedService(svc[0]);
         }
       } catch {
-        setLoadError("Не удалось загрузить услуги. Проверьте связь и обновите страницу.");
+        setLoadError(t.catalogLoadError);
       }
     })();
   }, []);
@@ -38,13 +39,13 @@ export default function BookingFlow() {
   }
 
   if (!catalogLoaded) {
-    return <Centered>Загрузка…</Centered>;
+    return <Centered>{t.loading}</Centered>;
   }
 
   if (!selectedService) {
     return (
       <Card>
-        <h1 className="mb-4 text-xl font-semibold">Выберите услугу</h1>
+        <h1 className="mb-4 text-xl font-semibold">{t.pickServiceTitle}</h1>
         <div className="flex flex-col gap-2">
           {services.map((s) => (
             <button
@@ -54,7 +55,7 @@ export default function BookingFlow() {
             >
               <div className="font-medium">{s.name}</div>
               <div className="text-sm text-neutral-500">
-                {s.duration_minutes} мин
+                {t.durationMinutes(s.duration_minutes)}
                 {formatPriceRange(s.price_min, s.price_max) ? ` · ${formatPriceRange(s.price_min, s.price_max)}` : ""}
               </div>
             </button>

@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     # deployed (Render env var, not a code change).
     CORS_ALLOWED_ORIGINS: str = "http://localhost:3000"
 
+    # Root logging level for the whole app (see app/main.py's logging.basicConfig
+    # call, which reads this). INFO by default — set to DEBUG via the Render env
+    # var when you actually need to see the "channel disabled" notices from
+    # app/notifications.py, no code change needed.
+    LOG_LEVEL: str = "INFO"
+
     @property
     def cors_allowed_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ALLOWED_ORIGINS.split(",") if o.strip()]

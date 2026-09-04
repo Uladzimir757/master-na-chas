@@ -1,8 +1,9 @@
+import { LOCALE, t } from "./i18n";
+
 /** Everything renders in Europe/Warsaw regardless of the visitor's own
  * timezone — the business is there, a slot means "9am in Gdynia", not
  * "9am wherever the client happens to be". */
 const TZ = "Europe/Warsaw";
-const LOCALE = "ru-RU";
 
 export function formatDayLabel(iso: string): string {
   const d = new Date(iso);
@@ -15,8 +16,8 @@ export function formatDayLabel(iso: string): string {
   const weekday = new Intl.DateTimeFormat(LOCALE, { weekday: "short", timeZone: TZ }).format(d);
   const dayMonth = new Intl.DateTimeFormat(LOCALE, { day: "numeric", month: "short", timeZone: TZ }).format(d);
 
-  if (isToday) return `Сегодня, ${dayMonth}`;
-  if (isTomorrow) return `Завтра, ${dayMonth}`;
+  if (isToday) return `${t.today}, ${dayMonth}`;
+  if (isTomorrow) return `${t.tomorrow}, ${dayMonth}`;
   return `${weekday}, ${dayMonth}`;
 }
 
@@ -41,7 +42,7 @@ export function toDateParam(d: Date): string {
 
 export function formatPriceRange(min: number | null, max: number | null): string | null {
   if (min == null && max == null) return null;
-  if (min != null && max != null && min !== max) return `${min}–${max} zł`;
+  if (min != null && max != null && min !== max) return t.priceRange(min, max);
   const v = min ?? max;
-  return `от ${v} zł`;
+  return v == null ? null : t.priceFrom(v);
 }

@@ -11,6 +11,7 @@ httpx
 pywebpush
 twilio
 python-dotenv
+slowapi
 # zoneinfo (stdlib) has no IANA tz database on Windows — needed for
 # app/slot_engine.py's BUSINESS_TZ. Linux/macOS usually have the system db
 # already, but this is a no-op there and guarantees it works on your machine.
