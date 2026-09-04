@@ -70,6 +70,46 @@ class PushSubscribeRequest(BaseModel):
     auth: str
 
 
+class ServiceOut(BaseModel):
+    """Public — what a client picks from on the booking page. No tenant_id
+    (single-tenant, docs/decisions.md) and no is_active (only active ones
+    are ever listed)."""
+
+    id: uuid.UUID
+    name: str
+    duration_minutes: int
+    price_min: float | None = None
+    price_max: float | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class ProviderOut(BaseModel):
+    """Public — just enough for the booking page to show which master a
+    slot belongs to. No phone/email (docs/decisions.md: no client accounts,
+    no reason to expose that here)."""
+
+    id: uuid.UUID
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
+class ProviderSettingsOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    requires_booking_confirmation: bool
+
+    class Config:
+        from_attributes = True
+
+
+class ProviderSettingsUpdate(BaseModel):
+    requires_booking_confirmation: bool
+
+
 class AvailabilityQuery(BaseModel):
     service_id: uuid.UUID
     provider_id: uuid.UUID | None = None

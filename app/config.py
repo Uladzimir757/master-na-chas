@@ -35,5 +35,16 @@ class Settings(BaseSettings):
     TWILIO_SENDER_ID: str = "MasterNaChas"  # <=11 latin chars, decide the real brand name later
     SMS_ENABLED: bool = False
 
+    # Этап 2: the Next.js frontend is a separate deploy (separate origin), so
+    # the browser enforces CORS on every fetch() it makes to this API.
+    # Comma-separated list, no trailing slashes. localhost:3000 by default so
+    # `npm run dev` works out of the box; add the real frontend URL once it's
+    # deployed (Render env var, not a code change).
+    CORS_ALLOWED_ORIGINS: str = "http://localhost:3000"
+
+    @property
+    def cors_allowed_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.CORS_ALLOWED_ORIGINS.split(",") if o.strip()]
+
 
 settings = Settings()

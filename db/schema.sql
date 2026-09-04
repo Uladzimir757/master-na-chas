@@ -42,6 +42,9 @@ CREATE TABLE provider (
     -- cover drive time between jobs. 0 for a shop mechanic.
     travel_buffer_minutes  int NOT NULL DEFAULT 0 CHECK (travel_buffer_minutes >= 0),
     is_active              boolean NOT NULL DEFAULT true,
+    -- master's own toggle (Этап 2): true = new bookings start 'pending' and
+    -- need his confirmation; false = auto-confirm on creation. Per-provider.
+    requires_booking_confirmation boolean NOT NULL DEFAULT true,
     created_at             timestamptz NOT NULL DEFAULT now()
 );
 

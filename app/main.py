@@ -22,6 +22,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,7 +46,11 @@ from app.schemas import (
     BookingOut,
     BookingStatusUpdate,
     LoginRequest,
+    ProviderOut,
+    ProviderSettingsOut,
+    ProviderSettingsUpdate,
     PushSubscribeRequest,
+    ServiceOut,
     TelegramLinkOut,
 )
 from app.security import hash_password, require_master_user_id, verify_password
@@ -55,11 +60,43 @@ logger = logging.getLogger("master_na_chas")
 
 app = FastAPI(title="Мастер на час — API")
 app.add_middleware(SessionMiddleware, secret_key=settings.SESSION_SECRET)
+# Этап 2: browser-side fetch() from the separately-deployed Next.js frontend
+# needs this or every request just fails silently in the browser (no server
+# log, no obvious error — CORS failures are enforced client-side). Origins
+# come from settings, not hardcoded, so adding the deployed frontend URL
+# later is an env var change, not a redeploy-the-code change.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allowed_origins_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def require_admin(x_admin_secret: str = Header(default="")) -> None:
     if not secrets.compare_digest(x_admin_secret, settings.ADMIN_SECRET):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Not admin")
+
+
+# ============================================================================
+# Public catalog — what the booking page needs before it can even show a
+# calendar: which services exist, and (to label a slot) which providers.
+# Single-tenant (docs/decisions.md), so "all active services/providers" is
+# unambiguous — no tenant filter needed from the client.
+# ============================================================================
+
+
+@app.get("/api/services", response_model=list[ServiceOut])
+async def list_services(db: AsyncSession = Depends(get_db)) -> list[Service]:
+    stmt = select(Service).where(Service.is_active.is_(True)).order_by(Service.name)
+    return (await db.execute(stmt)).scalars().all()
+
+
+@app.get("/api/providers", response_model=list[ProviderOut])
+async def list_providers(db: AsyncSession = Depends(get_db)) -> list[Provider]:
+    stmt = select(Provider).where(Provider.is_active.is_(True)).order_by(Provider.name)
+    return (await db.execute(stmt)).scalars().all()
 
 
 # ============================================================================
@@ -96,8 +133,7 @@ async def create_booking(payload: BookingCreate, db: AsyncSession = Depends(get_
     if service is None or not service.is_active:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Service not found")
 
-    provider_id = payload.provider_id
-    if provider_id is None:
+    if payload.provider_id is None:
         # "любой доступный мастер" — re-check the slot is still free for at
         # least one eligible provider right now, pick the first one; the
         # EXCLUDE constraint is still the real guarantee against a race.
@@ -106,25 +142,32 @@ async def create_booking(payload: BookingCreate, db: AsyncSession = Depends(get_
         candidates = await list_providers_for_service(db, service)
         if not candidates:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "No provider offers this service")
-        provider_id = candidates[0].id
+        provider = candidates[0]
     else:
-        provider = await db.get(Provider, provider_id)
+        provider = await db.get(Provider, payload.provider_id)
         if provider is None or not provider.is_active:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Provider not found")
 
     end_at = payload.start_at + timedelta(minutes=service.duration_minutes)
 
+    # each master's own switch (mvp-task.md / Этап 2): confirmed straight
+    # away if he's turned off manual confirmation, pending (needs his
+    # PATCH .../status) otherwise — see Provider.requires_booking_confirmation.
+    initial_status = (
+        BookingStatus.pending if provider.requires_booking_confirmation else BookingStatus.confirmed
+    )
+
     booking = Booking(
         id=uuid.uuid4(),
         tenant_id=service.tenant_id,
-        provider_id=provider_id,
+        provider_id=provider.id,
         service_id=payload.service_id,
         client_name=payload.client_name,
         client_phone=payload.client_phone,
         start_at=payload.start_at,
         end_at=end_at,
         notes=payload.notes,
-        status=BookingStatus.pending,
+        status=initial_status,
     )
     db.add(booking)
     try:
@@ -230,6 +273,44 @@ async def logout(request: Request) -> dict:
 @app.get("/auth/me")
 async def whoami(master_user_id: str = Depends(require_master_user_id)) -> dict:
     return {"master_user_id": master_user_id}
+
+
+# ============================================================================
+# Provider settings — a master's own on/off switches. Currently just
+# requires_booking_confirmation (Этап 2); resolved from the session, never
+# from a provider_id in the URL, so a master can only ever touch his own row.
+# ============================================================================
+
+
+async def _get_own_provider(master_user_id: str, db: AsyncSession) -> Provider:
+    master_user = await db.get(MasterUser, uuid.UUID(master_user_id))
+    if master_user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Master not found")
+    provider = await db.get(Provider, master_user.provider_id)
+    if provider is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Provider not found")
+    return provider
+
+
+@app.get("/api/providers/me", response_model=ProviderSettingsOut)
+async def get_my_provider_settings(
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> Provider:
+    return await _get_own_provider(master_user_id, db)
+
+
+@app.patch("/api/providers/me/settings", response_model=ProviderSettingsOut)
+async def update_my_provider_settings(
+    payload: ProviderSettingsUpdate,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> Provider:
+    provider = await _get_own_provider(master_user_id, db)
+    provider.requires_booking_confirmation = payload.requires_booking_confirmation
+    await db.commit()
+    await db.refresh(provider)
+    return provider
 
 
 # ============================================================================

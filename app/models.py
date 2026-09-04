@@ -8,8 +8,9 @@ from __future__ import annotations
 import enum
 import uuid
 from datetime import date, datetime, time
+from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ENUM as PgEnum
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -57,6 +58,13 @@ class Provider(Base):
     name: Mapped[str] = mapped_column(String)
     travel_buffer_minutes: Mapped[int] = mapped_column(default=0)
     is_active: Mapped[bool] = mapped_column(default=True)
+    # master's own on/off switch (Этап 2): true = new bookings start
+    # `pending`, master confirms via PATCH /api/bookings/{id}/status before
+    # it's real (current behavior, safe default). false = auto-confirm on
+    # creation — no manual step. Per-provider, not global: each master
+    # decides for themself, matches "у мастера есть график" — his booking,
+    # his call.
+    requires_booking_confirmation: Mapped[bool] = mapped_column(default=True)
 
     working_hours: Mapped[list["WorkingHours"]] = relationship(back_populates="provider")
     master_user: Mapped["MasterUser | None"] = relationship(back_populates="provider", uselist=False)
@@ -69,6 +77,10 @@ class Service(Base):
     tenant_id: Mapped[uuid.UUID] = _uuid_col(fk="tenant.id")
     name: Mapped[str] = mapped_column(String)
     duration_minutes: Mapped[int] = mapped_column(CheckConstraint("duration_minutes > 0"))
+    # schema.sql has had these since Этап 1; only wiring them into the ORM
+    # now that the booking page actually needs to show a price.
+    price_min: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    price_max: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     is_active: Mapped[bool] = mapped_column(default=True)
 
 
