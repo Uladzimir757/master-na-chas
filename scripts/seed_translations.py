@@ -25,9 +25,17 @@ these strings, so the restart that deploy triggers loads them anyway.
 """
 
 import asyncio
+import sys
 import uuid
 
 from sqlalchemy import select
+
+# Windows consoles default to a codepage (e.g. cp1250) that can't encode the
+# Cyrillic entries below — without this, the print()s further down raise
+# UnicodeEncodeError *before* the db.commit() call, silently discarding the
+# whole upsert.
+if sys.stdout.encoding is not None and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
 
 from app.db import async_session_factory
 from app.models import Service, TranslationEntry, Tenant
@@ -38,6 +46,19 @@ NAMESPACE = "ui"
 # byte-for-byte so nothing changes for the current default. Parameterized
 # strings use {name} placeholders matching lib/i18n.ts's function args.
 ENTRIES: list[tuple[str, str, str, str]] = [
+    ("brandName", "Мастер на час", "Złota Rączka", "Майстер на годину"),
+    (
+        "heroTitle",
+        "Мастер под рукой, когда нужен",
+        "Fachowiec pod ręką, kiedy potrzebujesz",
+        "Майстер під рукою, коли потрібен",
+    ),
+    (
+        "heroSubtitle",
+        "Сборка мебели, мелкий ремонт и монтаж — запись на свободный слот за пару минут",
+        "Montaż mebli, drobne naprawy i instalacje — rezerwacja wolnego terminu w kilka minut",
+        "Збирання меблів, дрібний ремонт і монтаж — запис на вільний слот за кілька хвилин",
+    ),
     ("loading", "Загрузка…", "Ładowanie…", "Завантаження…"),
     (
         "catalogLoadError",

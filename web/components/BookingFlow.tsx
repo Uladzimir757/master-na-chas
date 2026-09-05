@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { api, type Provider, type Service } from "@/lib/api";
-import { formatPriceRange } from "@/lib/format";
 import { useLocale } from "@/lib/LocaleContext";
 import { Card, Centered } from "@/components/ui";
+import { PriceLabel } from "@/components/PriceLabel";
 import SlotPicker from "@/components/SlotPicker";
 
 export default function BookingFlow() {
@@ -58,18 +58,23 @@ export default function BookingFlow() {
   if (!selectedService) {
     return (
       <Card>
-        <h1 className="mb-4 text-xl font-semibold">{t.pickServiceTitle}</h1>
+        <h1 className="mb-4 text-xl font-extrabold tracking-[-0.01em]">{t.pickServiceTitle}</h1>
         <div className="flex flex-col gap-2">
           {services.map((s) => (
             <button
               key={s.id}
-              className="rounded-lg border border-neutral-200 px-4 py-3 text-left hover:border-neutral-400"
+              className="rounded-md border border-line px-4 py-4 text-left hover:border-accent-2"
               onClick={() => setSelectedService(s)}
             >
               <div className="font-medium">{s.name}</div>
-              <div className="text-sm text-neutral-500">
+              <div className="text-sm text-ink/60">
                 {t.durationMinutes(s.duration_minutes)}
-                {formatPriceRange(s.price_min, s.price_max, t) ? ` · ${formatPriceRange(s.price_min, s.price_max, t)}` : ""}
+                {s.price_min != null || s.price_max != null ? (
+                  <>
+                    {" · "}
+                    <PriceLabel min={s.price_min} max={s.price_max} t={t} />
+                  </>
+                ) : null}
               </div>
             </button>
           ))}

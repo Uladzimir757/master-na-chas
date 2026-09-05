@@ -12,6 +12,10 @@ const nextConfig: NextConfig = {
   // route (the master cabinet), a direct visit or refresh on /cabinet would
   // 404 without this.
   trailingSlash: true,
+  // Static export has no server to run the Image Optimization API — next/image
+  // (used by components/Hero.tsx) needs the built-in optimizer disabled to
+  // just serve the source file as-is.
+  images: { unoptimized: true },
 };
 
 export default nextConfig;

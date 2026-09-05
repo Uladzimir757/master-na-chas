@@ -16,7 +16,7 @@ export default function LanguageSwitcher() {
           onClick={() => setLocale(code)}
           aria-current={code === locale}
           className={`rounded-md px-2 py-1 ${
-            code === locale ? "bg-neutral-900 text-white" : "text-neutral-400 hover:text-neutral-700"
+            code === locale ? "bg-ink text-bg" : "text-ink/50 hover:text-accent-2"
           }`}
         >
           {LABELS[code]}

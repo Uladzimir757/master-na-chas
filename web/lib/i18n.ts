@@ -26,6 +26,9 @@ function pick(map: TranslationMap, key: string): string {
 }
 
 export interface Translations {
+  brandName: string;
+  heroTitle: string;
+  heroSubtitle: string;
   loading: string;
   catalogLoadError: string;
   pickServiceTitle: string;
@@ -99,6 +102,9 @@ export interface Translations {
 
 export function buildTranslations(map: TranslationMap): Translations {
   return {
+    brandName: pick(map, "brandName"),
+    heroTitle: pick(map, "heroTitle"),
+    heroSubtitle: pick(map, "heroSubtitle"),
     loading: pick(map, "loading"),
     catalogLoadError: pick(map, "catalogLoadError"),
     pickServiceTitle: pick(map, "pickServiceTitle"),

@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError, type Booking, type Provider, type Service, type Slot } from "@/lib/api";
-import { addDays, dateKey, formatDayLabel, formatPriceRange, formatTime, toDateParam } from "@/lib/format";
+import { addDays, dateKey, formatDayLabel, formatTime, toDateParam } from "@/lib/format";
 import { useLocale } from "@/lib/LocaleContext";
 import type { Translations } from "@/lib/i18n";
-import { Card, Centered } from "@/components/ui";
+import { Button, Card, Centered } from "@/components/ui";
+import { PriceLabel } from "@/components/PriceLabel";
 import ProviderMap from "@/components/ProviderMap";
 
 // How often the "N мин назад" label under the map recomputes (Этап 4) — a
@@ -162,19 +163,19 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
     return (
       <Card>
         <div className="flex flex-col items-center gap-3 py-4 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-2xl">✓</div>
-          <h1 className="text-xl font-semibold">{t.bookingCreatedTitle}</h1>
-          <p className="text-neutral-600">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-2/15 text-2xl text-accent-2">
+            ✓
+          </div>
+          <h1 className="text-xl font-extrabold tracking-[-0.01em]">{t.bookingCreatedTitle}</h1>
+          <p className="text-ink/70">
             {service.name} · {providerName(booking.provider_id)}
             <br />
-            {formatDayLabel(booking.start_at, locale, t)}, {formatTime(booking.start_at, locale)}
+            {formatDayLabel(booking.start_at, locale, t)}, <span className="font-mono">{formatTime(booking.start_at, locale)}</span>
           </p>
-          <p className="text-sm text-neutral-500">
-            {booking.status === "pending" ? t.bookingPending : t.bookingConfirmed}
-          </p>
-          <button className="mt-4 rounded-lg bg-neutral-900 px-5 py-2.5 text-white" onClick={bookAgain}>
+          <p className="text-sm text-ink/60">{booking.status === "pending" ? t.bookingPending : t.bookingConfirmed}</p>
+          <Button className="mt-4" onClick={bookAgain}>
             {t.bookAgain}
-          </button>
+          </Button>
         </div>
       </Card>
     );
@@ -183,16 +184,19 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
   return (
     <Card>
       {showChangeService && (
-        <button className="mb-3 text-sm text-neutral-500 hover:text-neutral-900" onClick={onChangeService}>
+        <button className="mb-3 text-sm text-ink/50 hover:text-accent-2" onClick={onChangeService}>
           {t.changeService}
         </button>
       )}
-      <h1 className="mb-1 text-xl font-semibold">{service.name}</h1>
-      <p className="mb-4 text-sm text-neutral-500">
+      <h1 className="mb-1 text-xl font-extrabold tracking-[-0.01em]">{service.name}</h1>
+      <p className="mb-4 text-sm text-ink/60">
         {t.durationMinutes(service.duration_minutes)}
-        {formatPriceRange(service.price_min, service.price_max, t)
-          ? ` · ${formatPriceRange(service.price_min, service.price_max, t)}`
-          : ""}
+        {service.price_min != null || service.price_max != null ? (
+          <>
+            {" · "}
+            <PriceLabel min={service.price_min} max={service.price_max} t={t} />
+          </>
+        ) : null}
       </p>
 
       {slotsError && <Centered>{slotsError}</Centered>}
@@ -209,8 +213,10 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
             {daysWithSlots.map(([key, iso]) => (
               <button
                 key={key}
-                className={`shrink-0 rounded-full px-4 py-2 text-sm whitespace-nowrap ${
-                  key === selectedDateKey ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-700"
+                className={`shrink-0 rounded-md border px-4 py-2 text-sm whitespace-nowrap ${
+                  key === selectedDateKey
+                    ? "border-ink bg-ink text-bg"
+                    : "border-line bg-bg text-ink hover:border-accent-2"
                 }`}
                 onClick={() => setSelectedDateKey(key)}
               >
@@ -220,20 +226,21 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
           </div>
 
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-            {slotsForSelectedDay.map((s) => (
-              <button
-                key={`${s.provider_id}-${s.start_at}`}
-                className={`rounded-lg border px-2 py-2.5 text-sm ${
-                  selectedSlot?.start_at === s.start_at && selectedSlot?.provider_id === s.provider_id
-                    ? "border-neutral-900 bg-neutral-900 text-white"
-                    : "border-neutral-200 hover:border-neutral-400"
-                }`}
-                onClick={() => setSelectedSlot(s)}
-              >
-                <div className="font-medium">{formatTime(s.start_at, locale)}</div>
-                <div className="truncate text-xs opacity-70">{providerName(s.provider_id)}</div>
-              </button>
-            ))}
+            {slotsForSelectedDay.map((s) => {
+              const isSelected = selectedSlot?.start_at === s.start_at && selectedSlot?.provider_id === s.provider_id;
+              return (
+                <button
+                  key={`${s.provider_id}-${s.start_at}`}
+                  className={`rounded-md border px-2 py-2 text-sm ${
+                    isSelected ? "chip-settle border-accent bg-accent text-bg" : "border-line hover:border-accent-2"
+                  }`}
+                  onClick={() => setSelectedSlot(s)}
+                >
+                  <div className="font-mono font-medium">{formatTime(s.start_at, locale)}</div>
+                  <div className="truncate text-xs opacity-70">{providerName(s.provider_id)}</div>
+                </button>
+              );
+            })}
           </div>
         </>
       )}
@@ -241,15 +248,16 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
       {/* Not nested inside `selectedSlot &&` below: the 409 handler in
           submitBooking() clears selectedSlot in the same breath it sets this,
           so the message would never actually render if it were. */}
-      {submitError && <p className="mt-3 text-sm text-red-600">{submitError}</p>}
+      {submitError && <p className="mt-3 text-sm text-danger">{submitError}</p>}
 
       {selectedSlot && (
-        <div className="mt-5 border-t border-neutral-200 pt-4">
-          <p className="mb-3 text-sm text-neutral-600">
-            {formatDayLabel(selectedSlot.start_at, locale, t)}, {formatTime(selectedSlot.start_at, locale)} ·{" "}
+        <div className="mt-5 border-t border-line pt-4">
+          <p className="mb-3 text-sm text-ink/70">
+            {formatDayLabel(selectedSlot.start_at, locale, t)},{" "}
+            <span className="font-mono">{formatTime(selectedSlot.start_at, locale)}</span> ·{" "}
             {providerName(selectedSlot.provider_id)}
             {providerCallOutFee(selectedSlot.provider_id) ? (
-              <span className="text-neutral-500"> · {t.callOutFeeLine(providerCallOutFee(selectedSlot.provider_id)!)}</span>
+              <span className="text-ink/60"> · {t.callOutFeeLine(providerCallOutFee(selectedSlot.provider_id)!)}</span>
             ) : null}
           </p>
 
@@ -263,7 +271,7 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
                 lat={providerLocation(selectedSlot.provider_id)!.lat}
                 lng={providerLocation(selectedSlot.provider_id)!.lng}
               />
-              <p className="mt-1 text-xs text-neutral-500">
+              <p className="mt-1 text-xs text-ink/60">
                 {formatLocationAgo(providerLocation(selectedSlot.provider_id)!.updated_at, t)}
               </p>
             </div>
@@ -271,25 +279,21 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
 
           <div className="flex flex-col gap-2">
             <input
-              className="rounded-lg border border-neutral-200 px-3 py-2.5"
+              className="rounded-md border border-line px-4 py-2"
               placeholder={t.namePlaceholder}
               value={clientName}
               onChange={(e) => setClientName(e.target.value)}
             />
             <input
-              className="rounded-lg border border-neutral-200 px-3 py-2.5"
+              className="rounded-md border border-line px-4 py-2"
               placeholder={t.phonePlaceholder}
               type="tel"
               value={clientPhone}
               onChange={(e) => setClientPhone(e.target.value)}
             />
-            <button
-              disabled={clientName.trim().length === 0 || submitting}
-              className="mt-1 rounded-lg bg-neutral-900 px-5 py-2.5 text-white disabled:opacity-40"
-              onClick={submitBooking}
-            >
+            <Button className="mt-1" disabled={clientName.trim().length === 0 || submitting} onClick={submitBooking}>
               {submitting ? t.submitting : t.submitBooking}
-            </button>
+            </Button>
           </div>
         </div>
       )}
