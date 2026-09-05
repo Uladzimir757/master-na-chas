@@ -1,9 +1,95 @@
 import type { Page } from "@playwright/test";
+import { buildTranslations } from "../lib/i18n";
 
 /** Shared fixture data + route-mocking helpers for the E2E suite. Every
  * spec mocks the backend by request *path* (page.route's "**" glob matches
  * regardless of origin) — none of this depends on what NEXT_PUBLIC_API_URL
  * actually resolved to at build time. */
+
+// Этап 3 — every spec's page loads now fetch GET /api/translations before
+// rendering any copy (see lib/LocaleContext.tsx). tests/fixtures.ts mocks
+// this route for every test automatically using this exact fixture, so
+// specs can keep asserting against `t.xxx` (imported from here, not from
+// lib/i18n.ts directly — there's no static dictionary there any more).
+// Content matches the real ru seed data (scripts/seed_translations.py) —
+// unrelated to whichever `lang` a test's page actually resolves to; the
+// mock ignores the query param and always serves this one map, which is
+// deliberately fine since a spec never asserts on which *language* is
+// showing, only that some fixed, known text is.
+export const TRANSLATIONS_FIXTURE: Record<string, string> = {
+  loading: "Загрузка…",
+  catalogLoadError: "Не удалось загрузить услуги. Проверьте связь и обновите страницу.",
+  pickServiceTitle: "Выберите услугу",
+  changeService: "← сменить услугу",
+  durationMinutes: "{n} мин",
+  slotsLoading: "Загрузка слотов…",
+  slotsLoadError: "Не удалось загрузить свободные слоты.",
+  noSlotsInRange: "На ближайшие {days} дней свободных слотов нет.",
+  namePlaceholder: "Ваше имя",
+  phonePlaceholder: "Телефон (для SMS о записи)",
+  submitBooking: "Подтвердить запись",
+  submitting: "Отправка…",
+  slotTakenError: "Это время только что заняли. Выберите другой слот.",
+  genericSubmitError: "Не удалось создать запись. Попробуйте ещё раз.",
+  bookingCreatedTitle: "Запись создана",
+  bookingPending: "Мастер подтвердит запись в ближайшее время.",
+  bookingConfirmed: "Запись подтверждена.",
+  bookAgain: "Записаться ещё раз",
+  today: "Сегодня",
+  tomorrow: "Завтра",
+  priceFrom: "от {v} zł",
+  priceRange: "{min}–{max} zł",
+  callOutFeeLine: "+ выезд {fee} zł",
+  pageTitle: "Мастер на час — запись",
+  pageDescription: "Онлайн-запись на услуги мастера — слоты в реальном времени",
+  defaultMasterName: "мастер",
+  cabinetLink: "Кабинет мастера",
+  cabinetLoading: "Загрузка кабинета…",
+  cabinetLoginTitle: "Вход для мастера",
+  emailPlaceholder: "Email",
+  passwordPlaceholder: "Пароль",
+  loginButton: "Войти",
+  loggingIn: "Вход…",
+  loginError: "Неверный email или пароль.",
+  loginGenericError: "Не удалось войти. Проверьте связь и попробуйте ещё раз.",
+  logoutButton: "Выйти",
+  backToBooking: "← на страницу записи",
+  cabinetTitle: "Кабинет — {name}",
+  cabinetLoadError: "Не удалось загрузить данные кабинета. Обновите страницу.",
+  settingsTitle: "Настройки",
+  requiresConfirmationLabel: "Подтверждать брони вручную",
+  requiresConfirmationHint:
+    "Включено — новая запись сначала ждёт вашего подтверждения. Выключено — подтверждается сразу при создании.",
+  settingsSaveError: "Не удалось сохранить настройку. Попробуйте ещё раз.",
+  callOutFeeLabel: "Плата за выезд (zł)",
+  callOutFeeHint: "Отдельная строка поверх цены услуги на странице записи. Оставьте пустым, если не берёте отдельно.",
+  callOutFeePlaceholder: "Не задано",
+  servicesOfferedTitle: "Мои услуги",
+  servicesOfferedHint: "Отметьте, какие услуги вы оказываете — они появятся у клиентов на странице записи.",
+  noActiveServices: "В каталоге пока нет активных услуг.",
+  servicesSaveError: "Не удалось сохранить список услуг. Попробуйте ещё раз.",
+  bookingsTitle: "Брони",
+  noBookings: "Броней пока нет.",
+  "bookingStatus.pending": "Ждёт подтверждения",
+  "bookingStatus.confirmed": "Подтверждено",
+  "bookingStatus.completed": "Завершено",
+  "bookingStatus.cancelled": "Отменено",
+  "bookingStatus.no_show": "Клиент не пришёл",
+  confirmBookingButton: "Подтвердить",
+  cancelBookingButton: "Отменить",
+  bookingActionError: "Не удалось изменить статус брони. Попробуйте ещё раз.",
+};
+
+export const t = buildTranslations(TRANSLATIONS_FIXTURE);
+
+/** Explicit variant for a spec that wants to control the translations mock
+ * itself (a custom/partial map, or a specific status code) instead of
+ * relying on tests/fixtures.ts's automatic one. */
+export async function mockTranslations(page: Page, map: Record<string, string> = TRANSLATIONS_FIXTURE) {
+  await page.route("**/api/translations**", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(map) }),
+  );
+}
 
 export const SERVICE = {
   id: "11111111-1111-1111-1111-111111111111",
@@ -29,7 +115,11 @@ export const SLOT_A = makeSlot("2027-06-07T07:00:00Z");
 export const SLOT_B = makeSlot("2027-06-07T09:00:00Z");
 
 export async function mockCatalog(page: Page, opts?: { servicesStatus?: number; providers?: (typeof PROVIDER)[] }) {
-  await page.route("**/api/services", (route) =>
+  // "**" at the end, not just "**/api/services": listServices() now appends
+  // ?lang= (Этап 3, lib/api.ts) — a query string after the path fails to
+  // match a pattern with no trailing wildcard, same reason mockAvailability
+  // below already needs one.
+  await page.route("**/api/services**", (route) =>
     route.fulfill({
       status: opts?.servicesStatus ?? 200,
       contentType: "application/json",
@@ -212,7 +302,9 @@ export function serviceToggle(overrides: Partial<ServiceToggleFixture> = {}): Se
  * every id in the posted service_ids, false for every other row. */
 export async function mockMyServices(page: Page, initial: ServiceToggleFixture[], opts?: { putStatus?: number }) {
   let current = initial;
-  await page.route("**/api/providers/me/services", (route) => {
+  // Trailing "**": both getMyServices and updateMyServices now append
+  // ?lang= (Этап 3, lib/api.ts) — see mockCatalog's own note above.
+  await page.route("**/api/providers/me/services**", (route) => {
     if (route.request().method() === "GET") {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(current) });
     }

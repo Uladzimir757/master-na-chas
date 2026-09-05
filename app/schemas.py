@@ -143,3 +143,64 @@ class AvailabilityQuery(BaseModel):
     provider_id: uuid.UUID | None = None
     date_from: date
     date_to: date
+
+
+# ============================================================================
+# Translations (Этап 3) — admin-only management of translation_entry rows.
+# See app/translations.py's module docstring for the draft/approve split.
+# ============================================================================
+
+
+class TranslationEntryOut(BaseModel):
+    id: uuid.UUID
+    namespace: str
+    key: str
+    lang: str
+    text: str
+    status: str
+
+    class Config:
+        from_attributes = True
+
+
+class TranslationUpsert(BaseModel):
+    """PUT /admin/translations body — upserts one (namespace, key, lang) row.
+    Deliberately does NOT go live on its own (see app/translations.py) —
+    `status` here just records where the row sits in the review pipeline;
+    only a separate POST /admin/translations/approve makes it visible."""
+
+    namespace: str = Field(min_length=1, max_length=100)
+    key: str = Field(min_length=1, max_length=200)
+    lang: str
+    text: str = Field(min_length=1)
+    status: str = "draft"
+
+    @field_validator("lang")
+    @classmethod
+    def lang_supported(cls, v: str) -> str:
+        from app.translations import SUPPORTED_LANGS
+
+        if v not in SUPPORTED_LANGS:
+            raise ValueError(f"lang must be one of {SUPPORTED_LANGS}")
+        return v
+
+    @field_validator("status")
+    @classmethod
+    def status_valid(cls, v: str) -> str:
+        if v not in ("draft", "reviewed", "approved"):
+            raise ValueError("status must be draft, reviewed, or approved")
+        return v
+
+
+class TranslationRef(BaseModel):
+    namespace: str
+    key: str
+    lang: str
+
+
+class TranslationApproveRequest(BaseModel):
+    """POST /admin/translations/approve body — an explicit list of entries to
+    approve, never "approve everything draft": a batch call can't accidentally
+    publish something nobody actually reviewed."""
+
+    entries: list[TranslationRef] = Field(min_length=1)

@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { api, type Provider, type Service } from "@/lib/api";
 import { formatPriceRange } from "@/lib/format";
-import { t } from "@/lib/i18n";
+import { useLocale } from "@/lib/LocaleContext";
 import { Card, Centered } from "@/components/ui";
 import SlotPicker from "@/components/SlotPicker";
 
 export default function BookingFlow() {
+  const { locale, t, ready } = useLocale();
+
   const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -15,13 +17,16 @@ export default function BookingFlow() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
 
-  // Loads once. Nothing here is synced back out via setState-on-dependency-
-  // change, so there's no reset-in-effect pattern to fight with the linter
-  // over.
+  // Reloads whenever the resolved locale changes (switcher click) — Service
+  // names are resolved server-side per lang (see lib/api.ts's listServices),
+  // so a language switch needs a fresh fetch, not just a re-render.
   useEffect(() => {
+    if (!ready) return;
     (async () => {
+      setCatalogLoaded(false);
+      setSelectedService(null);
       try {
-        const [svc, prov] = await Promise.all([api.listServices(), api.listProviders()]);
+        const [svc, prov] = await Promise.all([api.listServices(locale), api.listProviders()]);
         setServices(svc);
         setProviders(prov);
         setCatalogLoaded(true);
@@ -32,7 +37,15 @@ export default function BookingFlow() {
         setLoadError(t.catalogLoadError);
       }
     })();
-  }, []);
+    // t is derived from `locale` (see lib/LocaleContext.tsx) and would
+    // otherwise re-run this effect on every translation-object identity
+    // change; `locale`/`ready` alone already cover every real trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locale, ready]);
+
+  if (!ready) {
+    return <Centered>…</Centered>;
+  }
 
   if (loadError) {
     return <Centered>{loadError}</Centered>;
@@ -56,7 +69,7 @@ export default function BookingFlow() {
               <div className="font-medium">{s.name}</div>
               <div className="text-sm text-neutral-500">
                 {t.durationMinutes(s.duration_minutes)}
-                {formatPriceRange(s.price_min, s.price_max) ? ` · ${formatPriceRange(s.price_min, s.price_max)}` : ""}
+                {formatPriceRange(s.price_min, s.price_max, t) ? ` · ${formatPriceRange(s.price_min, s.price_max, t)}` : ""}
               </div>
             </button>
           ))}

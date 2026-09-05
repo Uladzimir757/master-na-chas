@@ -67,6 +67,14 @@ CREATE TABLE service (
     price_min         numeric(10,2),
     price_max         numeric(10,2),
     is_active         boolean NOT NULL DEFAULT true,
+    -- Per-locale display name (Этап 3) — dedicated columns, not
+    -- translation_entry below: domain data, not a UI string. `name` above
+    -- stays the internal/canonical (Russian) value used in notifications to
+    -- the two masters; these are what a client sees, resolved by requested
+    -- lang with name_ru -> name as the fallback chain.
+    name_pl           text,
+    name_ru           text,
+    name_uk           text,
     created_at        timestamptz NOT NULL DEFAULT now()
 );
 
@@ -208,6 +216,28 @@ CREATE TABLE web_push_subscription (
 );
 
 CREATE INDEX idx_web_push_master ON web_push_subscription (master_user_id);
+
+-- ----------------------------------------------------------------------------
+-- translation_entry — UI-string translations (Этап 3, docs/ai-and-reviews.md
+-- §1). Only status='approved' rows are ever served to a visitor, via the
+-- in-memory TranslationCache in app/translations.py — populated at app
+-- startup, refreshed ONLY by POST /admin/translations/approve, never by a
+-- plain PUT /admin/translations upsert (see that table's ORM docstring in
+-- app/models.py for why this split matters). Domain data (service names)
+-- is NOT here — see service.name_pl/name_ru/name_uk above.
+-- ----------------------------------------------------------------------------
+CREATE TABLE translation_entry (
+    id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    namespace   text NOT NULL,
+    key         text NOT NULL,
+    lang        text NOT NULL CHECK (lang IN ('pl', 'ru', 'uk')),
+    text        text NOT NULL,
+    status      text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'reviewed', 'approved')),
+    updated_at  timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (namespace, key, lang)
+);
+
+CREATE INDEX idx_translation_entry_lookup ON translation_entry (namespace, lang, status);
 
 -- ----------------------------------------------------------------------------
 -- Seed example: two tenants sharing the same engine

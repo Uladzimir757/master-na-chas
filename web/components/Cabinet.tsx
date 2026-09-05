@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
-import { t } from "@/lib/i18n";
+import { useLocale } from "@/lib/LocaleContext";
 import { Card, Centered } from "@/components/ui";
 import CabinetDashboard from "@/components/CabinetDashboard";
 
 type AuthState = "checking" | "anon" | "authed";
 
 export default function Cabinet() {
+  const { t, ready } = useLocale();
   const [authState, setAuthState] = useState<AuthState>("checking");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -43,7 +44,7 @@ export default function Cabinet() {
         setLoggingIn(false);
       }
     },
-    [email, password],
+    [email, password, t],
   );
 
   const handleLogout = useCallback(async () => {
@@ -52,6 +53,10 @@ export default function Cabinet() {
     await api.logout().catch(() => {});
     setAuthState("anon");
   }, []);
+
+  if (!ready) {
+    return <Centered>…</Centered>;
+  }
 
   if (authState === "checking") {
     return <Centered>{t.cabinetLoading}</Centered>;

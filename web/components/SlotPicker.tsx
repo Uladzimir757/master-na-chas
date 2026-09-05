@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError, type Booking, type Provider, type Service, type Slot } from "@/lib/api";
 import { addDays, dateKey, formatDayLabel, formatPriceRange, formatTime, toDateParam } from "@/lib/format";
-import { t } from "@/lib/i18n";
+import { useLocale } from "@/lib/LocaleContext";
 import { Card, Centered } from "@/components/ui";
 
 const DAYS_AHEAD = 14;
@@ -22,6 +22,8 @@ interface Props {
  * left in this file are inside event handlers (book-again, after a 409),
  * which is an ordinary setState call, not a synchronised effect. */
 export default function SlotPicker({ service, providers, showChangeService, onChangeService }: Props) {
+  const { locale, t } = useLocale();
+
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [slotsError, setSlotsError] = useState<string | null>(null);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
@@ -53,7 +55,7 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
     } catch {
       setSlotsError(t.slotsLoadError);
     }
-  }, [service.id]);
+  }, [service.id, t]);
 
   useEffect(() => {
     (async () => {
@@ -64,7 +66,7 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
   const providerName = useMemo(() => {
     const map = new Map(providers.map((p) => [p.id, p.name]));
     return (id: string) => map.get(id) ?? t.defaultMasterName;
-  }, [providers]);
+  }, [providers, t]);
 
   // null/0 = no separate line shown — see Provider.call_out_fee in
   // app/models.py. Per-provider (not per-service), so this only resolves
@@ -135,7 +137,7 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
           <p className="text-neutral-600">
             {service.name} · {providerName(booking.provider_id)}
             <br />
-            {formatDayLabel(booking.start_at)}, {formatTime(booking.start_at)}
+            {formatDayLabel(booking.start_at, locale, t)}, {formatTime(booking.start_at, locale)}
           </p>
           <p className="text-sm text-neutral-500">
             {booking.status === "pending" ? t.bookingPending : t.bookingConfirmed}
@@ -158,8 +160,8 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
       <h1 className="mb-1 text-xl font-semibold">{service.name}</h1>
       <p className="mb-4 text-sm text-neutral-500">
         {t.durationMinutes(service.duration_minutes)}
-        {formatPriceRange(service.price_min, service.price_max)
-          ? ` · ${formatPriceRange(service.price_min, service.price_max)}`
+        {formatPriceRange(service.price_min, service.price_max, t)
+          ? ` · ${formatPriceRange(service.price_min, service.price_max, t)}`
           : ""}
       </p>
 
@@ -182,7 +184,7 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
                 }`}
                 onClick={() => setSelectedDateKey(key)}
               >
-                {formatDayLabel(iso)}
+                {formatDayLabel(iso, locale, t)}
               </button>
             ))}
           </div>
@@ -198,7 +200,7 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
                 }`}
                 onClick={() => setSelectedSlot(s)}
               >
-                <div className="font-medium">{formatTime(s.start_at)}</div>
+                <div className="font-medium">{formatTime(s.start_at, locale)}</div>
                 <div className="truncate text-xs opacity-70">{providerName(s.provider_id)}</div>
               </button>
             ))}
@@ -214,7 +216,7 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
       {selectedSlot && (
         <div className="mt-5 border-t border-neutral-200 pt-4">
           <p className="mb-3 text-sm text-neutral-600">
-            {formatDayLabel(selectedSlot.start_at)}, {formatTime(selectedSlot.start_at)} ·{" "}
+            {formatDayLabel(selectedSlot.start_at, locale, t)}, {formatTime(selectedSlot.start_at, locale)} ·{" "}
             {providerName(selectedSlot.provider_id)}
             {providerCallOutFee(selectedSlot.provider_id) ? (
               <span className="text-neutral-500"> · {t.callOutFeeLine(providerCallOutFee(selectedSlot.provider_id)!)}</span>

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import enum
 import uuid
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint
@@ -90,6 +90,17 @@ class Service(Base):
     price_min: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     price_max: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     is_active: Mapped[bool] = mapped_column(default=True)
+    # Per-locale display name (Этап 3, docs/ai-and-reviews.md §1 — dedicated
+    # columns, not translation_entry: domain data, not a UI string, the same
+    # split Garage System uses for its own Service.display_name_pl/_en).
+    # `name` above stays the internal/canonical value (Russian today — what
+    # app/main.py's _notify_new_booking sends the two masters, who both read
+    # Russian); name_pl/name_ru/name_uk are what a *client* sees, resolved by
+    # requested lang with name_ru -> name as the fallback chain — see
+    # app/main.py's _resolve_service_name.
+    name_pl: Mapped[str | None] = mapped_column(String)
+    name_ru: Mapped[str | None] = mapped_column(String)
+    name_uk: Mapped[str | None] = mapped_column(String)
 
 
 class ProviderService(Base):
@@ -201,3 +212,36 @@ class WebPushSubscription(Base):
     endpoint: Mapped[str] = mapped_column(Text, unique=True)
     p256dh: Mapped[str] = mapped_column(String)
     auth: Mapped[str] = mapped_column(String)
+
+
+class TranslationEntry(Base):
+    """UI-string translations (Этап 3, docs/ai-and-reviews.md §1) —
+    deliberately NOT in-code dictionaries: that's the exact trap already hit
+    once on Garage System (~10k lines of `{% if lang %}` blocks scattered
+    through templates, documented as unmanageable there). Domain data
+    (service names) does NOT go through this table either — see
+    Service.name_pl/name_ru/name_uk; that split is intentional, not
+    half-measured (see the model above and _resolve_service_name in
+    app/main.py).
+
+    Only status='approved' rows are ever served to a visitor — via
+    app/translations.py's in-memory TranslationCache, populated at app
+    startup and refreshed ONLY by POST /admin/translations/approve. A plain
+    PUT /admin/translations upsert deliberately does not touch the cache —
+    mirrors Garage System's own documented /approve-not-/update discipline
+    (their /update saves to DB but forgets to call refresh(), so an edit
+    looks live to whoever made it but isn't, for anyone else, until someone
+    remembers to hit /approve separately). Editing a draft must never be
+    observable to a real visitor before an explicit approve."""
+
+    __tablename__ = "translation_entry"
+
+    id: Mapped[uuid.UUID] = _uuid_col(primary_key=True)
+    namespace: Mapped[str] = mapped_column(String)
+    key: Mapped[str] = mapped_column(String)
+    lang: Mapped[str] = mapped_column(String)
+    text: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String, default="draft")
+    updated_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (UniqueConstraint("namespace", "key", "lang"),)

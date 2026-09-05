@@ -138,12 +138,17 @@ export interface ServiceToggle {
 }
 
 export const api = {
-  listServices: () => request<Service[]>("/api/services"),
+  // lang (Этап 3) resolves Service.name server-side — see app/main.py's
+  // _resolve_service_name. Not needed by getAvailability: slot times carry
+  // no translatable text.
+  listServices: (lang: string) => request<Service[]>(`/api/services?lang=${encodeURIComponent(lang)}`),
   listProviders: () => request<Provider[]>("/api/providers"),
   getAvailability: (params: { service_id: string; date_from: string; date_to: string }) =>
     request<Slot[]>(`/api/availability?${new URLSearchParams(params).toString()}`),
   createBooking: (payload: BookingCreate) =>
     request<Booking>("/api/bookings", { method: "POST", body: JSON.stringify(payload) }),
+  // Этап 3 — approved UI strings for one lang, see lib/LocaleContext.tsx.
+  getTranslations: (lang: string) => request<Record<string, string>>(`/api/translations?lang=${encodeURIComponent(lang)}`),
 
   // Личный кабинет мастера — every call below relies on the session cookie
   // set by login(); the API resolves "which provider" from that cookie, not
@@ -157,11 +162,11 @@ export const api = {
   getMySettings: () => request<ProviderSettings>("/api/providers/me"),
   updateMySettings: (payload: UpdateProviderSettingsPayload) =>
     request<ProviderSettings>("/api/providers/me/settings", { method: "PATCH", body: JSON.stringify(payload) }),
-  getMyServices: () => request<ServiceToggle[]>("/api/providers/me/services"),
+  getMyServices: (lang: string) => request<ServiceToggle[]>(`/api/providers/me/services?lang=${encodeURIComponent(lang)}`),
   // Replace semantics, matching the backend: pass the FULL set of service
   // ids this provider now offers, not a delta.
-  updateMyServices: (serviceIds: string[]) =>
-    request<ServiceToggle[]>("/api/providers/me/services", {
+  updateMyServices: (serviceIds: string[], lang: string) =>
+    request<ServiceToggle[]>(`/api/providers/me/services?lang=${encodeURIComponent(lang)}`, {
       method: "PUT",
       body: JSON.stringify({ service_ids: serviceIds }),
     }),

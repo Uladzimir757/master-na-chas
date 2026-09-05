@@ -1,80 +1,154 @@
 /**
- * Every user-facing string and the display locale live here — nowhere else.
- * Right now this only holds Russian, and that's fine for the current dev
- * stage; the point is that it's the ONE place that knows that. The real
- * pl/ru/uk system (planned for Этап 3 — a translation cache, deliberately
- * not in-code dictionaries, see docs/ai-and-reviews.md / decisions.md) swaps
- * in here without touching a single component: replace `t`/`LOCALE` below
- * with a hook that reads the visitor's language, keep the same keys.
+ * Every user-facing string is now served by the backend's translation_entry
+ * table (Этап 3, docs/ai-and-reviews.md §1) — this file is just the shape
+ * `t` has, and how a raw {key: text} map (from GET /api/translations, see
+ * lib/LocaleContext.tsx) turns into that shape. No hardcoded copy lives
+ * here any more; the pl/ru/ru seed data lives in
+ * scripts/seed_translations.py in the backend repo.
+ *
+ * A key missing from the fetched map (a lang whose translation hasn't been
+ * filled in, or a genuinely new key not seeded yet) falls back to the key
+ * name itself — visibly wrong rather than a crash, so a gap is easy to spot
+ * without taking the page down.
  */
 
-export const LOCALE = "ru-RU";
+export type TranslationMap = Record<string, string>;
 
-export const t = {
-  loading: "Загрузка…",
-  catalogLoadError: "Не удалось загрузить услуги. Проверьте связь и обновите страницу.",
-  pickServiceTitle: "Выберите услугу",
-  changeService: "← сменить услугу",
-  durationMinutes: (n: number) => `${n} мин`,
-  slotsLoading: "Загрузка слотов…",
-  slotsLoadError: "Не удалось загрузить свободные слоты.",
-  noSlotsInRange: (days: number) => `На ближайшие ${days} дней свободных слотов нет.`,
-  namePlaceholder: "Ваше имя",
-  phonePlaceholder: "Телефон (для SMS о записи)",
-  submitBooking: "Подтвердить запись",
-  submitting: "Отправка…",
-  slotTakenError: "Это время только что заняли. Выберите другой слот.",
-  genericSubmitError: "Не удалось создать запись. Попробуйте ещё раз.",
-  bookingCreatedTitle: "Запись создана",
-  bookingPending: "Мастер подтвердит запись в ближайшее время.",
-  bookingConfirmed: "Запись подтверждена.",
-  bookAgain: "Записаться ещё раз",
-  today: "Сегодня",
-  tomorrow: "Завтра",
-  priceFrom: (v: number) => `от ${v} zł`,
-  priceRange: (min: number, max: number) => `${min}–${max} zł`,
-  callOutFeeLine: (fee: number) => `+ выезд ${fee} zł`,
-  pageTitle: "Мастер на час — запись",
-  pageDescription: "Онлайн-запись на услуги мастера — слоты в реальном времени",
-  htmlLang: "ru",
-  defaultMasterName: "мастер",
+function interpolate(template: string, params: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (match, name) => {
+    const value = params[name];
+    return value === undefined ? match : String(value);
+  });
+}
 
-  // Личный кабинет мастера (/cabinet)
-  cabinetLink: "Кабинет мастера",
-  cabinetLoading: "Загрузка кабинета…",
-  cabinetLoginTitle: "Вход для мастера",
-  emailPlaceholder: "Email",
-  passwordPlaceholder: "Пароль",
-  loginButton: "Войти",
-  loggingIn: "Вход…",
-  loginError: "Неверный email или пароль.",
-  loginGenericError: "Не удалось войти. Проверьте связь и попробуйте ещё раз.",
-  logoutButton: "Выйти",
-  backToBooking: "← на страницу записи",
-  cabinetTitle: (providerName: string) => `Кабинет — ${providerName}`,
-  cabinetLoadError: "Не удалось загрузить данные кабинета. Обновите страницу.",
-  settingsTitle: "Настройки",
-  requiresConfirmationLabel: "Подтверждать брони вручную",
-  requiresConfirmationHint:
-    "Включено — новая запись сначала ждёт вашего подтверждения. Выключено — подтверждается сразу при создании.",
-  settingsSaveError: "Не удалось сохранить настройку. Попробуйте ещё раз.",
-  callOutFeeLabel: "Плата за выезд (zł)",
-  callOutFeeHint: "Отдельная строка поверх цены услуги на странице записи. Оставьте пустым, если не берёте отдельно.",
-  callOutFeePlaceholder: "Не задано",
-  servicesOfferedTitle: "Мои услуги",
-  servicesOfferedHint: "Отметьте, какие услуги вы оказываете — они появятся у клиентов на странице записи.",
-  noActiveServices: "В каталоге пока нет активных услуг.",
-  servicesSaveError: "Не удалось сохранить список услуг. Попробуйте ещё раз.",
-  bookingsTitle: "Брони",
-  noBookings: "Броней пока нет.",
-  bookingStatusLabel: {
-    pending: "Ждёт подтверждения",
-    confirmed: "Подтверждено",
-    completed: "Завершено",
-    cancelled: "Отменено",
-    no_show: "Клиент не пришёл",
-  } as Record<string, string>,
-  confirmBookingButton: "Подтвердить",
-  cancelBookingButton: "Отменить",
-  bookingActionError: "Не удалось изменить статус брони. Попробуйте ещё раз.",
-};
+function pick(map: TranslationMap, key: string): string {
+  return map[key] ?? key;
+}
+
+export interface Translations {
+  loading: string;
+  catalogLoadError: string;
+  pickServiceTitle: string;
+  changeService: string;
+  durationMinutes: (n: number) => string;
+  slotsLoading: string;
+  slotsLoadError: string;
+  noSlotsInRange: (days: number) => string;
+  namePlaceholder: string;
+  phonePlaceholder: string;
+  submitBooking: string;
+  submitting: string;
+  slotTakenError: string;
+  genericSubmitError: string;
+  bookingCreatedTitle: string;
+  bookingPending: string;
+  bookingConfirmed: string;
+  bookAgain: string;
+  today: string;
+  tomorrow: string;
+  priceFrom: (v: number) => string;
+  priceRange: (min: number, max: number) => string;
+  callOutFeeLine: (fee: number) => string;
+  pageTitle: string;
+  pageDescription: string;
+  defaultMasterName: string;
+
+  cabinetLink: string;
+  cabinetLoading: string;
+  cabinetLoginTitle: string;
+  emailPlaceholder: string;
+  passwordPlaceholder: string;
+  loginButton: string;
+  loggingIn: string;
+  loginError: string;
+  loginGenericError: string;
+  logoutButton: string;
+  backToBooking: string;
+  cabinetTitle: (providerName: string) => string;
+  cabinetLoadError: string;
+  settingsTitle: string;
+  requiresConfirmationLabel: string;
+  requiresConfirmationHint: string;
+  settingsSaveError: string;
+  callOutFeeLabel: string;
+  callOutFeeHint: string;
+  callOutFeePlaceholder: string;
+  servicesOfferedTitle: string;
+  servicesOfferedHint: string;
+  noActiveServices: string;
+  servicesSaveError: string;
+  bookingsTitle: string;
+  noBookings: string;
+  bookingStatusLabel: Record<string, string>;
+  confirmBookingButton: string;
+  cancelBookingButton: string;
+  bookingActionError: string;
+}
+
+export function buildTranslations(map: TranslationMap): Translations {
+  return {
+    loading: pick(map, "loading"),
+    catalogLoadError: pick(map, "catalogLoadError"),
+    pickServiceTitle: pick(map, "pickServiceTitle"),
+    changeService: pick(map, "changeService"),
+    durationMinutes: (n) => interpolate(pick(map, "durationMinutes"), { n }),
+    slotsLoading: pick(map, "slotsLoading"),
+    slotsLoadError: pick(map, "slotsLoadError"),
+    noSlotsInRange: (days) => interpolate(pick(map, "noSlotsInRange"), { days }),
+    namePlaceholder: pick(map, "namePlaceholder"),
+    phonePlaceholder: pick(map, "phonePlaceholder"),
+    submitBooking: pick(map, "submitBooking"),
+    submitting: pick(map, "submitting"),
+    slotTakenError: pick(map, "slotTakenError"),
+    genericSubmitError: pick(map, "genericSubmitError"),
+    bookingCreatedTitle: pick(map, "bookingCreatedTitle"),
+    bookingPending: pick(map, "bookingPending"),
+    bookingConfirmed: pick(map, "bookingConfirmed"),
+    bookAgain: pick(map, "bookAgain"),
+    today: pick(map, "today"),
+    tomorrow: pick(map, "tomorrow"),
+    priceFrom: (v) => interpolate(pick(map, "priceFrom"), { v }),
+    priceRange: (min, max) => interpolate(pick(map, "priceRange"), { min, max }),
+    callOutFeeLine: (fee) => interpolate(pick(map, "callOutFeeLine"), { fee }),
+    pageTitle: pick(map, "pageTitle"),
+    pageDescription: pick(map, "pageDescription"),
+    defaultMasterName: pick(map, "defaultMasterName"),
+
+    cabinetLink: pick(map, "cabinetLink"),
+    cabinetLoading: pick(map, "cabinetLoading"),
+    cabinetLoginTitle: pick(map, "cabinetLoginTitle"),
+    emailPlaceholder: pick(map, "emailPlaceholder"),
+    passwordPlaceholder: pick(map, "passwordPlaceholder"),
+    loginButton: pick(map, "loginButton"),
+    loggingIn: pick(map, "loggingIn"),
+    loginError: pick(map, "loginError"),
+    loginGenericError: pick(map, "loginGenericError"),
+    logoutButton: pick(map, "logoutButton"),
+    backToBooking: pick(map, "backToBooking"),
+    cabinetTitle: (providerName) => interpolate(pick(map, "cabinetTitle"), { name: providerName }),
+    cabinetLoadError: pick(map, "cabinetLoadError"),
+    settingsTitle: pick(map, "settingsTitle"),
+    requiresConfirmationLabel: pick(map, "requiresConfirmationLabel"),
+    requiresConfirmationHint: pick(map, "requiresConfirmationHint"),
+    settingsSaveError: pick(map, "settingsSaveError"),
+    callOutFeeLabel: pick(map, "callOutFeeLabel"),
+    callOutFeeHint: pick(map, "callOutFeeHint"),
+    callOutFeePlaceholder: pick(map, "callOutFeePlaceholder"),
+    servicesOfferedTitle: pick(map, "servicesOfferedTitle"),
+    servicesOfferedHint: pick(map, "servicesOfferedHint"),
+    noActiveServices: pick(map, "noActiveServices"),
+    servicesSaveError: pick(map, "servicesSaveError"),
+    bookingsTitle: pick(map, "bookingsTitle"),
+    noBookings: pick(map, "noBookings"),
+    bookingStatusLabel: {
+      pending: pick(map, "bookingStatus.pending"),
+      confirmed: pick(map, "bookingStatus.confirmed"),
+      completed: pick(map, "bookingStatus.completed"),
+      cancelled: pick(map, "bookingStatus.cancelled"),
+      no_show: pick(map, "bookingStatus.no_show"),
+    },
+    confirmBookingButton: pick(map, "confirmBookingButton"),
+    cancelBookingButton: pick(map, "cancelBookingButton"),
+    bookingActionError: pick(map, "bookingActionError"),
+  };
+}

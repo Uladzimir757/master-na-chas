@@ -1,7 +1,6 @@
-import { expect, test } from "@playwright/test";
 import { formatTime } from "../lib/format";
-import { t } from "../lib/i18n";
-import { bookingResponse, mockAvailability, mockCatalog, mockCreateBooking, SLOT_A, SLOT_B } from "./mocks";
+import { expect, test } from "./fixtures";
+import { bookingResponse, mockAvailability, mockCatalog, mockCreateBooking, SLOT_A, SLOT_B, t } from "./mocks";
 
 test("a 409 on submit surfaces the taken-slot message and lets the visitor pick another slot", async ({ page }) => {
   await mockCatalog(page);
@@ -14,8 +13,8 @@ test("a 409 on submit surfaces the taken-slot message and lets the visitor pick 
 
   await page.goto("/");
 
-  const labelA = formatTime(SLOT_A.start_at);
-  const labelB = formatTime(SLOT_B.start_at);
+  const labelA = formatTime(SLOT_A.start_at, "pl");
+  const labelB = formatTime(SLOT_B.start_at, "pl");
 
   await page.getByRole("button", { name: new RegExp(labelA) }).click();
   await page.getByPlaceholder(t.namePlaceholder).fill("Иван");

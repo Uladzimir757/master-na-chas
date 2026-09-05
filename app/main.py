@@ -9,11 +9,15 @@ Routes:
   PATCH /api/providers/me/settings            (logged-in master only)
   GET   /api/providers/me/services            (logged-in master only)
   PUT   /api/providers/me/services            (logged-in master only)
+  GET   /api/translations                     (public — approved UI strings for a lang)
   POST  /auth/login
   POST  /auth/logout
   GET   /auth/me
   POST  /admin/masters                       (ADMIN_SECRET header required)
   POST  /admin/masters/{id}/telegram-link     (ADMIN_SECRET header required)
+  GET   /admin/translations                  (ADMIN_SECRET header required)
+  PUT   /admin/translations                  (ADMIN_SECRET header required — upsert, does NOT go live)
+  POST  /admin/translations/approve          (ADMIN_SECRET header required — the only thing that does)
   POST  /telegram/webhook                     (called by Telegram, not by us)
   POST  /push/subscribe                       (logged-in master only)
 """
@@ -23,6 +27,7 @@ from __future__ import annotations
 import logging
 import secrets
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
@@ -35,7 +40,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
-from app.db import get_db
+from app.db import async_session_factory, get_db
 from app.models import (
     Booking,
     BookingStatus,
@@ -44,6 +49,7 @@ from app.models import (
     ProviderService,
     Service,
     TelegramLinkToken,
+    TranslationEntry,
     WebPushSubscription,
 )
 from app.notifications import send_sms, send_telegram_message, send_web_push
@@ -61,9 +67,13 @@ from app.schemas import (
     ServiceOut,
     ServiceToggleOut,
     TelegramLinkOut,
+    TranslationApproveRequest,
+    TranslationEntryOut,
+    TranslationUpsert,
 )
 from app.security import hash_password, require_master_user_id, verify_password
 from app.slot_engine import SlotOut, get_availability, provider_offers_service
+from app.translations import DEFAULT_LANG, SUPPORTED_LANGS, refresh_translation_cache, translation_cache
 
 # Without this, the root logger has no handler at all: Python's implicit
 # "handler of last resort" only prints WARNING+ to stderr, so anything logged
@@ -91,7 +101,20 @@ def _client_ip(request: Request) -> str:
 
 limiter = Limiter(key_func=_client_ip)
 
-app = FastAPI(title="Мастер на час — API")
+
+@asynccontextmanager
+async def _lifespan(_: FastAPI):
+    # Primes the translation cache (Этап 3) so the very first request after
+    # a deploy/restart doesn't serve blank UI strings until someone happens
+    # to hit /admin/translations/approve. Not relied on by the test suite —
+    # each test seeds/approves what it needs explicitly, see
+    # tests/test_translations.py — only by the real deployed process.
+    async with async_session_factory() as session:
+        await refresh_translation_cache(session)
+    yield
+
+
+app = FastAPI(title="Мастер на час — API", lifespan=_lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(
@@ -127,16 +150,50 @@ def require_admin(x_admin_secret: str = Header(default="")) -> None:
 # ============================================================================
 
 
+def _resolve_lang(lang: str) -> str:
+    """Falls back silently rather than 400ing — a display concern, not a hard
+    validation boundary (same "typo-safe" call as update_my_services below)."""
+    return lang if lang in SUPPORTED_LANGS else DEFAULT_LANG
+
+
+def _resolve_service_name(service: Service, lang: str) -> str:
+    """requested lang -> ru (today's most complete/original language) -> the
+    internal canonical `name` field. See Service.name_pl/_ru/_uk docstring
+    in app/models.py."""
+    per_lang = {"pl": service.name_pl, "ru": service.name_ru, "uk": service.name_uk}
+    return per_lang.get(lang) or service.name_ru or service.name
+
+
 @app.get("/api/services", response_model=list[ServiceOut])
-async def list_services(db: AsyncSession = Depends(get_db)) -> list[Service]:
+async def list_services(lang: str = Query(default=DEFAULT_LANG), db: AsyncSession = Depends(get_db)) -> list[ServiceOut]:
+    lang = _resolve_lang(lang)
     stmt = select(Service).where(Service.is_active.is_(True)).order_by(Service.name)
-    return (await db.execute(stmt)).scalars().all()
+    services = (await db.execute(stmt)).scalars().all()
+    return [
+        ServiceOut(
+            id=s.id,
+            name=_resolve_service_name(s, lang),
+            duration_minutes=s.duration_minutes,
+            price_min=s.price_min,
+            price_max=s.price_max,
+        )
+        for s in services
+    ]
 
 
 @app.get("/api/providers", response_model=list[ProviderOut])
 async def list_providers(db: AsyncSession = Depends(get_db)) -> list[Provider]:
     stmt = select(Provider).where(Provider.is_active.is_(True)).order_by(Provider.name)
     return (await db.execute(stmt)).scalars().all()
+
+
+@app.get("/api/translations")
+async def get_translations(
+    lang: str = Query(default=DEFAULT_LANG), namespace: str = Query(default="ui")
+) -> dict[str, str]:
+    """Approved UI strings for one lang, straight from the in-memory cache —
+    see app/translations.py. Never touches the DB on the request path."""
+    return translation_cache.get_all(namespace, _resolve_lang(lang))
 
 
 # ============================================================================
@@ -383,6 +440,7 @@ async def update_my_provider_settings(
 
 @app.get("/api/providers/me/services", response_model=list[ServiceToggleOut])
 async def get_my_services(
+    lang: str = Query(default=DEFAULT_LANG),
     master_user_id: str = Depends(require_master_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> list[ServiceToggleOut]:
@@ -390,6 +448,7 @@ async def get_my_services(
     currently offers it — the source for the cabinet's checklist. Services
     the tenant has fully retired (Service.is_active=False) don't appear at
     all; that's an admin-only decision, not something a master toggles."""
+    lang = _resolve_lang(lang)
     provider = await _get_own_provider(master_user_id, db)
 
     services = (
@@ -412,7 +471,7 @@ async def get_my_services(
     return [
         ServiceToggleOut(
             service_id=s.id,
-            name=s.name,
+            name=_resolve_service_name(s, lang),
             duration_minutes=s.duration_minutes,
             price_min=s.price_min,
             price_max=s.price_max,
@@ -425,6 +484,7 @@ async def get_my_services(
 @app.put("/api/providers/me/services", response_model=list[ServiceToggleOut])
 async def update_my_services(
     payload: ProviderServicesUpdate,
+    lang: str = Query(default=DEFAULT_LANG),
     master_user_id: str = Depends(require_master_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> list[ServiceToggleOut]:
@@ -465,7 +525,7 @@ async def update_my_services(
             link.is_active = False
 
     await db.commit()
-    return await get_my_services(master_user_id=master_user_id, db=db)
+    return await get_my_services(lang=lang, master_user_id=master_user_id, db=db)
 
 
 # ============================================================================
@@ -525,6 +585,103 @@ async def create_telegram_link(master_user_id: uuid.UUID, db: AsyncSession = Dep
 
     bot_username = settings.TELEGRAM_BOT_USERNAME or "<bot_username>"
     return TelegramLinkOut(deep_link=f"https://t.me/{bot_username}?start={token}", token=token)
+
+
+# ============================================================================
+# Translations admin (Этап 3, docs/ai-and-reviews.md §1) — draft/approve
+# split. PUT upserts a row but never touches the live cache; only
+# POST .../approve does. See app/translations.py's module docstring for why
+# that split exists — it's the Garage System /update-forgets-to-refresh trap,
+# made structurally impossible here instead of relied on to remember.
+# ============================================================================
+
+
+@app.get(
+    "/admin/translations",
+    response_model=list[TranslationEntryOut],
+    dependencies=[Depends(require_admin)],
+)
+async def list_translations(
+    namespace: str | None = Query(default=None),
+    lang: str | None = Query(default=None),
+    status_filter: str | None = Query(default=None, alias="status"),
+    db: AsyncSession = Depends(get_db),
+) -> list[TranslationEntry]:
+    stmt = select(TranslationEntry)
+    if namespace is not None:
+        stmt = stmt.where(TranslationEntry.namespace == namespace)
+    if lang is not None:
+        stmt = stmt.where(TranslationEntry.lang == lang)
+    if status_filter is not None:
+        stmt = stmt.where(TranslationEntry.status == status_filter)
+    stmt = stmt.order_by(TranslationEntry.namespace, TranslationEntry.key, TranslationEntry.lang)
+    return (await db.execute(stmt)).scalars().all()
+
+
+@app.put(
+    "/admin/translations",
+    response_model=TranslationEntryOut,
+    dependencies=[Depends(require_admin)],
+)
+async def upsert_translation(payload: TranslationUpsert, db: AsyncSession = Depends(get_db)) -> TranslationEntry:
+    """Deliberately does NOT touch translation_cache — see app/translations.py.
+    A draft/reviewed edit here is invisible to real visitors until a separate
+    POST /admin/translations/approve names this exact (namespace, key, lang)."""
+    existing = (
+        await db.execute(
+            select(TranslationEntry).where(
+                TranslationEntry.namespace == payload.namespace,
+                TranslationEntry.key == payload.key,
+                TranslationEntry.lang == payload.lang,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is None:
+        existing = TranslationEntry(
+            id=uuid.uuid4(), namespace=payload.namespace, key=payload.key, lang=payload.lang
+        )
+        db.add(existing)
+    existing.text = payload.text
+    existing.status = payload.status
+    existing.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(existing)
+    return existing
+
+
+@app.post(
+    "/admin/translations/approve",
+    response_model=list[TranslationEntryOut],
+    dependencies=[Depends(require_admin)],
+)
+async def approve_translations(
+    payload: TranslationApproveRequest, db: AsyncSession = Depends(get_db)
+) -> list[TranslationEntry]:
+    """The only thing that ever refreshes the live cache — see
+    app/translations.py. Explicit list of (namespace, key, lang), not
+    "approve everything draft": a batch call can't accidentally publish
+    something nobody actually reviewed."""
+    approved: list[TranslationEntry] = []
+    for ref in payload.entries:
+        entry = (
+            await db.execute(
+                select(TranslationEntry).where(
+                    TranslationEntry.namespace == ref.namespace,
+                    TranslationEntry.key == ref.key,
+                    TranslationEntry.lang == ref.lang,
+                )
+            )
+        ).scalar_one_or_none()
+        if entry is None:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, f"No such entry: {ref.namespace}/{ref.key}/{ref.lang}"
+            )
+        entry.status = "approved"
+        entry.updated_at = datetime.now(timezone.utc)
+        approved.append(entry)
+    await db.commit()
+    await refresh_translation_cache(db)
+    return approved
 
 
 # ============================================================================

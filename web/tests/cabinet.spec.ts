@@ -1,5 +1,4 @@
-import { expect, test } from "@playwright/test";
-import { t } from "../lib/i18n";
+import { expect, test } from "./fixtures";
 import {
   cabinetBooking,
   mockAuthMe,
@@ -12,6 +11,7 @@ import {
   PROVIDER,
   SERVICE,
   serviceToggle,
+  t,
 } from "./mocks";
 
 // Личный кабинет мастера (/cabinet). Every test mocks /auth/me itself first

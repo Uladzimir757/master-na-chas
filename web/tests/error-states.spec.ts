@@ -1,6 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { t } from "../lib/i18n";
-import { mockAvailability, mockCatalog, SERVICE } from "./mocks";
+import { expect, test } from "./fixtures";
+import { mockAvailability, mockCatalog, SERVICE, t } from "./mocks";
 
 test("catalog load failure shows a message, not a blank page", async ({ page }) => {
   await mockCatalog(page, { servicesStatus: 500 });

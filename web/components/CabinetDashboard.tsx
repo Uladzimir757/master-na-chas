@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type Booking, type BookingStatus, type ProviderSettings, type ServiceToggle } from "@/lib/api";
 import { formatDayLabel, formatTime } from "@/lib/format";
-import { t } from "@/lib/i18n";
+import { useLocale } from "@/lib/LocaleContext";
 import { Card, Centered } from "@/components/ui";
 
 export default function CabinetDashboard({ onLogout }: { onLogout: () => void }) {
+  const { locale, t, ready } = useLocale();
+
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [settings, setSettings] = useState<ProviderSettings | null>(null);
@@ -34,7 +36,7 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
   // ever asks for a specific provider_id (see app/main.py's _get_own_provider).
   const loadAll = useCallback(async () => {
     try {
-      const [s, b, svc] = await Promise.all([api.getMySettings(), api.listMyBookings(), api.getMyServices()]);
+      const [s, b, svc] = await Promise.all([api.getMySettings(), api.listMyBookings(), api.getMyServices(locale)]);
       setSettings(s);
       setBookings(b);
       setServiceToggles(svc);
@@ -42,13 +44,18 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
     } catch {
       setLoadError(t.cabinetLoadError);
     }
-  }, []);
+    // t is derived from `locale` and would otherwise re-run this on every
+    // translation-object identity change; `locale` alone covers the real
+    // trigger (service names are resolved server-side per lang).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locale]);
 
   useEffect(() => {
+    if (!ready) return;
     (async () => {
       await loadAll();
     })();
-  }, [loadAll]);
+  }, [loadAll, ready]);
 
   const handleToggleConfirmation = useCallback(async () => {
     if (!settings) return;
@@ -65,7 +72,7 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
     } finally {
       setSavingSettings(false);
     }
-  }, [settings]);
+  }, [settings, t]);
 
   // Uncontrolled input (key={settings.call_out_fee} below forces a remount
   // whenever the saved value actually changes, e.g. after a save) — same
@@ -91,7 +98,7 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
     } finally {
       setSavingSettings(false);
     }
-  }, [settings]);
+  }, [settings, t]);
 
   const handleToggleService = useCallback(
     async (serviceId: string) => {
@@ -104,7 +111,7 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
         nextOffered.add(serviceId);
       }
       try {
-        const updated = await api.updateMyServices([...nextOffered]);
+        const updated = await api.updateMyServices([...nextOffered], locale);
         setServiceToggles(updated);
       } catch {
         setServicesError(t.servicesSaveError);
@@ -112,7 +119,7 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
         setSavingServices(false);
       }
     },
-    [serviceToggles],
+    [serviceToggles, locale, t],
   );
 
   const handleStatusChange = useCallback(async (bookingId: string, status: BookingStatus) => {
@@ -126,7 +133,11 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
     } finally {
       setActioningId(null);
     }
-  }, []);
+  }, [t]);
+
+  if (!ready) {
+    return <Centered>…</Centered>;
+  }
 
   if (loadError) {
     return <Centered>{loadError}</Centered>;
@@ -228,7 +239,7 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
                   <div>
                     <div className="font-medium">{serviceName(b.service_id)}</div>
                     <div className="text-sm text-neutral-500">
-                      {formatDayLabel(b.start_at)}, {formatTime(b.start_at)}
+                      {formatDayLabel(b.start_at, locale, t)}, {formatTime(b.start_at, locale)}
                     </div>
                     <div className="text-sm text-neutral-500">
                       {b.client_name}

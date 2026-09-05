@@ -1,7 +1,6 @@
-import { expect, test } from "@playwright/test";
 import { formatTime } from "../lib/format";
-import { t } from "../lib/i18n";
-import { bookingResponse, mockAvailability, mockCatalog, mockCreateBooking, SERVICE, SLOT_A } from "./mocks";
+import { expect, test } from "./fixtures";
+import { bookingResponse, mockAvailability, mockCatalog, mockCreateBooking, SERVICE, SLOT_A, t } from "./mocks";
 
 // The exact manual path from the Neon smoke test this project ran earlier:
 // load the service -> pick a slot -> fill name/phone -> submit -> success
@@ -18,7 +17,7 @@ for (const status of ["pending", "confirmed"] as const) {
     // service" screen to click through first
     await expect(page.getByRole("heading", { name: SERVICE.name })).toBeVisible();
 
-    const slotLabel = formatTime(SLOT_A.start_at);
+    const slotLabel = formatTime(SLOT_A.start_at, "pl");
     await page.getByRole("button", { name: new RegExp(slotLabel) }).click();
 
     await page.getByPlaceholder(t.namePlaceholder).fill("Иван");
