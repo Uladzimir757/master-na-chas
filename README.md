@@ -47,9 +47,20 @@ docs/
   decisions.md      — архитектурные решения (почему отдельный проект и т.д.)
   mvp-task.md       — техзадание Этапа 1
   ai-and-reviews.md — техзадание Этапа 3 (AI, мультиязычность, отзывы)
+tests/
+  README.md         — как поднять тестовый Postgres и прогнать pytest
+web/
+  tests/            — Playwright E2E (npm test в web/)
 requirements.txt
+requirements-dev.txt — + pytest/pytest-asyncio, для tests/
 .env.example        — скопировать в .env и заполнить
 ```
+
+## Тесты
+
+Бэкенд (`pytest tests/`, нужен реальный Postgres — см. `tests/README.md`) и
+фронтенд (`npm test` в `web/`, Playwright) гоняются в CI —
+`.github/workflows/tests.yml`.
 
 ## Стек
 

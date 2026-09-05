@@ -49,6 +49,24 @@ npm run build
 `CORS_ALLOWED_ORIGINS` на бэкенде (Render → Environment), иначе браузер
 будет блокировать запросы к API по CORS.
 
+## Тесты
+
+Playwright, `web/tests/` — полный happy path бронирования (обе ветки
+`pending`/`confirmed`), ошибки загрузки каталога/слотов (500 от API — должно
+показываться сообщение, а не белый экран), конфликт слота (409 при
+отправке — сообщение + форма остаётся рабочей), и регрессионный тест на
+build-guard в `lib/api.ts` (сборка с `NODE_ENV=production` без
+`NEXT_PUBLIC_API_URL` обязана падать). Сеть не трогают — весь бэкенд
+замокан через `page.route()`.
+
+```bash
+npx playwright install chromium   # один раз
+npm test
+```
+
+`npm test` сам собирает `out/` и поднимает статику (`playwright.config.ts`),
+отдельный запущенный `npm run dev`/бэкенд не нужен.
+
 ## Личный кабинет мастера
 
 Ещё не реализован во фронтенде. Бэкенд уже готов:

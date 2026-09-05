@@ -1,0 +1,6 @@
+# Test-only dependencies — not needed to run the app itself, only its test
+# suite (pytest tests/, see tests/README.md for what TEST_DATABASE_URL needs
+# to point at and why a real Postgres is required, not sqlite/mocks).
+-r requirements.txt
+pytest
+pytest-asyncio

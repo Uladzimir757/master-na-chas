@@ -198,6 +198,11 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
         </>
       )}
 
+      {/* Not nested inside `selectedSlot &&` below: the 409 handler in
+          submitBooking() clears selectedSlot in the same breath it sets this,
+          so the message would never actually render if it were. */}
+      {submitError && <p className="mt-3 text-sm text-red-600">{submitError}</p>}
+
       {selectedSlot && (
         <div className="mt-5 border-t border-neutral-200 pt-4">
           <p className="mb-3 text-sm text-neutral-600">
@@ -218,7 +223,6 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
               value={clientPhone}
               onChange={(e) => setClientPhone(e.target.value)}
             />
-            {submitError && <p className="text-sm text-red-600">{submitError}</p>}
             <button
               disabled={clientName.trim().length === 0 || submitting}
               className="mt-1 rounded-lg bg-neutral-900 px-5 py-2.5 text-white disabled:opacity-40"
