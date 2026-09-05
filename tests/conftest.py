@@ -38,7 +38,8 @@ from sqlalchemy.pool import NullPool
 from app.config import settings
 from app.db import get_db
 from app.main import app, limiter
-from app.models import Provider, ProviderService, Service, Tenant, WorkingHours
+from app.models import MasterUser, Provider, ProviderService, Service, Tenant, WorkingHours
+from app.security import hash_password
 
 SCHEMA_SQL_PATH = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
 
@@ -165,6 +166,33 @@ async def provider(db_session: AsyncSession, tenant: Tenant) -> Provider:
     db_session.add(row)
     await db_session.commit()
     return row
+
+
+MASTER_PASSWORD = "correct-horse-battery-staple"
+
+
+@pytest_asyncio.fixture
+async def master_user(db_session: AsyncSession, provider: Provider) -> MasterUser:
+    """The login for `provider` (shared by tests/test_auth.py and anything
+    else that needs a real, authenticatable master rather than just a bare
+    Provider row)."""
+    row = MasterUser(
+        id=uuid.uuid4(), provider_id=provider.id, email="master@example.com", password_hash=hash_password(MASTER_PASSWORD)
+    )
+    db_session.add(row)
+    await db_session.commit()
+    return row
+
+
+@pytest_asyncio.fixture
+async def logged_in_client(client: AsyncClient, master_user: MasterUser) -> AsyncClient:
+    """`client`, already logged in as `master_user` (i.e. as `provider`).
+    Request this instead of bare `client` in any test that hits a
+    require_master_user_id-gated endpoint and isn't itself testing the login
+    step (tests/test_auth.py covers login/logout/me directly)."""
+    resp = await client.post("/auth/login", json={"email": master_user.email, "password": MASTER_PASSWORD})
+    assert resp.status_code == 200, resp.text
+    return client
 
 
 @pytest_asyncio.fixture

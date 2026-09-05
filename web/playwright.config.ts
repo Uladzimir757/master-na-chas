@@ -19,7 +19,11 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    command: `npm run build && npx serve out -l ${PORT} -s`,
+    // No `-s`/`--single`: that flag rewrites every request to the root
+    // index.html (SPA fallback), which is wrong here — this is a genuine
+    // multi-page static export (/, /cabinet/), and each route must be
+    // served its own file so tests actually exercise the right page.
+    command: `npm run build && npx serve out -l ${PORT}`,
     url: `http://127.0.0.1:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,

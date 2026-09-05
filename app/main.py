@@ -3,8 +3,10 @@
 Routes:
   GET   /api/availability
   POST  /api/bookings
-  GET   /api/bookings
-  PATCH /api/bookings/{id}/status
+  GET   /api/bookings                        (logged-in master only — own bookings)
+  PATCH /api/bookings/{id}/status             (logged-in master only — own bookings)
+  GET   /api/providers/me                     (logged-in master only)
+  PATCH /api/providers/me/settings            (logged-in master only)
   POST  /auth/login
   POST  /auth/logout
   GET   /auth/me
@@ -87,7 +89,12 @@ limiter = Limiter(key_func=_client_ip)
 app = FastAPI(title="Мастер на час — API")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-app.add_middleware(SessionMiddleware, secret_key=settings.SESSION_SECRET)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.SESSION_SECRET,
+    same_site=settings.SESSION_COOKIE_SAME_SITE,
+    https_only=settings.SESSION_COOKIE_HTTPS_ONLY,
+)
 # Этап 2: browser-side fetch() from the separately-deployed Next.js frontend
 # needs this or every request just fails silently in the browser (no server
 # log, no obvious error — CORS failures are enforced client-side). Origins
@@ -250,13 +257,22 @@ async def _notify_new_booking(db: AsyncSession, booking: Booking, service: Servi
 
 
 @app.get("/api/bookings", response_model=list[BookingOut])
-async def list_bookings(
-    provider_id: uuid.UUID | None = None,
+async def list_my_bookings(
+    status_filter: BookingStatus | None = Query(default=None, alias="status"),
     db: AsyncSession = Depends(get_db),
+    master_user_id: str = Depends(require_master_user_id),
 ) -> list[Booking]:
-    stmt = select(Booking)
-    if provider_id is not None:
-        stmt = stmt.where(Booking.provider_id == provider_id)
+    # A master's own bookings — never anyone else's. provider_id used to be a
+    # client-supplied query param with no auth at all, which meant anyone on
+    # the internet could pull any client's name and phone number for any
+    # provider just by guessing/incrementing nothing (the endpoint was
+    # completely open). It's resolved from the session now, the same as
+    # /api/providers/me, so there's no parameter to pass that could ever
+    # return someone else's data.
+    provider = await _get_own_provider(master_user_id, db)
+    stmt = select(Booking).where(Booking.provider_id == provider.id)
+    if status_filter is not None:
+        stmt = stmt.where(Booking.status == status_filter)
     stmt = stmt.order_by(Booking.start_at)
     return (await db.execute(stmt)).scalars().all()
 
@@ -266,10 +282,17 @@ async def update_booking_status(
     booking_id: uuid.UUID,
     payload: BookingStatusUpdate,
     db: AsyncSession = Depends(get_db),
-    _master_user_id: str = Depends(require_master_user_id),
+    master_user_id: str = Depends(require_master_user_id),
 ) -> Booking:
+    # require_master_user_id only proves *someone* is logged in — without the
+    # provider_id check below, any logged-in master could confirm or cancel
+    # any OTHER master's bookings just by knowing (or listing) the booking's
+    # id. Same 404 for "doesn't exist" and "exists but isn't yours": telling
+    # the two apart would confirm that some other provider's booking id is
+    # real.
+    provider = await _get_own_provider(master_user_id, db)
     booking = await db.get(Booking, booking_id)
-    if booking is None:
+    if booking is None or booking.provider_id != provider.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Booking not found")
     booking.status = payload.status
     await db.commit()

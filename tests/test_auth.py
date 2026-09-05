@@ -1,32 +1,21 @@
 """POST /auth/login, GET /auth/me, POST /auth/logout — the cookie-session
-flow (app/security.py's require_master_user_id)."""
+flow (app/security.py's require_master_user_id).
+
+master_user and MASTER_PASSWORD now live in conftest.py (tests/test_master_bookings.py
+needs a real, authenticatable master too) — this file just exercises the
+login/logout/me endpoints directly instead of going through logged_in_client,
+since that fixture would hide the very steps being tested here."""
 
 from __future__ import annotations
 
-import uuid
-
-import pytest_asyncio
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import MasterUser, Provider
-from app.security import hash_password
-
-PASSWORD = "correct-horse-battery-staple"
-
-
-@pytest_asyncio.fixture
-async def master_user(db_session: AsyncSession, provider: Provider) -> MasterUser:
-    row = MasterUser(
-        id=uuid.uuid4(), provider_id=provider.id, email="master@example.com", password_hash=hash_password(PASSWORD)
-    )
-    db_session.add(row)
-    await db_session.commit()
-    return row
+from app.models import MasterUser
+from tests.conftest import MASTER_PASSWORD
 
 
 async def test_login_then_me_then_logout(client: AsyncClient, master_user: MasterUser):
-    login = await client.post("/auth/login", json={"email": master_user.email, "password": PASSWORD})
+    login = await client.post("/auth/login", json={"email": master_user.email, "password": MASTER_PASSWORD})
     assert login.status_code == 200, login.text
     assert login.json() == {"ok": True}
 

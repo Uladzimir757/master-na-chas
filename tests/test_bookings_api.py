@@ -34,7 +34,9 @@ async def test_create_booking_happy_path(client: AsyncClient, bookable_provider,
     assert body["status"] in ("pending", "confirmed")
 
 
-async def test_create_booking_conflict_is_enforced_by_db_constraint(client: AsyncClient, bookable_provider, service):
+async def test_create_booking_conflict_is_enforced_by_db_constraint(
+    client: AsyncClient, logged_in_client: AsyncClient, bookable_provider, service
+):
     # app/main.py's create_booking has NO application-level "is this slot
     # free" check before the INSERT — only db/schema.sql's
     # `EXCLUDE USING gist (provider_id WITH =, tstzrange(...) WITH &&)`
@@ -52,8 +54,13 @@ async def test_create_booking_conflict_is_enforced_by_db_constraint(client: Asyn
     assert conflict.status_code == 409, conflict.text
 
     # and the DB really does hold only the one booking — the conflicting
-    # request's transaction was rolled back, not partially applied
-    listed = await client.get("/api/bookings", params={"provider_id": str(bookable_provider.id)})
+    # request's transaction was rolled back, not partially applied. GET
+    # /api/bookings is master-only and scoped to the caller's own provider
+    # (see tests/test_master_bookings.py) — logged_in_client is
+    # bookable_provider's own login, resolved via the shared `provider`
+    # fixture both depend on.
+    listed = await logged_in_client.get("/api/bookings")
+    assert listed.status_code == 200, listed.text
     assert len(listed.json()) == 1
 
 
