@@ -9,6 +9,7 @@ Routes:
   PATCH /api/providers/me/settings            (logged-in master only)
   GET   /api/providers/me/services            (logged-in master only)
   PUT   /api/providers/me/services            (logged-in master only)
+  PUT   /api/providers/me/location            (logged-in master only — foreground GPS ping, Этап 4)
   GET   /api/translations                     (public — approved UI strings for a lang)
   POST  /auth/login
   POST  /auth/logout
@@ -59,6 +60,8 @@ from app.schemas import (
     BookingOut,
     BookingStatusUpdate,
     LoginRequest,
+    ProviderLocationOut,
+    ProviderLocationUpdate,
     ProviderOut,
     ProviderServicesUpdate,
     ProviderSettingsOut,
@@ -72,7 +75,7 @@ from app.schemas import (
     TranslationUpsert,
 )
 from app.security import hash_password, require_master_user_id, verify_password
-from app.slot_engine import SlotOut, get_availability, provider_offers_service
+from app.slot_engine import LOCATION_FRESHNESS, SlotOut, get_availability, is_within_working_hours, provider_offers_service
 from app.translations import DEFAULT_LANG, SUPPORTED_LANGS, refresh_translation_cache, translation_cache
 
 # Without this, the root logger has no handler at all: Python's implicit
@@ -181,10 +184,40 @@ async def list_services(lang: str = Query(default=DEFAULT_LANG), db: AsyncSessio
     ]
 
 
+async def _resolve_provider_location(db: AsyncSession, provider: Provider, now: datetime) -> ProviderLocationOut | None:
+    """The public location dot (Этап 4) only ever appears when all three
+    hold: the master has share_location on, the last fix is still within
+    LOCATION_FRESHNESS of `now`, and it's currently his working hours — see
+    Provider.share_location's docstring in app/models.py. Any one missing
+    and this returns None; the client never sees a stale or off-hours
+    point."""
+    if not provider.share_location:
+        return None
+    if provider.location_lat is None or provider.location_lng is None or provider.location_updated_at is None:
+        return None
+    if now - provider.location_updated_at > LOCATION_FRESHNESS:
+        return None
+    if not await is_within_working_hours(db, provider.id, now):
+        return None
+    return ProviderLocationOut(
+        lat=float(provider.location_lat), lng=float(provider.location_lng), updated_at=provider.location_updated_at
+    )
+
+
 @app.get("/api/providers", response_model=list[ProviderOut])
-async def list_providers(db: AsyncSession = Depends(get_db)) -> list[Provider]:
+async def list_providers(db: AsyncSession = Depends(get_db)) -> list[ProviderOut]:
     stmt = select(Provider).where(Provider.is_active.is_(True)).order_by(Provider.name)
-    return (await db.execute(stmt)).scalars().all()
+    providers = (await db.execute(stmt)).scalars().all()
+    now = datetime.now(timezone.utc)
+    return [
+        ProviderOut(
+            id=p.id,
+            name=p.name,
+            call_out_fee=p.call_out_fee,
+            location=await _resolve_provider_location(db, p, now),
+        )
+        for p in providers
+    ]
 
 
 @app.get("/api/translations")
@@ -433,9 +466,31 @@ async def update_my_provider_settings(
     provider = await _get_own_provider(master_user_id, db)
     provider.requires_booking_confirmation = payload.requires_booking_confirmation
     provider.call_out_fee = payload.call_out_fee
+    provider.share_location = payload.share_location
     await db.commit()
     await db.refresh(provider)
     return provider
+
+
+@app.put("/api/providers/me/location")
+async def update_my_location(
+    payload: ProviderLocationUpdate,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Called roughly every 30s by the cabinet's foreground geolocation
+    watch (web/lib/useLocationSharing.ts) while share_location is on — see
+    Provider.share_location's docstring in app/models.py. Stores the fix
+    unconditionally, even if share_location happens to be off right now
+    (harmless: _resolve_provider_location still won't surface it publicly),
+    so flipping the toggle back on doesn't have to wait for a brand new fix
+    if a recent-enough one is already on file."""
+    provider = await _get_own_provider(master_user_id, db)
+    provider.location_lat = payload.lat
+    provider.location_lng = payload.lng
+    provider.location_updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    return {"ok": True}
 
 
 @app.get("/api/providers/me/services", response_model=list[ServiceToggleOut])

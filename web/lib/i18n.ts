@@ -83,6 +83,18 @@ export interface Translations {
   confirmBookingButton: string;
   cancelBookingButton: string;
   bookingActionError: string;
+
+  // Этап 4 — live location dot.
+  shareLocationLabel: string;
+  shareLocationHint: string;
+  locationSharingActive: string;
+  locationSharingWaiting: string;
+  locationSharingDenied: string;
+  locationSharingUnsupported: string;
+  locationSharingError: string;
+  masterLocationTitle: string;
+  masterLocationJustNow: string;
+  masterLocationMinutesAgo: (n: number) => string;
 }
 
 export function buildTranslations(map: TranslationMap): Translations {
@@ -150,5 +162,16 @@ export function buildTranslations(map: TranslationMap): Translations {
     confirmBookingButton: pick(map, "confirmBookingButton"),
     cancelBookingButton: pick(map, "cancelBookingButton"),
     bookingActionError: pick(map, "bookingActionError"),
+
+    shareLocationLabel: pick(map, "shareLocationLabel"),
+    shareLocationHint: pick(map, "shareLocationHint"),
+    locationSharingActive: pick(map, "locationSharingActive"),
+    locationSharingWaiting: pick(map, "locationSharingWaiting"),
+    locationSharingDenied: pick(map, "locationSharingDenied"),
+    locationSharingUnsupported: pick(map, "locationSharingUnsupported"),
+    locationSharingError: pick(map, "locationSharingError"),
+    masterLocationTitle: pick(map, "masterLocationTitle"),
+    masterLocationJustNow: pick(map, "masterLocationJustNow"),
+    masterLocationMinutesAgo: (n) => interpolate(pick(map, "masterLocationMinutesAgo"), { n }),
   };
 }

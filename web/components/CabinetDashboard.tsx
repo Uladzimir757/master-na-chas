@@ -4,7 +4,26 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type Booking, type BookingStatus, type ProviderSettings, type ServiceToggle } from "@/lib/api";
 import { formatDayLabel, formatTime } from "@/lib/format";
 import { useLocale } from "@/lib/LocaleContext";
+import { useLocationSharing, type LocationSharingStatus } from "@/lib/useLocationSharing";
+import type { Translations } from "@/lib/i18n";
 import { Card, Centered } from "@/components/ui";
+
+function locationStatusText(status: LocationSharingStatus, t: Translations): string | null {
+  switch (status) {
+    case "idle":
+      return null;
+    case "waiting":
+      return t.locationSharingWaiting;
+    case "active":
+      return t.locationSharingActive;
+    case "denied":
+      return t.locationSharingDenied;
+    case "unsupported":
+      return t.locationSharingUnsupported;
+    case "error":
+      return t.locationSharingError;
+  }
+}
 
 export default function CabinetDashboard({ onLogout }: { onLogout: () => void }) {
   const { locale, t, ready } = useLocale();
@@ -65,6 +84,7 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
       const updated = await api.updateMySettings({
         requires_booking_confirmation: !settings.requires_booking_confirmation,
         call_out_fee: settings.call_out_fee,
+        share_location: settings.share_location,
       });
       setSettings(updated);
     } catch {
@@ -91,6 +111,28 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
       const updated = await api.updateMySettings({
         requires_booking_confirmation: settings.requires_booking_confirmation,
         call_out_fee: nextFee,
+        share_location: settings.share_location,
+      });
+      setSettings(updated);
+    } catch {
+      setSettingsError(t.settingsSaveError);
+    } finally {
+      setSavingSettings(false);
+    }
+  }, [settings, t]);
+
+  // Этап 4 — live location dot. share_location only ever controls whether
+  // useLocationSharing (below) is allowed to run; it does not itself send
+  // any GPS data.
+  const handleToggleShareLocation = useCallback(async () => {
+    if (!settings) return;
+    setSettingsError(null);
+    setSavingSettings(true);
+    try {
+      const updated = await api.updateMySettings({
+        requires_booking_confirmation: settings.requires_booking_confirmation,
+        call_out_fee: settings.call_out_fee,
+        share_location: !settings.share_location,
       });
       setSettings(updated);
     } catch {
@@ -134,6 +176,12 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
       setActioningId(null);
     }
   }, [t]);
+
+  // Этап 4 — only ever watches/sends GPS while settings.share_location is
+  // on (see lib/useLocationSharing.ts's own docstring for why this is
+  // foreground-only). Called unconditionally (Rules of Hooks) even before
+  // `settings` has loaded — `?? false` just means "not sharing yet".
+  const locationStatus = useLocationSharing(settings?.share_location ?? false);
 
   if (!ready) {
     return <Centered>…</Centered>;
@@ -191,6 +239,25 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
               onBlur={handleFeeBlur}
               className="mt-2 w-32 rounded-lg border border-neutral-300 px-3 py-1.5"
             />
+          </label>
+        </div>
+
+        <div className="mt-4">
+          <label className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              checked={settings.share_location}
+              disabled={savingSettings}
+              onChange={handleToggleShareLocation}
+              className="mt-1"
+            />
+            <span>
+              <span className="block font-medium">{t.shareLocationLabel}</span>
+              <span className="block text-sm text-neutral-500">{t.shareLocationHint}</span>
+              {settings.share_location && locationStatusText(locationStatus, t) && (
+                <span className="mt-1 block text-sm text-neutral-500">{locationStatusText(locationStatus, t)}</span>
+              )}
+            </span>
           </label>
         </div>
 

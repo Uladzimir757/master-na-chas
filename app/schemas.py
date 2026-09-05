@@ -85,6 +85,19 @@ class ServiceOut(BaseModel):
         from_attributes = True
 
 
+class ProviderLocationOut(BaseModel):
+    """The public live-location dot (Этап 4) — only ever constructed by
+    app/main.py's _resolve_provider_location once all three gates (opted in,
+    fresh, within working hours) already passed, so its mere presence on a
+    ProviderOut IS the "show the dot" signal; there's no separate boolean to
+    check. `updated_at` is included so the client can show a relative "N мин
+    назад" instead of pretending this is truly live."""
+
+    lat: float
+    lng: float
+    updated_at: datetime
+
+
 class ProviderOut(BaseModel):
     """Public — just enough for the booking page to show which master a
     slot belongs to, and (once a client has picked a slot) what that
@@ -94,6 +107,7 @@ class ProviderOut(BaseModel):
     id: uuid.UUID
     name: str
     call_out_fee: float | None = None
+    location: ProviderLocationOut | None = None
 
     class Config:
         from_attributes = True
@@ -104,6 +118,7 @@ class ProviderSettingsOut(BaseModel):
     name: str
     requires_booking_confirmation: bool
     call_out_fee: float | None = None
+    share_location: bool
 
     class Config:
         from_attributes = True
@@ -116,6 +131,17 @@ class ProviderSettingsUpdate(BaseModel):
     # fee back to "none", same as any other value would set it. Matches
     # requires_booking_confirmation's own always-send-the-full-value shape.
     call_out_fee: float | None
+    # Same always-send-the-full-value shape — see Provider.share_location's
+    # docstring in app/models.py.
+    share_location: bool
+
+
+class ProviderLocationUpdate(BaseModel):
+    """PUT /api/providers/me/location body — one fresh GPS fix from the
+    cabinet's foreground geolocation watch (web/lib/useLocationSharing.ts)."""
+
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
 
 
 class ServiceToggleOut(BaseModel):

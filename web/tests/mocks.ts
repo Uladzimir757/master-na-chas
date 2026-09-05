@@ -78,6 +78,17 @@ export const TRANSLATIONS_FIXTURE: Record<string, string> = {
   confirmBookingButton: "Подтвердить",
   cancelBookingButton: "Отменить",
   bookingActionError: "Не удалось изменить статус брони. Попробуйте ещё раз.",
+  shareLocationLabel: "Показывать клиентам моё местоположение",
+  shareLocationHint:
+    "Точка на карте видна клиентам, только пока эта страница открыта у вас в браузере и сейчас ваши рабочие часы.",
+  locationSharingActive: "Местоположение транслируется",
+  locationSharingWaiting: "Определяем ваше местоположение…",
+  locationSharingDenied: "Нет доступа к геолокации — разрешите её в настройках браузера.",
+  locationSharingUnsupported: "Этот браузер не поддерживает геолокацию.",
+  locationSharingError: "Не удалось определить местоположение.",
+  masterLocationTitle: "Мастер сейчас здесь",
+  masterLocationJustNow: "Только что",
+  masterLocationMinutesAgo: "{n} мин назад",
 };
 
 export const t = buildTranslations(TRANSLATIONS_FIXTURE);
@@ -99,7 +110,18 @@ export const SERVICE = {
   price_max: 150,
 };
 
-export const PROVIDER = { id: "22222222-2222-2222-2222-222222222222", name: "Владимир", call_out_fee: null as number | null };
+export interface ProviderLocationFixture {
+  lat: number;
+  lng: number;
+  updated_at: string;
+}
+
+export const PROVIDER = {
+  id: "22222222-2222-2222-2222-222222222222",
+  name: "Владимир",
+  call_out_fee: null as number | null,
+  location: null as ProviderLocationFixture | null,
+};
 
 function makeSlot(isoStartUtc: string, durationMinutes = SERVICE.duration_minutes) {
   const start = new Date(isoStartUtc);
@@ -246,16 +268,18 @@ export async function mockLogout(page: Page) {
  * sees the new value, same as the real backend. */
 export async function mockProviderSettings(
   page: Page,
-  opts?: { requiresConfirmation?: boolean; callOutFee?: number | null; patchStatus?: number },
+  opts?: { requiresConfirmation?: boolean; callOutFee?: number | null; shareLocation?: boolean; patchStatus?: number },
 ) {
   let currentConfirmation = opts?.requiresConfirmation ?? true;
   let currentFee = opts?.callOutFee ?? null;
+  let currentShareLocation = opts?.shareLocation ?? false;
   const settingsBody = () =>
     JSON.stringify({
       id: PROVIDER.id,
       name: PROVIDER.name,
       requires_booking_confirmation: currentConfirmation,
       call_out_fee: currentFee,
+      share_location: currentShareLocation,
     });
 
   await page.route("**/api/providers/me", (route) =>
@@ -272,8 +296,19 @@ export async function mockProviderSettings(
     const payload = JSON.parse(route.request().postData() ?? "{}");
     currentConfirmation = payload.requires_booking_confirmation;
     currentFee = payload.call_out_fee;
+    currentShareLocation = payload.share_location;
     return route.fulfill({ status: 200, contentType: "application/json", body: settingsBody() });
   });
+}
+
+/** PUT /api/providers/me/location — the cabinet's foreground geolocation
+ * ping (lib/useLocationSharing.ts). Only needed by specs that actually grant
+ * the browser geolocation permission; every other cabinet spec never
+ * triggers it at all (share_location defaults to false). */
+export async function mockUpdateMyLocation(page: Page) {
+  await page.route("**/api/providers/me/location", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }),
+  );
 }
 
 interface ServiceToggleFixture {

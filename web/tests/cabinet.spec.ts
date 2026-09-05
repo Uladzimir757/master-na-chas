@@ -8,6 +8,7 @@ import {
   mockMyBookings,
   mockMyServices,
   mockProviderSettings,
+  mockUpdateMyLocation,
   PROVIDER,
   SERVICE,
   serviceToggle,
@@ -122,6 +123,45 @@ test("a failed settings save shows an error message", async ({ page }) => {
   await page.getByRole("checkbox", { name: t.requiresConfirmationLabel }).click();
 
   await expect(page.getByText(t.settingsSaveError)).toBeVisible();
+});
+
+// Этап 4 — live location dot. share_location itself is just another
+// settings toggle (same PATCH /api/providers/me/settings as
+// requires_booking_confirmation above); lib/useLocationSharing.ts's actual
+// GPS watch is exercised separately below.
+test("toggling share_location saves the new value", async ({ page }) => {
+  await mockAuthMe(page, { loggedIn: true });
+  await mockMyServices(page, [serviceToggle()]);
+  await mockProviderSettings(page, { shareLocation: false });
+  await mockMyBookings(page, []);
+
+  await page.goto("/cabinet/");
+  const checkbox = page.getByRole("checkbox", { name: t.shareLocationLabel });
+  await expect(checkbox).not.toBeChecked();
+
+  await checkbox.click();
+
+  await expect(checkbox).toBeChecked();
+  await expect(page.getByText(t.settingsSaveError)).not.toBeVisible();
+});
+
+test("granting geolocation permission after enabling share_location shows the active status", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["geolocation"]);
+  await context.setGeolocation({ latitude: 54.5189, longitude: 18.5305 });
+
+  await mockAuthMe(page, { loggedIn: true });
+  await mockMyServices(page, [serviceToggle()]);
+  await mockProviderSettings(page, { shareLocation: false });
+  await mockMyBookings(page, []);
+  await mockUpdateMyLocation(page);
+
+  await page.goto("/cabinet/");
+  await page.getByRole("checkbox", { name: t.shareLocationLabel }).click();
+
+  await expect(page.getByText(t.locationSharingActive)).toBeVisible();
 });
 
 test("confirming a pending booking updates its status", async ({ page }) => {

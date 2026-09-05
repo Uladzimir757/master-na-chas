@@ -4,7 +4,20 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError, type Booking, type Provider, type Service, type Slot } from "@/lib/api";
 import { addDays, dateKey, formatDayLabel, formatPriceRange, formatTime, toDateParam } from "@/lib/format";
 import { useLocale } from "@/lib/LocaleContext";
+import type { Translations } from "@/lib/i18n";
 import { Card, Centered } from "@/components/ui";
+import ProviderMap from "@/components/ProviderMap";
+
+// How often the "N мин назад" label under the map recomputes (Этап 4) — a
+// plain render-time Date.now() would otherwise only update when something
+// else re-renders this component, which could be a while once a slot is
+// already selected and nothing else on the page is changing.
+const LOCATION_LABEL_REFRESH_MS = 30_000;
+
+function formatLocationAgo(updatedAtIso: string, t: Translations): string {
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(updatedAtIso).getTime()) / 60_000));
+  return minutes < 1 ? t.masterLocationJustNow : t.masterLocationMinutesAgo(minutes);
+}
 
 const DAYS_AHEAD = 14;
 
@@ -75,6 +88,23 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
     const map = new Map(providers.map((p) => [p.id, p.call_out_fee]));
     return (id: string) => map.get(id) ?? null;
   }, [providers]);
+
+  // Этап 4 — null unless the backend has already applied all three publish
+  // gates (share_location on, fix fresh, currently working hours — see
+  // app/main.py's _resolve_provider_location). Same per-provider,
+  // once-a-slot-is-picked shape as call_out_fee above.
+  const providerLocation = useMemo(() => {
+    const map = new Map(providers.map((p) => [p.id, p.location]));
+    return (id: string) => map.get(id) ?? null;
+  }, [providers]);
+
+  // Ticks every LOCATION_LABEL_REFRESH_MS purely to force the "N мин назад"
+  // label (below) to recompute — nothing here reads `locationClock` itself.
+  const [locationClock, setLocationClock] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setLocationClock((n) => n + 1), LOCATION_LABEL_REFRESH_MS);
+    return () => clearInterval(id);
+  }, []);
 
   const daysWithSlots = useMemo(() => {
     if (!slots) return [];
@@ -222,6 +252,23 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
               <span className="text-neutral-500"> · {t.callOutFeeLine(providerCallOutFee(selectedSlot.provider_id)!)}</span>
             ) : null}
           </p>
+
+          {providerLocation(selectedSlot.provider_id) && (
+            // key={locationClock}: the only reason this block re-renders on
+            // its own (nothing else here changes every 30s) — see the
+            // locationClock tick above.
+            <div key={locationClock} className="mb-4">
+              <p className="mb-1.5 text-sm font-medium">{t.masterLocationTitle}</p>
+              <ProviderMap
+                lat={providerLocation(selectedSlot.provider_id)!.lat}
+                lng={providerLocation(selectedSlot.provider_id)!.lng}
+              />
+              <p className="mt-1 text-xs text-neutral-500">
+                {formatLocationAgo(providerLocation(selectedSlot.provider_id)!.updated_at, t)}
+              </p>
+            </div>
+          )}
+
           <div className="flex flex-col gap-2">
             <input
               className="rounded-lg border border-neutral-200 px-3 py-2.5"

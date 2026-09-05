@@ -178,6 +178,47 @@ ENTRIES: list[tuple[str, str, str, str]] = [
     ("bookingStatus.completed", "Завершено", "Zakończone", "Завершено"),
     ("bookingStatus.cancelled", "Отменено", "Anulowane", "Скасовано"),
     ("bookingStatus.no_show", "Клиент не пришёл", "Klient się nie pojawił", "Клієнт не прийшов"),
+    # Этап 4 — live location dot (Provider.share_location).
+    (
+        "shareLocationLabel",
+        "Показывать клиентам моё местоположение",
+        "Pokazuj klientom moją lokalizację",
+        "Показувати клієнтам моє місцезнаходження",
+    ),
+    (
+        "shareLocationHint",
+        "Точка на карте видна клиентам, только пока эта страница открыта у вас в браузере и сейчас ваши рабочие часы.",
+        "Punkt na mapie widzą klienci tylko wtedy, gdy ta strona jest otwarta w Twojej przeglądarce i trwają Twoje godziny pracy.",
+        "Точку на карті бачать клієнти, лише поки ця сторінка відкрита у вашому браузері і зараз ваші робочі години.",
+    ),
+    ("locationSharingActive", "Местоположение транслируется", "Lokalizacja jest udostępniana", "Місцезнаходження транслюється"),
+    (
+        "locationSharingWaiting",
+        "Определяем ваше местоположение…",
+        "Ustalamy Twoją lokalizację…",
+        "Визначаємо ваше місцезнаходження…",
+    ),
+    (
+        "locationSharingDenied",
+        "Нет доступа к геолокации — разрешите её в настройках браузера.",
+        "Brak dostępu do lokalizacji — zezwól na nią w ustawieniach przeglądarki.",
+        "Немає доступу до геолокації — дозвольте її в налаштуваннях браузера.",
+    ),
+    (
+        "locationSharingUnsupported",
+        "Этот браузер не поддерживает геолокацию.",
+        "Ta przeglądarka nie obsługuje geolokalizacji.",
+        "Цей браузер не підтримує геолокацію.",
+    ),
+    (
+        "locationSharingError",
+        "Не удалось определить местоположение.",
+        "Nie udało się ustalić lokalizacji.",
+        "Не вдалося визначити місцезнаходження.",
+    ),
+    ("masterLocationTitle", "Мастер сейчас здесь", "Mistrz jest teraz tutaj", "Майстер зараз тут"),
+    ("masterLocationJustNow", "Только что", "Przed chwilą", "Щойно"),
+    ("masterLocationMinutesAgo", "{n} мин назад", "{n} min temu", "{n} хв тому"),
 ]
 
 SERVICE_NAME_TRANSLATIONS = {

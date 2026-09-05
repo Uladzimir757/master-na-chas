@@ -74,6 +74,29 @@ class Provider(Base):
     # anywhere — it only changes what text is displayed before booking.
     call_out_fee: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
 
+    # Live location dot on the public booking page (Этап 4). Master's own
+    # on/off switch — default off, same "explicit opt-in" shape as
+    # requires_booking_confirmation. This is deliberately foreground-only:
+    # web/lib/useLocationSharing.ts posts a fresh fix to
+    # PUT /api/providers/me/location roughly every 30s via
+    # navigator.geolocation.watchPosition() while the cabinet tab stays open
+    # — there is no background/native equivalent (iOS/Android both require a
+    # real installed app with an OS-level "Always" permission for that; a
+    # website, even one "added to home screen", cannot get it — see the
+    # project's ai-and-reviews.md for why this was decided against building
+    # a companion app for a 2-master side business). The public
+    # GET /api/providers response (app/main.py's _resolve_provider_location)
+    # only ever surfaces a point when THREE things hold at once: this flag
+    # is on, location_updated_at is within LOCATION_FRESHNESS
+    # (app/slot_engine.py) of now, and it's currently this provider's
+    # working hours (app/slot_engine.py's is_within_working_hours) — closing
+    # the cabinet tab (or the working day ending) makes the dot disappear on
+    # its own within that freshness window, nothing to remember to turn off.
+    share_location: Mapped[bool] = mapped_column(default=False)
+    location_lat: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    location_lng: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    location_updated_at: Mapped[datetime | None] = mapped_column(TZDateTime)
+
     working_hours: Mapped[list["WorkingHours"]] = relationship(back_populates="provider")
     master_user: Mapped["MasterUser | None"] = relationship(back_populates="provider", uselist=False)
 

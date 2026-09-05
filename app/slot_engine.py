@@ -34,6 +34,15 @@ from app.models import (
 # the TZDateTime fix made bookings tz-aware while this stayed naive).
 BUSINESS_TZ = ZoneInfo("Europe/Warsaw")
 
+# How long a location fix (Provider.location_updated_at) stays trustworthy
+# before app/main.py's _resolve_provider_location stops surfacing it
+# publicly — see Provider.share_location's docstring in app/models.py.
+# Comfortably longer than useLocationSharing.ts's ~30s ping interval so a
+# couple of missed beats (a momentary GPS/network hiccup) don't flicker the
+# public dot on and off, but short enough that closing the cabinet tab makes
+# a stale point disappear within a client's patience, not hours later.
+LOCATION_FRESHNESS = timedelta(minutes=15)
+
 
 class SlotOut(BaseModel):
     provider_id: uuid.UUID
@@ -121,6 +130,46 @@ async def _slots_for_one_provider(
         current_day += timedelta(days=1)
 
     return slots
+
+
+async def is_within_working_hours(db: AsyncSession, provider_id: uuid.UUID, at: datetime) -> bool:
+    """True iff `at` falls inside this provider's working hours for that
+    specific calendar day in BUSINESS_TZ — the same source of truth
+    _slots_for_one_provider's day_windows uses (a WorkingHoursException for
+    that date overrides the weekday template; is_available=False on the
+    exception means no hours at all that day), just evaluated at one instant
+    instead of expanded into a list of bookable slots. Used to gate the
+    public live-location dot (Этап 4) — a client should never see "мастер
+    поблизости" outside the hours he could actually be out on a job."""
+    local = at.astimezone(BUSINESS_TZ)
+    day = local.date()
+
+    exception = (
+        await db.execute(
+            select(WorkingHoursException).where(
+                WorkingHoursException.provider_id == provider_id,
+                WorkingHoursException.date == day,
+            )
+        )
+    ).scalar_one_or_none()
+
+    if exception is not None:
+        if not exception.is_available:
+            return False
+        windows = [(exception.start_time, exception.end_time)] if exception.start_time else []
+    else:
+        rows = (
+            await db.execute(
+                select(WorkingHours).where(
+                    WorkingHours.provider_id == provider_id,
+                    WorkingHours.weekday == day.weekday(),
+                )
+            )
+        ).scalars().all()
+        windows = [(w.start_time, w.end_time) for w in rows]
+
+    local_time = local.time()
+    return any(start <= local_time < end for start, end in windows)
 
 
 async def list_providers_for_service(db: AsyncSession, service: Service) -> list[Provider]:

@@ -51,6 +51,18 @@ CREATE TABLE provider (
     -- separate line shown. Purely a display value: no billing/payment flow
     -- exists yet, so nothing here is actually charged anywhere.
     call_out_fee           numeric(10,2) CHECK (call_out_fee IS NULL OR call_out_fee >= 0),
+    -- Live location dot on the public booking page (Этап 4). share_location
+    -- is the master's own on/off switch (default off). location_lat/lng are
+    -- the last fix received from PUT /api/providers/me/location, updated by
+    -- the cabinet's foreground geolocation watch (see Provider.share_location
+    -- in app/models.py for why this can't be a background feature on the
+    -- web). Publicly surfaced only when share_location is on AND
+    -- location_updated_at is fresh enough AND it's currently this provider's
+    -- working hours — see app/main.py's _resolve_provider_location.
+    share_location          boolean NOT NULL DEFAULT false,
+    location_lat            numeric(9,6) CHECK (location_lat IS NULL OR (location_lat >= -90 AND location_lat <= 90)),
+    location_lng            numeric(9,6) CHECK (location_lng IS NULL OR (location_lng >= -180 AND location_lng <= 180)),
+    location_updated_at     timestamptz,
     created_at             timestamptz NOT NULL DEFAULT now()
 );
 

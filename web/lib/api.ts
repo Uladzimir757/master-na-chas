@@ -76,12 +76,25 @@ export interface Service {
   price_max: number | null;
 }
 
+// Этап 4 — the public live-location dot. Its mere presence on a Provider IS
+// the "show the dot" signal: the backend (app/main.py's
+// _resolve_provider_location) only ever includes this once share_location is
+// on, the fix is fresh, and it's currently the provider's working hours — a
+// client-side check is neither needed nor possible (see
+// components/ProviderMap.tsx / SlotPicker.tsx).
+export interface ProviderLocation {
+  lat: number;
+  lng: number;
+  updated_at: string; // ISO 8601, tz-aware
+}
+
 export interface Provider {
   id: string;
   name: string;
   // Flat "выезд" fee, own line shown once a slot with this provider is
   // picked (see components/SlotPicker.tsx) — null/0 means nothing shown.
   call_out_fee: number | null;
+  location: ProviderLocation | null;
 }
 
 export interface Slot {
@@ -117,6 +130,7 @@ export interface ProviderSettings {
   name: string;
   requires_booking_confirmation: boolean;
   call_out_fee: number | null;
+  share_location: boolean;
 }
 
 export interface UpdateProviderSettingsPayload {
@@ -126,6 +140,7 @@ export interface UpdateProviderSettingsPayload {
   // fee rather than leaving it untouched. See ProviderSettingsUpdate in
   // app/schemas.py.
   call_out_fee: number | null;
+  share_location: boolean;
 }
 
 export interface ServiceToggle {
@@ -174,4 +189,10 @@ export const api = {
     request<Booking[]>(`/api/bookings${statusFilter ? `?status=${statusFilter}` : ""}`),
   updateBookingStatus: (bookingId: string, status: BookingStatus) =>
     request<Booking>(`/api/bookings/${bookingId}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  // Этап 4 — one fresh GPS fix from lib/useLocationSharing.ts's foreground
+  // watch. Fire-and-forget from the caller's point of view: the backend
+  // stores it unconditionally (app/main.py's update_my_location), whether
+  // or not share_location happens to be on right now.
+  updateMyLocation: (lat: number, lng: number) =>
+    request<{ ok: true }>("/api/providers/me/location", { method: "PUT", body: JSON.stringify({ lat, lng }) }),
 };

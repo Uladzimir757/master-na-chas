@@ -26,44 +26,67 @@ async def test_get_my_settings_defaults(logged_in_client: AsyncClient, provider:
     assert body["id"] == str(provider.id)
     assert body["requires_booking_confirmation"] is True  # schema default
     assert body["call_out_fee"] is None
+    assert body["share_location"] is False  # schema default
 
 
 async def test_patch_my_settings_requires_login(client: AsyncClient):
     resp = await client.patch(
-        "/api/providers/me/settings", json={"requires_booking_confirmation": False, "call_out_fee": None}
+        "/api/providers/me/settings",
+        json={"requires_booking_confirmation": False, "call_out_fee": None, "share_location": False},
     )
     assert resp.status_code == 401
 
 
-async def test_patch_my_settings_updates_both_fields_and_persists(logged_in_client: AsyncClient):
+async def test_patch_my_settings_updates_all_fields_and_persists(logged_in_client: AsyncClient):
     resp = await logged_in_client.patch(
-        "/api/providers/me/settings", json={"requires_booking_confirmation": False, "call_out_fee": 50}
+        "/api/providers/me/settings",
+        json={"requires_booking_confirmation": False, "call_out_fee": 50, "share_location": True},
     )
 
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["requires_booking_confirmation"] is False
     assert body["call_out_fee"] == 50
+    assert body["share_location"] is True
 
     # not just the response echoing the request back — actually persisted
     again = await logged_in_client.get("/api/providers/me")
     assert again.status_code == 200, again.text
     assert again.json()["call_out_fee"] == 50
     assert again.json()["requires_booking_confirmation"] is False
+    assert again.json()["share_location"] is True
 
 
 async def test_patch_my_settings_can_clear_call_out_fee_back_to_null(logged_in_client: AsyncClient):
     set_resp = await logged_in_client.patch(
-        "/api/providers/me/settings", json={"requires_booking_confirmation": True, "call_out_fee": 75}
+        "/api/providers/me/settings",
+        json={"requires_booking_confirmation": True, "call_out_fee": 75, "share_location": False},
     )
     assert set_resp.status_code == 200, set_resp.text
     assert set_resp.json()["call_out_fee"] == 75
 
     clear_resp = await logged_in_client.patch(
-        "/api/providers/me/settings", json={"requires_booking_confirmation": True, "call_out_fee": None}
+        "/api/providers/me/settings",
+        json={"requires_booking_confirmation": True, "call_out_fee": None, "share_location": False},
     )
     assert clear_resp.status_code == 200, clear_resp.text
     assert clear_resp.json()["call_out_fee"] is None
+
+
+async def test_patch_my_settings_can_turn_share_location_back_off(logged_in_client: AsyncClient):
+    on_resp = await logged_in_client.patch(
+        "/api/providers/me/settings",
+        json={"requires_booking_confirmation": True, "call_out_fee": None, "share_location": True},
+    )
+    assert on_resp.status_code == 200, on_resp.text
+    assert on_resp.json()["share_location"] is True
+
+    off_resp = await logged_in_client.patch(
+        "/api/providers/me/settings",
+        json={"requires_booking_confirmation": True, "call_out_fee": None, "share_location": False},
+    )
+    assert off_resp.status_code == 200, off_resp.text
+    assert off_resp.json()["share_location"] is False
 
 
 async def test_patch_my_settings_is_scoped_to_the_caller_own_provider(
@@ -76,13 +99,15 @@ async def test_patch_my_settings_is_scoped_to_the_caller_own_provider(
     await db_session.commit()
 
     resp = await logged_in_client.patch(
-        "/api/providers/me/settings", json={"requires_booking_confirmation": False, "call_out_fee": 999}
+        "/api/providers/me/settings",
+        json={"requires_booking_confirmation": False, "call_out_fee": 999, "share_location": True},
     )
     assert resp.status_code == 200, resp.text
 
     await db_session.refresh(other_provider)
     assert other_provider.call_out_fee is None
     assert other_provider.requires_booking_confirmation is True
+    assert other_provider.share_location is False
 
 
 async def test_public_providers_list_includes_call_out_fee(client: AsyncClient, provider: Provider, db_session):
