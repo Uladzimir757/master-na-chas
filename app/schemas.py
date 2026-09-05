@@ -87,11 +87,13 @@ class ServiceOut(BaseModel):
 
 class ProviderOut(BaseModel):
     """Public — just enough for the booking page to show which master a
-    slot belongs to. No phone/email (docs/decisions.md: no client accounts,
-    no reason to expose that here)."""
+    slot belongs to, and (once a client has picked a slot) what that
+    provider's own call-out fee is. No phone/email (docs/decisions.md: no
+    client accounts, no reason to expose that here)."""
 
     id: uuid.UUID
     name: str
+    call_out_fee: float | None = None
 
     class Config:
         from_attributes = True
@@ -101,6 +103,7 @@ class ProviderSettingsOut(BaseModel):
     id: uuid.UUID
     name: str
     requires_booking_confirmation: bool
+    call_out_fee: float | None = None
 
     class Config:
         from_attributes = True
@@ -108,6 +111,31 @@ class ProviderSettingsOut(BaseModel):
 
 class ProviderSettingsUpdate(BaseModel):
     requires_booking_confirmation: bool
+    # Required (not Optional-with-a-default) so a PATCH always states the
+    # full desired value explicitly — sending null clears a previously-set
+    # fee back to "none", same as any other value would set it. Matches
+    # requires_booking_confirmation's own always-send-the-full-value shape.
+    call_out_fee: float | None
+
+
+class ServiceToggleOut(BaseModel):
+    """One row of 'which services do I currently offer' for the cabinet's
+    services checklist — GET/PUT /api/providers/me/services."""
+
+    service_id: uuid.UUID
+    name: str
+    duration_minutes: int
+    price_min: float | None = None
+    price_max: float | None = None
+    is_offered: bool
+
+
+class ProviderServicesUpdate(BaseModel):
+    """PUT body for /api/providers/me/services — the full desired set of
+    service ids this provider offers (replace semantics: anything not
+    listed here gets turned off, nothing is inferred as "unchanged")."""
+
+    service_ids: list[uuid.UUID]
 
 
 class AvailabilityQuery(BaseModel):

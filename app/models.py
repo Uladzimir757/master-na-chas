@@ -65,6 +65,14 @@ class Provider(Base):
     # decides for themself, matches "у мастера есть график" — his booking,
     # his call.
     requires_booking_confirmation: Mapped[bool] = mapped_column(default=True)
+    # Flat "выезд" fee shown as its own line on top of the service price
+    # once a client has picked a slot with this provider (Провайдер, not
+    # Service, because two providers can charge different travel costs for
+    # the same service — see web/components/SlotPicker.tsx). Null/0 = no
+    # separate line shown. Purely informational right now: the app has no
+    # billing/payment flow at all, so this never changes what gets charged
+    # anywhere — it only changes what text is displayed before booking.
+    call_out_fee: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
 
     working_hours: Mapped[list["WorkingHours"]] = relationship(back_populates="provider")
     master_user: Mapped["MasterUser | None"] = relationship(back_populates="provider", uselist=False)
@@ -85,10 +93,22 @@ class Service(Base):
 
 
 class ProviderService(Base):
+    """Which provider offers which service — now toggleable per-master from
+    the cabinet (PUT /api/providers/me/services), not just seed-script-only.
+
+    is_active flips instead of the row being deleted on toggle-off: keeps
+    the row's identity stable (no repeated insert/delete churn from a master
+    clicking a checkbox on and off), and is the "правильно" call over
+    delete-and-recreate — see docs/decisions.md discussion. Every read that
+    decides whether a provider can actually be booked for a service MUST
+    filter on is_active — see app/slot_engine.py's list_providers_for_service
+    and get_availability, and app/main.py's create_booking."""
+
     __tablename__ = "provider_service"
 
     provider_id: Mapped[uuid.UUID] = _uuid_col(primary_key=True, fk="provider.id")
     service_id: Mapped[uuid.UUID] = _uuid_col(primary_key=True, fk="service.id")
+    is_active: Mapped[bool] = mapped_column(default=True)
 
 
 class WorkingHours(Base):

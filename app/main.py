@@ -7,6 +7,8 @@ Routes:
   PATCH /api/bookings/{id}/status             (logged-in master only — own bookings)
   GET   /api/providers/me                     (logged-in master only)
   PATCH /api/providers/me/settings            (logged-in master only)
+  GET   /api/providers/me/services            (logged-in master only)
+  PUT   /api/providers/me/services            (logged-in master only)
   POST  /auth/login
   POST  /auth/logout
   GET   /auth/me
@@ -39,6 +41,7 @@ from app.models import (
     BookingStatus,
     MasterUser,
     Provider,
+    ProviderService,
     Service,
     TelegramLinkToken,
     WebPushSubscription,
@@ -51,14 +54,16 @@ from app.schemas import (
     BookingStatusUpdate,
     LoginRequest,
     ProviderOut,
+    ProviderServicesUpdate,
     ProviderSettingsOut,
     ProviderSettingsUpdate,
     PushSubscribeRequest,
     ServiceOut,
+    ServiceToggleOut,
     TelegramLinkOut,
 )
 from app.security import hash_password, require_master_user_id, verify_password
-from app.slot_engine import SlotOut, get_availability
+from app.slot_engine import SlotOut, get_availability, provider_offers_service
 
 # Without this, the root logger has no handler at all: Python's implicit
 # "handler of last resort" only prints WARNING+ to stderr, so anything logged
@@ -183,6 +188,16 @@ async def create_booking(request: Request, payload: BookingCreate, db: AsyncSess
         provider = await db.get(Provider, payload.provider_id)
         if provider is None or not provider.is_active:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Provider not found")
+        # An explicit provider_id normally comes straight from an
+        # /api/availability slot the client just fetched, so this should
+        # always already be true — but nothing stops a client from posting
+        # a stale/hand-crafted provider_id for a service that provider has
+        # since turned off in his cabinet (see ProviderService.is_active).
+        # Without this check that booking would still go through: the
+        # EXCLUDE constraint only guards against double-booking a *time*,
+        # it says nothing about whether this provider does this service.
+        if not await provider_offers_service(db, provider.id, service.id):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Provider does not offer this service")
 
     end_at = payload.start_at + timedelta(minutes=service.duration_minutes)
 
@@ -360,9 +375,97 @@ async def update_my_provider_settings(
 ) -> Provider:
     provider = await _get_own_provider(master_user_id, db)
     provider.requires_booking_confirmation = payload.requires_booking_confirmation
+    provider.call_out_fee = payload.call_out_fee
     await db.commit()
     await db.refresh(provider)
     return provider
+
+
+@app.get("/api/providers/me/services", response_model=list[ServiceToggleOut])
+async def get_my_services(
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> list[ServiceToggleOut]:
+    """Every active tenant service, each tagged with whether *this* provider
+    currently offers it — the source for the cabinet's checklist. Services
+    the tenant has fully retired (Service.is_active=False) don't appear at
+    all; that's an admin-only decision, not something a master toggles."""
+    provider = await _get_own_provider(master_user_id, db)
+
+    services = (
+        (await db.execute(select(Service).where(Service.is_active.is_(True)).order_by(Service.name)))
+        .scalars()
+        .all()
+    )
+    offered_ids = {
+        row.service_id
+        for row in (
+            await db.execute(
+                select(ProviderService).where(
+                    ProviderService.provider_id == provider.id, ProviderService.is_active.is_(True)
+                )
+            )
+        )
+        .scalars()
+        .all()
+    }
+    return [
+        ServiceToggleOut(
+            service_id=s.id,
+            name=s.name,
+            duration_minutes=s.duration_minutes,
+            price_min=s.price_min,
+            price_max=s.price_max,
+            is_offered=s.id in offered_ids,
+        )
+        for s in services
+    ]
+
+
+@app.put("/api/providers/me/services", response_model=list[ServiceToggleOut])
+async def update_my_services(
+    payload: ProviderServicesUpdate,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> list[ServiceToggleOut]:
+    """Replace semantics: payload.service_ids is the FULL set this provider
+    now offers — anything active-but-not-listed gets turned off. Silently
+    ignores ids that don't name an active tenant service (typo-safe rather
+    than a hard 404 on a bulk checklist save); the response reflects exactly
+    what was actually applied, so the client always ends up rendering truth,
+    not what it optimistically posted."""
+    provider = await _get_own_provider(master_user_id, db)
+
+    valid_service_ids = {
+        row[0]
+        for row in (
+            await db.execute(select(Service.id).where(Service.is_active.is_(True)))
+        ).all()
+    }
+    desired_ids = set(payload.service_ids) & valid_service_ids
+
+    existing_links = {
+        row.service_id: row
+        for row in (
+            await db.execute(select(ProviderService).where(ProviderService.provider_id == provider.id))
+        )
+        .scalars()
+        .all()
+    }
+
+    for service_id in desired_ids:
+        link = existing_links.get(service_id)
+        if link is None:
+            db.add(ProviderService(provider_id=provider.id, service_id=service_id, is_active=True))
+        elif not link.is_active:
+            link.is_active = True
+
+    for service_id, link in existing_links.items():
+        if service_id not in desired_ids and link.is_active:
+            link.is_active = False
+
+    await db.commit()
+    return await get_my_services(master_user_id=master_user_id, db=db)
 
 
 # ============================================================================

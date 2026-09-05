@@ -33,6 +33,7 @@ export const t = {
   tomorrow: "Завтра",
   priceFrom: (v: number) => `от ${v} zł`,
   priceRange: (min: number, max: number) => `${min}–${max} zł`,
+  callOutFeeLine: (fee: number) => `+ выезд ${fee} zł`,
   pageTitle: "Мастер на час — запись",
   pageDescription: "Онлайн-запись на услуги мастера — слоты в реальном времени",
   htmlLang: "ru",
@@ -57,6 +58,13 @@ export const t = {
   requiresConfirmationHint:
     "Включено — новая запись сначала ждёт вашего подтверждения. Выключено — подтверждается сразу при создании.",
   settingsSaveError: "Не удалось сохранить настройку. Попробуйте ещё раз.",
+  callOutFeeLabel: "Плата за выезд (zł)",
+  callOutFeeHint: "Отдельная строка поверх цены услуги на странице записи. Оставьте пустым, если не берёте отдельно.",
+  callOutFeePlaceholder: "Не задано",
+  servicesOfferedTitle: "Мои услуги",
+  servicesOfferedHint: "Отметьте, какие услуги вы оказываете — они появятся у клиентов на странице записи.",
+  noActiveServices: "В каталоге пока нет активных услуг.",
+  servicesSaveError: "Не удалось сохранить список услуг. Попробуйте ещё раз.",
   bookingsTitle: "Брони",
   noBookings: "Броней пока нет.",
   bookingStatusLabel: {

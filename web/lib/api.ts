@@ -79,6 +79,9 @@ export interface Service {
 export interface Provider {
   id: string;
   name: string;
+  // Flat "выезд" fee, own line shown once a slot with this provider is
+  // picked (see components/SlotPicker.tsx) — null/0 means nothing shown.
+  call_out_fee: number | null;
 }
 
 export interface Slot {
@@ -113,6 +116,25 @@ export interface ProviderSettings {
   id: string;
   name: string;
   requires_booking_confirmation: boolean;
+  call_out_fee: number | null;
+}
+
+export interface UpdateProviderSettingsPayload {
+  requires_booking_confirmation: boolean;
+  // Always sent explicitly (never omitted) — the backend replaces the full
+  // value each PATCH, so `null` here really does clear a previously-set
+  // fee rather than leaving it untouched. See ProviderSettingsUpdate in
+  // app/schemas.py.
+  call_out_fee: number | null;
+}
+
+export interface ServiceToggle {
+  service_id: string;
+  name: string;
+  duration_minutes: number;
+  price_min: number | null;
+  price_max: number | null;
+  is_offered: boolean;
 }
 
 export const api = {
@@ -133,8 +155,16 @@ export const api = {
   logout: () => request<{ ok: true }>("/auth/logout", { method: "POST" }),
   me: () => request<{ master_user_id: string }>("/auth/me"),
   getMySettings: () => request<ProviderSettings>("/api/providers/me"),
-  updateMySettings: (payload: { requires_booking_confirmation: boolean }) =>
+  updateMySettings: (payload: UpdateProviderSettingsPayload) =>
     request<ProviderSettings>("/api/providers/me/settings", { method: "PATCH", body: JSON.stringify(payload) }),
+  getMyServices: () => request<ServiceToggle[]>("/api/providers/me/services"),
+  // Replace semantics, matching the backend: pass the FULL set of service
+  // ids this provider now offers, not a delta.
+  updateMyServices: (serviceIds: string[]) =>
+    request<ServiceToggle[]>("/api/providers/me/services", {
+      method: "PUT",
+      body: JSON.stringify({ service_ids: serviceIds }),
+    }),
   listMyBookings: (statusFilter?: BookingStatus) =>
     request<Booking[]>(`/api/bookings${statusFilter ? `?status=${statusFilter}` : ""}`),
   updateBookingStatus: (bookingId: string, status: BookingStatus) =>

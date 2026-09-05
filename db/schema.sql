@@ -45,6 +45,12 @@ CREATE TABLE provider (
     -- master's own toggle (Этап 2): true = new bookings start 'pending' and
     -- need his confirmation; false = auto-confirm on creation. Per-provider.
     requires_booking_confirmation boolean NOT NULL DEFAULT true,
+    -- Flat "выезд" (call-out) fee, shown as its own line once a client has
+    -- picked a slot with this specific provider — see provider_service
+    -- below for why this lives per-provider, not on service. NULL/0 = no
+    -- separate line shown. Purely a display value: no billing/payment flow
+    -- exists yet, so nothing here is actually charged anywhere.
+    call_out_fee           numeric(10,2) CHECK (call_out_fee IS NULL OR call_out_fee >= 0),
     created_at             timestamptz NOT NULL DEFAULT now()
 );
 
@@ -67,10 +73,15 @@ CREATE TABLE service (
 CREATE INDEX idx_service_tenant ON service (tenant_id);
 
 -- which providers can perform which services (a shop mechanic might only do
--- diesel injection work; a handyman might do everything on the menu)
+-- diesel injection work; a handyman might do everything on the menu).
+-- is_active toggles from the master's own cabinet (PUT /api/providers/me/services)
+-- — the row stays, only the flag flips, so a master flicking a checkbox on
+-- and off doesn't churn insert/delete. Every place that decides whether a
+-- provider is actually bookable for a service must filter on this.
 CREATE TABLE provider_service (
     provider_id  uuid NOT NULL REFERENCES provider(id) ON DELETE CASCADE,
     service_id   uuid NOT NULL REFERENCES service(id) ON DELETE CASCADE,
+    is_active    boolean NOT NULL DEFAULT true,
     PRIMARY KEY (provider_id, service_id)
 );
 

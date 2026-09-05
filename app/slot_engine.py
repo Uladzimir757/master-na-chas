@@ -125,13 +125,35 @@ async def _slots_for_one_provider(
 
 async def list_providers_for_service(db: AsyncSession, service: Service) -> list[Provider]:
     """Providers who can perform this service and are active — the "любой
-    доступный мастер" case from docs/mvp-task.md #3."""
+    доступный мастер" case from docs/mvp-task.md #3. Filters on
+    ProviderService.is_active, not just its existence — a master can now
+    turn a service off for himself from the cabinet without an admin
+    deleting the link (PUT /api/providers/me/services)."""
     stmt = (
         select(Provider)
         .join(ProviderService, ProviderService.provider_id == Provider.id)
-        .where(ProviderService.service_id == service.id, Provider.is_active.is_(True))
+        .where(
+            ProviderService.service_id == service.id,
+            ProviderService.is_active.is_(True),
+            Provider.is_active.is_(True),
+        )
     )
     return (await db.execute(stmt)).scalars().all()
+
+
+async def provider_offers_service(db: AsyncSession, provider_id, service_id) -> bool:
+    """True iff this provider currently has this service turned on. Used
+    everywhere a client (or a stale booking-flow request) names both
+    explicitly — GET /api/availability?provider_id=... and POST
+    /api/bookings with an explicit provider_id — so that turning a service
+    off in the cabinet actually stops that provider being bookable for it,
+    not just stops them showing up in the "any provider" search."""
+    stmt = select(ProviderService).where(
+        ProviderService.provider_id == provider_id,
+        ProviderService.service_id == service_id,
+        ProviderService.is_active.is_(True),
+    )
+    return (await db.execute(stmt)).scalar_one_or_none() is not None
 
 
 async def get_availability(
@@ -145,6 +167,8 @@ async def get_availability(
     slots from every eligible provider, each tagged with its provider_id so
     the client can show/pick who they'll actually get."""
     if provider is not None:
+        if not await provider_offers_service(db, provider.id, service.id):
+            return []
         return await _slots_for_one_provider(db, provider, service, date_from, date_to)
 
     providers = await list_providers_for_service(db, service)

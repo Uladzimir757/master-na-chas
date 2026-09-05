@@ -66,6 +66,14 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
     return (id: string) => map.get(id) ?? t.defaultMasterName;
   }, [providers]);
 
+  // null/0 = no separate line shown — see Provider.call_out_fee in
+  // app/models.py. Per-provider (not per-service), so this only resolves
+  // once a specific provider is known, i.e. once a slot is picked.
+  const providerCallOutFee = useMemo(() => {
+    const map = new Map(providers.map((p) => [p.id, p.call_out_fee]));
+    return (id: string) => map.get(id) ?? null;
+  }, [providers]);
+
   const daysWithSlots = useMemo(() => {
     if (!slots) return [];
     const seen = new Map<string, string>(); // dateKey -> first ISO for that day (for label)
@@ -208,6 +216,9 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
           <p className="mb-3 text-sm text-neutral-600">
             {formatDayLabel(selectedSlot.start_at)}, {formatTime(selectedSlot.start_at)} ·{" "}
             {providerName(selectedSlot.provider_id)}
+            {providerCallOutFee(selectedSlot.provider_id) ? (
+              <span className="text-neutral-500"> · {t.callOutFeeLine(providerCallOutFee(selectedSlot.provider_id)!)}</span>
+            ) : null}
           </p>
           <div className="flex flex-col gap-2">
             <input

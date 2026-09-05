@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { api, type Booking, type BookingStatus, type ProviderSettings, type Service } from "@/lib/api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api, type Booking, type BookingStatus, type ProviderSettings, type ServiceToggle } from "@/lib/api";
 import { formatDayLabel, formatTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { Card, Centered } from "@/components/ui";
@@ -11,23 +11,33 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
   const [loadError, setLoadError] = useState<string | null>(null);
   const [settings, setSettings] = useState<ProviderSettings | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
+  // Doubles as the "which services exist" catalog for the bookings list's
+  // serviceName() lookup below — GET /api/providers/me/services already
+  // returns every active tenant service (each tagged with is_offered for
+  // this provider), so a separate api.listServices() call would just be
+  // fetching the same rows a second time.
+  const [serviceToggles, setServiceToggles] = useState<ServiceToggle[]>([]);
 
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
 
+  const [savingServices, setSavingServices] = useState(false);
+  const [servicesError, setServicesError] = useState<string | null>(null);
+
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // /api/bookings and /api/providers/me are both scoped to whichever master
-  // the session cookie identifies — nothing here ever asks for a specific
-  // provider_id (see app/main.py's _get_own_provider).
+  const feeInputRef = useRef<HTMLInputElement>(null);
+
+  // /api/bookings, /api/providers/me and /api/providers/me/services are all
+  // scoped to whichever master the session cookie identifies — nothing here
+  // ever asks for a specific provider_id (see app/main.py's _get_own_provider).
   const loadAll = useCallback(async () => {
     try {
-      const [s, b, svc] = await Promise.all([api.getMySettings(), api.listMyBookings(), api.listServices()]);
+      const [s, b, svc] = await Promise.all([api.getMySettings(), api.listMyBookings(), api.getMyServices()]);
       setSettings(s);
       setBookings(b);
-      setServices(svc);
+      setServiceToggles(svc);
       setLoaded(true);
     } catch {
       setLoadError(t.cabinetLoadError);
@@ -47,6 +57,7 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
     try {
       const updated = await api.updateMySettings({
         requires_booking_confirmation: !settings.requires_booking_confirmation,
+        call_out_fee: settings.call_out_fee,
       });
       setSettings(updated);
     } catch {
@@ -55,6 +66,54 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
       setSavingSettings(false);
     }
   }, [settings]);
+
+  // Uncontrolled input (key={settings.call_out_fee} below forces a remount
+  // whenever the saved value actually changes, e.g. after a save) — same
+  // key-based-remount convention this codebase already uses elsewhere
+  // instead of syncing a prop into local state via an effect. Saves once on
+  // blur, not per keystroke.
+  const handleFeeBlur = useCallback(async () => {
+    if (!settings || !feeInputRef.current) return;
+    const raw = feeInputRef.current.value.trim();
+    const parsed = raw === "" ? null : Number(raw);
+    const nextFee = parsed !== null && Number.isNaN(parsed) ? null : parsed;
+    if (nextFee === settings.call_out_fee) return;
+    setSettingsError(null);
+    setSavingSettings(true);
+    try {
+      const updated = await api.updateMySettings({
+        requires_booking_confirmation: settings.requires_booking_confirmation,
+        call_out_fee: nextFee,
+      });
+      setSettings(updated);
+    } catch {
+      setSettingsError(t.settingsSaveError);
+    } finally {
+      setSavingSettings(false);
+    }
+  }, [settings]);
+
+  const handleToggleService = useCallback(
+    async (serviceId: string) => {
+      setServicesError(null);
+      setSavingServices(true);
+      const nextOffered = new Set(serviceToggles.filter((s) => s.is_offered).map((s) => s.service_id));
+      if (nextOffered.has(serviceId)) {
+        nextOffered.delete(serviceId);
+      } else {
+        nextOffered.add(serviceId);
+      }
+      try {
+        const updated = await api.updateMyServices([...nextOffered]);
+        setServiceToggles(updated);
+      } catch {
+        setServicesError(t.servicesSaveError);
+      } finally {
+        setSavingServices(false);
+      }
+    },
+    [serviceToggles],
+  );
 
   const handleStatusChange = useCallback(async (bookingId: string, status: BookingStatus) => {
     setActionError(null);
@@ -77,7 +136,7 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
     return <Centered>{t.cabinetLoading}</Centered>;
   }
 
-  const serviceName = (id: string) => services.find((s) => s.id === id)?.name ?? "";
+  const serviceName = (id: string) => serviceToggles.find((s) => s.service_id === id)?.name ?? "";
 
   return (
     <Card>
@@ -103,7 +162,57 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
             <span className="block text-sm text-neutral-500">{t.requiresConfirmationHint}</span>
           </span>
         </label>
+
+        <div className="mt-4">
+          <label className="block">
+            <span className="block font-medium">{t.callOutFeeLabel}</span>
+            <span className="mt-1 block text-sm text-neutral-500">{t.callOutFeeHint}</span>
+            <input
+              key={settings.call_out_fee ?? "empty"}
+              ref={feeInputRef}
+              type="number"
+              min={0}
+              step="0.01"
+              inputMode="decimal"
+              defaultValue={settings.call_out_fee ?? ""}
+              placeholder={t.callOutFeePlaceholder}
+              disabled={savingSettings}
+              onBlur={handleFeeBlur}
+              className="mt-2 w-32 rounded-lg border border-neutral-300 px-3 py-1.5"
+            />
+          </label>
+        </div>
+
         {settingsError && <p className="mt-2 text-sm text-red-600">{settingsError}</p>}
+      </section>
+
+      <section className="mb-6 border-b border-neutral-200 pb-5">
+        <h2 className="mb-1 text-sm font-medium text-neutral-500">{t.servicesOfferedTitle}</h2>
+        <p className="mb-3 text-sm text-neutral-500">{t.servicesOfferedHint}</p>
+        {serviceToggles.length === 0 ? (
+          <p className="text-sm text-neutral-500">{t.noActiveServices}</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {serviceToggles.map((svc) => (
+              <li key={svc.service_id}>
+                <label className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={svc.is_offered}
+                    disabled={savingServices}
+                    onChange={() => handleToggleService(svc.service_id)}
+                    className="mt-1"
+                  />
+                  <span>
+                    <span className="block font-medium">{svc.name}</span>
+                    <span className="block text-sm text-neutral-500">{t.durationMinutes(svc.duration_minutes)}</span>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        )}
+        {servicesError && <p className="mt-2 text-sm text-red-600">{servicesError}</p>}
       </section>
 
       <section>

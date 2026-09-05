@@ -2,6 +2,13 @@
 through db_session/get_availability (no HTTP layer): this is pure business
 logic over working_hours/booking rows that's cheaper and clearer to test
 directly than through the API.
+
+Every test also depends on `provider_service` — get_availability(provider=...)
+now returns [] outright for a provider that isn't linked to the service
+(ProviderService.is_active — see tests/test_provider_services.py for that
+behavior itself); without the link these tests would get an empty list for
+the wrong reason and their real assertions (working hours, buffers, timezone)
+would never actually run.
 """
 
 from __future__ import annotations
@@ -41,7 +48,7 @@ async def _add_booking(
     await db_session.commit()
 
 
-async def test_slots_respect_working_hours_window(db_session: AsyncSession, provider: Provider, service: Service):
+async def test_slots_respect_working_hours_window(db_session: AsyncSession, provider: Provider, service: Service, provider_service: None):
     await _add_working_hours(db_session, provider, NEXT_MONDAY.weekday(), time(9, 0), time(12, 0))
 
     slots = await get_availability(db_session, service, NEXT_MONDAY, NEXT_MONDAY, provider=provider)
@@ -54,13 +61,13 @@ async def test_slots_respect_working_hours_window(db_session: AsyncSession, prov
     assert max(s.end_at for s in slots).time() == time(12, 0)
 
 
-async def test_no_working_hours_means_no_slots(db_session: AsyncSession, provider: Provider, service: Service):
+async def test_no_working_hours_means_no_slots(db_session: AsyncSession, provider: Provider, service: Service, provider_service: None):
     # deliberately: no WorkingHours row at all for this provider/weekday
     slots = await get_availability(db_session, service, NEXT_MONDAY, NEXT_MONDAY, provider=provider)
     assert slots == []
 
 
-async def test_existing_booking_blocks_its_own_time(db_session: AsyncSession, provider: Provider, service: Service):
+async def test_existing_booking_blocks_its_own_time(db_session: AsyncSession, provider: Provider, service: Service, provider_service: None):
     await _add_working_hours(db_session, provider, NEXT_MONDAY.weekday(), time(9, 0), time(18, 0))
     await _add_booking(db_session, provider, service, time(12, 0), time(13, 0), BookingStatus.confirmed)
 
@@ -76,7 +83,7 @@ async def test_existing_booking_blocks_its_own_time(db_session: AsyncSession, pr
     assert any(s.start_at >= busy_end for s in slots)
 
 
-async def test_travel_buffer_extends_the_blocked_range(db_session: AsyncSession, provider: Provider, service: Service):
+async def test_travel_buffer_extends_the_blocked_range(db_session: AsyncSession, provider: Provider, service: Service, provider_service: None):
     provider.travel_buffer_minutes = 30
     await db_session.commit()
     await _add_working_hours(db_session, provider, NEXT_MONDAY.weekday(), time(9, 0), time(18, 0))
@@ -95,7 +102,7 @@ async def test_travel_buffer_extends_the_blocked_range(db_session: AsyncSession,
     assert not any(busy_start - buffer < s.end_at <= busy_start for s in slots)
 
 
-async def test_cancelled_booking_does_not_block_slots(db_session: AsyncSession, provider: Provider, service: Service):
+async def test_cancelled_booking_does_not_block_slots(db_session: AsyncSession, provider: Provider, service: Service, provider_service: None):
     await _add_working_hours(db_session, provider, NEXT_MONDAY.weekday(), time(9, 0), time(12, 0))
     await _add_booking(db_session, provider, service, time(9, 0), time(10, 0), BookingStatus.cancelled)
 
@@ -105,7 +112,7 @@ async def test_cancelled_booking_does_not_block_slots(db_session: AsyncSession, 
     assert any(s.start_at == busy_start for s in slots)
 
 
-async def test_slots_are_tagged_with_business_timezone(db_session: AsyncSession, provider: Provider, service: Service):
+async def test_slots_are_tagged_with_business_timezone(db_session: AsyncSession, provider: Provider, service: Service, provider_service: None):
     await _add_working_hours(db_session, provider, NEXT_MONDAY.weekday(), time(9, 0), time(10, 0))
 
     slots = await get_availability(db_session, service, NEXT_MONDAY, NEXT_MONDAY, provider=provider)

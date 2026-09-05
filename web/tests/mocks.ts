@@ -13,7 +13,7 @@ export const SERVICE = {
   price_max: 150,
 };
 
-export const PROVIDER = { id: "22222222-2222-2222-2222-222222222222", name: "Владимир" };
+export const PROVIDER = { id: "22222222-2222-2222-2222-222222222222", name: "Владимир", call_out_fee: null as number | null };
 
 function makeSlot(isoStartUtc: string, durationMinutes = SERVICE.duration_minutes) {
   const start = new Date(isoStartUtc);
@@ -28,7 +28,7 @@ function makeSlot(isoStartUtc: string, durationMinutes = SERVICE.duration_minute
 export const SLOT_A = makeSlot("2027-06-07T07:00:00Z");
 export const SLOT_B = makeSlot("2027-06-07T09:00:00Z");
 
-export async function mockCatalog(page: Page, opts?: { servicesStatus?: number }) {
+export async function mockCatalog(page: Page, opts?: { servicesStatus?: number; providers?: (typeof PROVIDER)[] }) {
   await page.route("**/api/services", (route) =>
     route.fulfill({
       status: opts?.servicesStatus ?? 200,
@@ -37,7 +37,7 @@ export async function mockCatalog(page: Page, opts?: { servicesStatus?: number }
     }),
   );
   await page.route("**/api/providers", (route) =>
-    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([PROVIDER]) }),
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(opts?.providers ?? [PROVIDER]) }),
   );
 }
 
@@ -151,13 +151,22 @@ export async function mockLogout(page: Page) {
 }
 
 /** GET /api/providers/me (settings) and PATCH /api/providers/me/settings
- * (toggle). The PATCH handler updates the value the GET handler was
- * returning, so a reload-less UI flow (toggle -> re-render) sees the new
- * value, same as the real backend. */
-export async function mockProviderSettings(page: Page, opts?: { requiresConfirmation?: boolean; patchStatus?: number }) {
-  let current = opts?.requiresConfirmation ?? true;
+ * (toggle + call-out fee). The PATCH handler updates the values the GET
+ * handler was returning, so a reload-less UI flow (toggle/blur -> re-render)
+ * sees the new value, same as the real backend. */
+export async function mockProviderSettings(
+  page: Page,
+  opts?: { requiresConfirmation?: boolean; callOutFee?: number | null; patchStatus?: number },
+) {
+  let currentConfirmation = opts?.requiresConfirmation ?? true;
+  let currentFee = opts?.callOutFee ?? null;
   const settingsBody = () =>
-    JSON.stringify({ id: PROVIDER.id, name: PROVIDER.name, requires_booking_confirmation: current });
+    JSON.stringify({
+      id: PROVIDER.id,
+      name: PROVIDER.name,
+      requires_booking_confirmation: currentConfirmation,
+      call_out_fee: currentFee,
+    });
 
   await page.route("**/api/providers/me", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: settingsBody() }),
@@ -171,8 +180,54 @@ export async function mockProviderSettings(page: Page, opts?: { requiresConfirma
       });
     }
     const payload = JSON.parse(route.request().postData() ?? "{}");
-    current = payload.requires_booking_confirmation;
+    currentConfirmation = payload.requires_booking_confirmation;
+    currentFee = payload.call_out_fee;
     return route.fulfill({ status: 200, contentType: "application/json", body: settingsBody() });
+  });
+}
+
+interface ServiceToggleFixture {
+  service_id: string;
+  name: string;
+  duration_minutes: number;
+  price_min: number | null;
+  price_max: number | null;
+  is_offered: boolean;
+}
+
+export function serviceToggle(overrides: Partial<ServiceToggleFixture> = {}): ServiceToggleFixture {
+  return {
+    service_id: SERVICE.id,
+    name: SERVICE.name,
+    duration_minutes: SERVICE.duration_minutes,
+    price_min: SERVICE.price_min,
+    price_max: SERVICE.price_max,
+    is_offered: true,
+    ...overrides,
+  };
+}
+
+/** GET /api/providers/me/services (checklist) and PUT (save). PUT applies
+ * replace semantics like the real backend: is_offered flips to true for
+ * every id in the posted service_ids, false for every other row. */
+export async function mockMyServices(page: Page, initial: ServiceToggleFixture[], opts?: { putStatus?: number }) {
+  let current = initial;
+  await page.route("**/api/providers/me/services", (route) => {
+    if (route.request().method() === "GET") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(current) });
+    }
+    // PUT
+    if (opts?.putStatus && opts.putStatus !== 200) {
+      return route.fulfill({
+        status: opts.putStatus,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "boom" }),
+      });
+    }
+    const payload = JSON.parse(route.request().postData() ?? "{}");
+    const desired = new Set<string>(payload.service_ids ?? []);
+    current = current.map((s) => ({ ...s, is_offered: desired.has(s.service_id) }));
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(current) });
   });
 }
 
