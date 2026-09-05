@@ -24,14 +24,16 @@ body {
   color: var(--ink);
   /* Same hero photo, tiled small as a page-wide backdrop. The color-mix
      wash is painted on top of the tile (first background-image layer =
-     topmost), knocking it down to ~40% visible against --bg — Card and
-     other solid-bg-bg surfaces still sit on a clean, flat background. */
+     topmost), knocking it down to ~30% visible against --bg — Card and
+     other solid-bg-bg surfaces still sit on a clean, flat background.
+     Tile is 240x135 (source is 1672x941, ~16:9) so the pattern doesn't
+     squash the photo into a square. */
   background-color: var(--bg);
   background-image:
-    linear-gradient(color-mix(in srgb, var(--bg) 60%, transparent), color-mix(in srgb, var(--bg) 60%, transparent)),
+    linear-gradient(color-mix(in srgb, var(--bg) 70%, transparent), color-mix(in srgb, var(--bg) 70%, transparent)),
     url("/images/hero-workbench.png");
   background-repeat: no-repeat, repeat;
-  background-size: 100% 100%, 240px 240px;
+  background-size: 100% 100%, 240px 135px;
 }
 
 /* The one motion in the UI (see design brief): a selected slot chip in
