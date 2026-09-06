@@ -7,7 +7,7 @@ own module rather than copy-pasted per project."""
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel
@@ -43,11 +43,49 @@ BUSINESS_TZ = ZoneInfo("Europe/Warsaw")
 # a stale point disappear within a client's patience, not hours later.
 LOCATION_FRESHNESS = timedelta(minutes=15)
 
+# Fixed buffer added after a master-given work-time estimate (see
+# provider_busy_range below) — deliberately not provider.travel_buffer_minutes
+# (that's per-provider and configurable; this one was asked for as a flat
+# number regardless of whose calendar it is).
+BUSY_ESTIMATE_BUFFER = timedelta(minutes=30)
+
 
 class SlotOut(BaseModel):
     provider_id: uuid.UUID
     start_at: datetime
     end_at: datetime
+
+
+def provider_busy_range(provider: Provider) -> tuple[datetime, datetime] | None:
+    """The master's manual "занят сейчас" override (Provider.busy_started_at)
+    as one extra blocked range, layered on top of whatever his actual
+    bookings say — for a job that runs long, or for off-app work never
+    booked through the site at all. None if he isn't currently marked busy.
+
+    With no estimate the range has no upper bound — every slot from
+    busy_started_at on stays blocked until he presses "закончить" or adds
+    one; nothing here auto-expires on its own. That's the safe direction to
+    fail in: better an available master looks busy a while too long than a
+    genuinely busy one gets double-booked. With an estimate, the range ends
+    at busy_started_at + busy_estimated_minutes + BUSY_ESTIMATE_BUFFER."""
+    if provider.busy_started_at is None:
+        return None
+    if provider.busy_estimated_minutes is None:
+        return provider.busy_started_at, datetime.max.replace(tzinfo=timezone.utc)
+    busy_until = provider.busy_started_at + timedelta(minutes=provider.busy_estimated_minutes) + BUSY_ESTIMATE_BUFFER
+    return provider.busy_started_at, busy_until
+
+
+def overlaps_provider_busy_range(provider: Provider, start: datetime, end: datetime) -> bool:
+    """Same overlap test _slots_for_one_provider applies when filtering
+    slots, exposed separately so app/main.py's create_booking can reject a
+    booking a client already had cached/queued before the master hit
+    "начать" — the same defense-in-depth shape as provider_offers_service."""
+    busy = provider_busy_range(provider)
+    if busy is None:
+        return False
+    busy_start, busy_end = busy
+    return start < busy_end and end > busy_start
 
 
 async def _slots_for_one_provider(
@@ -101,6 +139,9 @@ async def _slots_for_one_provider(
         .all()
     )
     busy_ranges = [(b.start_at - buffer, b.end_at + buffer) for b in existing]
+    manual_busy = provider_busy_range(provider)
+    if manual_busy is not None:
+        busy_ranges.append(manual_busy)
 
     def overlaps_busy(start: datetime, end: datetime) -> bool:
         return any(start < busy_end and end > busy_start for busy_start, busy_end in busy_ranges)

@@ -48,7 +48,11 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  const [savingBusy, setSavingBusy] = useState(false);
+  const [busyError, setBusyError] = useState<string | null>(null);
+
   const feeInputRef = useRef<HTMLInputElement>(null);
+  const busyEstimateInputRef = useRef<HTMLInputElement>(null);
 
   // /api/bookings, /api/providers/me and /api/providers/me/services are all
   // scoped to whichever master the session cookie identifies — nothing here
@@ -164,6 +168,62 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
     [serviceToggles, locale, t],
   );
 
+  // "Занят сейчас" — a general override independent of any specific
+  // booking (docs discussion: covers off-app jobs too, not just this
+  // site's own bookings). All three calls return the same busy_started_at/
+  // busy_estimated_minutes/busy_until trio that also lives on `settings`,
+  // so merging the response over the existing settings object keeps every
+  // other field (fee, confirmation requirement, ...) untouched.
+  const handleStartBusy = useCallback(async () => {
+    if (!settings) return;
+    setBusyError(null);
+    setSavingBusy(true);
+    try {
+      const updated = await api.startBusy();
+      setSettings({ ...settings, ...updated });
+    } catch {
+      setBusyError(t.busyActionError);
+    } finally {
+      setSavingBusy(false);
+    }
+  }, [settings, t]);
+
+  const handleFinishBusy = useCallback(async () => {
+    if (!settings) return;
+    setBusyError(null);
+    setSavingBusy(true);
+    try {
+      const updated = await api.finishBusy();
+      setSettings({ ...settings, ...updated });
+    } catch {
+      setBusyError(t.busyActionError);
+    } finally {
+      setSavingBusy(false);
+    }
+  }, [settings, t]);
+
+  // Same uncontrolled-input-plus-key-remount convention as handleFeeBlur
+  // above: saves once on blur, not per keystroke. An empty field clears the
+  // estimate back to open-ended (null), matching the backend's
+  // always-send-the-full-value PATCH shape.
+  const handleBusyEstimateBlur = useCallback(async () => {
+    if (!settings || !busyEstimateInputRef.current) return;
+    const raw = busyEstimateInputRef.current.value.trim();
+    const parsed = raw === "" ? null : Math.round(Number(raw));
+    const nextEstimate = parsed !== null && Number.isNaN(parsed) ? null : parsed;
+    if (nextEstimate === settings.busy_estimated_minutes) return;
+    setBusyError(null);
+    setSavingBusy(true);
+    try {
+      const updated = await api.updateBusyEstimate(nextEstimate);
+      setSettings({ ...settings, ...updated });
+    } catch {
+      setBusyError(t.busyActionError);
+    } finally {
+      setSavingBusy(false);
+    }
+  }, [settings, t]);
+
   const handleStatusChange = useCallback(async (bookingId: string, status: BookingStatus) => {
     setActionError(null);
     setActioningId(bookingId);
@@ -205,6 +265,60 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
           {t.logoutButton}
         </button>
       </div>
+
+      <section className="mb-6 border-b border-neutral-200 pb-5">
+        <h2 className="mb-2 text-sm font-medium text-neutral-500">{t.busyTitle}</h2>
+        {settings.busy_started_at ? (
+          <div>
+            <p className="font-medium">{t.busyStatusSince(formatTime(settings.busy_started_at, locale))}</p>
+            {settings.busy_until ? (
+              <p className="text-sm text-neutral-500">{t.busyUntilText(formatTime(settings.busy_until, locale))}</p>
+            ) : (
+              <p className="text-sm text-neutral-500">{t.busyOpenEndedNote}</p>
+            )}
+
+            <div className="mt-3">
+              <label className="block">
+                <span className="block font-medium">{t.busyEstimateLabel}</span>
+                <span className="mt-1 block text-sm text-neutral-500">{t.busyEstimateHint}</span>
+                <input
+                  key={settings.busy_estimated_minutes ?? "empty"}
+                  ref={busyEstimateInputRef}
+                  type="number"
+                  min={1}
+                  step="1"
+                  inputMode="numeric"
+                  defaultValue={settings.busy_estimated_minutes ?? ""}
+                  placeholder={t.busyEstimatePlaceholder}
+                  disabled={savingBusy}
+                  onBlur={handleBusyEstimateBlur}
+                  className="mt-2 w-32 rounded-lg border border-neutral-300 px-3 py-1.5"
+                />
+              </label>
+            </div>
+
+            <button
+              disabled={savingBusy}
+              onClick={handleFinishBusy}
+              className="mt-3 rounded-lg bg-neutral-900 px-3 py-1.5 text-sm text-white disabled:opacity-40"
+            >
+              {t.finishBusyButton}
+            </button>
+          </div>
+        ) : (
+          <div>
+            <p className="mb-2 text-sm text-neutral-500">{t.busyHint}</p>
+            <button
+              disabled={savingBusy}
+              onClick={handleStartBusy}
+              className="rounded-lg bg-neutral-900 px-3 py-1.5 text-sm text-white disabled:opacity-40"
+            >
+              {t.startBusyButton}
+            </button>
+          </div>
+        )}
+        {busyError && <p className="mt-2 text-sm text-red-600">{busyError}</p>}
+      </section>
 
       <section className="mb-6 border-b border-neutral-200 pb-5">
         <h2 className="mb-2 text-sm font-medium text-neutral-500">{t.settingsTitle}</h2>

@@ -63,6 +63,11 @@ CREATE TABLE provider (
     location_lat            numeric(9,6) CHECK (location_lat IS NULL OR (location_lat >= -90 AND location_lat <= 90)),
     location_lng            numeric(9,6) CHECK (location_lng IS NULL OR (location_lng >= -180 AND location_lng <= 180)),
     location_updated_at     timestamptz,
+    -- "Занят сейчас" manual override on top of actual bookings — see
+    -- Provider.busy_started_at in app/models.py and slot_engine.py's
+    -- provider_busy_range for how it blocks slots. NULL = not busy.
+    busy_started_at         timestamptz,
+    busy_estimated_minutes  int CHECK (busy_estimated_minutes IS NULL OR busy_estimated_minutes > 0),
     created_at             timestamptz NOT NULL DEFAULT now()
 );
 

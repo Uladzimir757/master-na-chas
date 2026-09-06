@@ -125,6 +125,8 @@ ENTRIES: list[tuple[str, str, str, str]] = [
     ("cabinetLoginTitle", "Вход для мастера", "Logowanie dla mistrza", "Вхід для майстра"),
     ("emailPlaceholder", "Email", "Email", "Email"),
     ("passwordPlaceholder", "Пароль", "Hasło", "Пароль"),
+    ("showPassword", "Показать пароль", "Pokaż hasło", "Показати пароль"),
+    ("hidePassword", "Скрыть пароль", "Ukryj hasło", "Приховати пароль"),
     ("loginButton", "Войти", "Zaloguj się", "Увійти"),
     ("loggingIn", "Вход…", "Logowanie…", "Вхід…"),
     ("loginError", "Неверный email или пароль.", "Nieprawidłowy email lub hasło.", "Невірний email або пароль."),
@@ -240,6 +242,44 @@ ENTRIES: list[tuple[str, str, str, str]] = [
     ("masterLocationTitle", "Мастер сейчас здесь", "Mistrz jest teraz tutaj", "Майстер зараз тут"),
     ("masterLocationJustNow", "Только что", "Przed chwilą", "Щойно"),
     ("masterLocationMinutesAgo", "{n} мин назад", "{n} min temu", "{n} хв тому"),
+    # "Занят сейчас" — general busy toggle (Provider.busy_started_at), see
+    # components/CabinetDashboard.tsx.
+    ("busyTitle", "Занят сейчас", "Zajęty teraz", "Зайнятий зараз"),
+    (
+        "busyHint",
+        "Отметьте это, когда начинаете работу — часы в календаре закроются для новых записей, пока вы не нажмёте «Закончить».",
+        "Zaznacz to, gdy zaczynasz pracę — godziny w kalendarzu zostaną zamknięte dla nowych rezerwacji, dopóki nie klikniesz „Zakończ”.",
+        "Позначте це, коли починаєте роботу — години в календарі закриються для нових записів, поки ви не натиснете «Закінчити».",
+    ),
+    ("startBusyButton", "Начать", "Zacznij", "Почати"),
+    ("finishBusyButton", "Закончить", "Zakończ", "Закінчити"),
+    ("busyStatusSince", "Вы заняты с {time}", "Jesteś zajęty od {time}", "Ви зайняті з {time}"),
+    (
+        "busyUntilText",
+        "Ориентировочно освободитесь в {time}",
+        "Prawdopodobnie będziesz wolny o {time}",
+        "Орієнтовно звільнитеся о {time}",
+    ),
+    (
+        "busyOpenEndedNote",
+        "Без оценки времени часы останутся закрытыми, пока вы не нажмёте «Закончить».",
+        "Bez podania czasu godziny pozostaną zamknięte, dopóki nie klikniesz „Zakończ”.",
+        "Без оцінки часу години залишаться закритими, поки ви не натиснете «Закінчити».",
+    ),
+    ("busyEstimateLabel", "Предположительное время работы (мин.)", "Szacowany czas pracy (min)", "Орієнтовний час роботи (хв)"),
+    (
+        "busyEstimateHint",
+        "Укажите — и через это время плюс 30 минут часы снова откроются для записи.",
+        "Podaj — a po tym czasie plus 30 minut godziny znów otworzą się na rezerwacje.",
+        "Вкажіть — і через цей час плюс 30 хвилин години знову відкриються для запису.",
+    ),
+    ("busyEstimatePlaceholder", "например, 60", "np. 60", "наприклад, 60"),
+    (
+        "busyActionError",
+        "Не удалось обновить статус. Попробуйте ещё раз.",
+        "Nie udało się zaktualizować statusu. Spróbuj ponownie.",
+        "Не вдалося оновити статус. Спробуйте ще раз.",
+    ),
 ]
 
 SERVICE_NAME_TRANSLATIONS = {

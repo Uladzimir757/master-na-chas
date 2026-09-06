@@ -131,6 +131,22 @@ export interface ProviderSettings {
   requires_booking_confirmation: boolean;
   call_out_fee: number | null;
   share_location: boolean;
+  // "Занят сейчас" — read-only here, changed via the busy* endpoints below.
+  // See ProviderSettingsOut/ProviderBusyOut in app/schemas.py: busy_until is
+  // computed (null means either not busy, or busy with no estimate yet —
+  // distinguish using busy_started_at).
+  busy_started_at: string | null;
+  busy_estimated_minutes: number | null;
+  busy_until: string | null;
+}
+
+// Response shape shared by all three busy* endpoints below — same fields as
+// ProviderSettings' busy_* trio, so callers just spread it over the existing
+// settings object rather than re-fetching everything.
+export interface ProviderBusy {
+  busy_started_at: string | null;
+  busy_estimated_minutes: number | null;
+  busy_until: string | null;
 }
 
 export interface UpdateProviderSettingsPayload {
@@ -141,6 +157,34 @@ export interface UpdateProviderSettingsPayload {
   // app/schemas.py.
   call_out_fee: number | null;
   share_location: boolean;
+}
+
+// Admin panel (web/app/admin/page.tsx) — superadmin-only master management,
+// see app/main.py's "Admin auth" / "Admin — master management" sections.
+// Separate session flag (session["is_admin"]) from the master login above;
+// a browser could in principle be logged in as both at once, harmless since
+// they're read from different session keys.
+export interface AdminMaster {
+  master_user_id: string;
+  provider_id: string;
+  name: string;
+  email: string;
+  travel_buffer_minutes: number;
+  is_active: boolean;
+  telegram_linked: boolean;
+}
+
+export interface CreateMasterPayload {
+  name: string;
+  email: string;
+  password: string;
+  travel_buffer_minutes: number;
+}
+
+export interface TelegramLink {
+  deep_link: string;
+  token: string;
+  expires_note: string;
 }
 
 export interface ServiceToggle {
@@ -195,4 +239,33 @@ export const api = {
   // or not share_location happens to be on right now.
   updateMyLocation: (lat: number, lng: number) =>
     request<{ ok: true }>("/api/providers/me/location", { method: "PUT", body: JSON.stringify({ lat, lng }) }),
+
+  // "Занят сейчас" — a general override, not tied to any specific booking
+  // (see app/main.py's start_busy/update_busy_estimate/finish_busy). start
+  // 409s if already busy; the estimate PATCH 409s if not busy yet; finish
+  // 409s if not busy. All three return the same ProviderBusy shape.
+  startBusy: () => request<ProviderBusy>("/api/providers/me/busy/start", { method: "POST" }),
+  // null explicitly clears a previously-set estimate back to open-ended —
+  // same always-send-the-full-value shape as updateMySettings.
+  updateBusyEstimate: (estimatedMinutes: number | null) =>
+    request<ProviderBusy>("/api/providers/me/busy", {
+      method: "PATCH",
+      body: JSON.stringify({ estimated_minutes: estimatedMinutes }),
+    }),
+  finishBusy: () => request<ProviderBusy>("/api/providers/me/busy/finish", { method: "POST" }),
+
+  // Admin panel — session cookie set by adminLogin(), same require_admin
+  // gate as the pre-existing X-Admin-Secret scripts (app/main.py).
+  adminLogin: (password: string) =>
+    request<{ ok: true }>("/admin/login", { method: "POST", body: JSON.stringify({ password }) }),
+  adminLogout: () => request<{ ok: true }>("/admin/logout", { method: "POST" }),
+  adminMe: () => request<{ is_admin: true }>("/admin/me"),
+  listMasters: () => request<AdminMaster[]>("/admin/masters"),
+  createMaster: (payload: CreateMasterPayload) =>
+    request<{ provider_id: string; master_user_id: string }>("/admin/masters", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  createTelegramLink: (masterUserId: string) =>
+    request<TelegramLink>(`/admin/masters/${masterUserId}/telegram-link`, { method: "POST" }),
 };

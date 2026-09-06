@@ -61,6 +61,8 @@ export interface Translations {
   cabinetLoginTitle: string;
   emailPlaceholder: string;
   passwordPlaceholder: string;
+  showPassword: string;
+  hidePassword: string;
   loginButton: string;
   loggingIn: string;
   loginError: string;
@@ -98,6 +100,19 @@ export interface Translations {
   masterLocationTitle: string;
   masterLocationJustNow: string;
   masterLocationMinutesAgo: (n: number) => string;
+
+  // "Занят сейчас" — general busy toggle, see components/CabinetDashboard.tsx.
+  busyTitle: string;
+  busyHint: string;
+  startBusyButton: string;
+  finishBusyButton: string;
+  busyStatusSince: (time: string) => string;
+  busyUntilText: (time: string) => string;
+  busyOpenEndedNote: string;
+  busyEstimateLabel: string;
+  busyEstimateHint: string;
+  busyEstimatePlaceholder: string;
+  busyActionError: string;
 }
 
 export function buildTranslations(map: TranslationMap): Translations {
@@ -137,6 +152,8 @@ export function buildTranslations(map: TranslationMap): Translations {
     cabinetLoginTitle: pick(map, "cabinetLoginTitle"),
     emailPlaceholder: pick(map, "emailPlaceholder"),
     passwordPlaceholder: pick(map, "passwordPlaceholder"),
+    showPassword: pick(map, "showPassword"),
+    hidePassword: pick(map, "hidePassword"),
     loginButton: pick(map, "loginButton"),
     loggingIn: pick(map, "loggingIn"),
     loginError: pick(map, "loginError"),
@@ -179,5 +196,17 @@ export function buildTranslations(map: TranslationMap): Translations {
     masterLocationTitle: pick(map, "masterLocationTitle"),
     masterLocationJustNow: pick(map, "masterLocationJustNow"),
     masterLocationMinutesAgo: (n) => interpolate(pick(map, "masterLocationMinutesAgo"), { n }),
+
+    busyTitle: pick(map, "busyTitle"),
+    busyHint: pick(map, "busyHint"),
+    startBusyButton: pick(map, "startBusyButton"),
+    finishBusyButton: pick(map, "finishBusyButton"),
+    busyStatusSince: (time) => interpolate(pick(map, "busyStatusSince"), { time }),
+    busyUntilText: (time) => interpolate(pick(map, "busyUntilText"), { time }),
+    busyOpenEndedNote: pick(map, "busyOpenEndedNote"),
+    busyEstimateLabel: pick(map, "busyEstimateLabel"),
+    busyEstimateHint: pick(map, "busyEstimateHint"),
+    busyEstimatePlaceholder: pick(map, "busyEstimatePlaceholder"),
+    busyActionError: pick(map, "busyActionError"),
   };
 }

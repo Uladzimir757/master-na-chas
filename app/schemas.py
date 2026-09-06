@@ -58,6 +58,43 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class AdminLoginRequest(BaseModel):
+    """Superadmin panel login (app/main.py's POST /admin/login) — checked
+    against the same ADMIN_SECRET that /admin/* already accepts as an
+    X-Admin-Secret header (docs/decisions.md: one superadmin, no separate
+    password to keep in sync). Success sets session["is_admin"], so the
+    panel doesn't have to hold the raw secret in browser JS for the rest of
+    the visit — see require_admin in app/main.py."""
+
+    password: str
+
+
+class CreateMasterRequest(BaseModel):
+    """Body for POST /admin/masters — replaces the old query-parameter
+    shape (name/email/password were being read off the URL, which meant the
+    password ended up in server/proxy access logs and browser history; see
+    app/main.py's create_master)."""
+
+    name: str = Field(min_length=1, max_length=200)
+    email: EmailStr
+    password: str = Field(min_length=8)
+    travel_buffer_minutes: int = 30
+
+
+class MasterOut(BaseModel):
+    """One row of the admin panel's master list (GET /admin/masters) — just
+    enough to tell masters apart and see who still needs a Telegram link,
+    not a full provider dump."""
+
+    master_user_id: uuid.UUID
+    provider_id: uuid.UUID
+    name: str
+    email: str
+    travel_buffer_minutes: int
+    is_active: bool
+    telegram_linked: bool
+
+
 class TelegramLinkOut(BaseModel):
     deep_link: str
     token: str
@@ -119,6 +156,16 @@ class ProviderSettingsOut(BaseModel):
     requires_booking_confirmation: bool
     call_out_fee: float | None = None
     share_location: bool
+    # "Занят сейчас" — read-only here (see ProviderBusyOut/the dedicated
+    # /api/providers/me/busy/* endpoints below for changing it); included on
+    # the settings GET so the cabinet knows the current state on page load
+    # without a second round trip.
+    busy_started_at: datetime | None = None
+    busy_estimated_minutes: int | None = None
+    # Computed, not a column — see app/main.py's _busy_until. Only ever set
+    # when an estimate has been given; open-ended busy (no estimate) has no
+    # finite "until" to show.
+    busy_until: datetime | None = None
 
     class Config:
         from_attributes = True
@@ -142,6 +189,27 @@ class ProviderLocationUpdate(BaseModel):
 
     lat: float = Field(ge=-90, le=90)
     lng: float = Field(ge=-180, le=180)
+
+
+class ProviderBusyOut(BaseModel):
+    """Response for all three /api/providers/me/busy/* endpoints. Built
+    manually by app/main.py (not from_attributes off the ORM row) because
+    busy_until is computed, not a column — see app/slot_engine.py's
+    provider_busy_range for how it's derived, and app/main.py's
+    _busy_until. null busy_until with busy_started_at set means open-ended
+    (no estimate given yet)."""
+
+    busy_started_at: datetime | None
+    busy_estimated_minutes: int | None
+    busy_until: datetime | None = None
+
+
+class BusyEstimateUpdate(BaseModel):
+    """PATCH /api/providers/me/busy body. null explicitly clears a
+    previously-set estimate (back to open-ended) — same
+    always-send-the-full-value shape as ProviderSettingsUpdate."""
+
+    estimated_minutes: int | None = Field(default=None, ge=1, le=24 * 60)
 
 
 class ServiceToggleOut(BaseModel):

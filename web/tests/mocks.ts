@@ -48,6 +48,8 @@ export const TRANSLATIONS_FIXTURE: Record<string, string> = {
   cabinetLoginTitle: "Вход для мастера",
   emailPlaceholder: "Email",
   passwordPlaceholder: "Пароль",
+  showPassword: "Показать пароль",
+  hidePassword: "Скрыть пароль",
   loginButton: "Войти",
   loggingIn: "Вход…",
   loginError: "Неверный email или пароль.",
@@ -89,6 +91,18 @@ export const TRANSLATIONS_FIXTURE: Record<string, string> = {
   masterLocationTitle: "Мастер сейчас здесь",
   masterLocationJustNow: "Только что",
   masterLocationMinutesAgo: "{n} мин назад",
+  busyTitle: "Занят сейчас",
+  busyHint:
+    "Отметьте это, когда начинаете работу — часы в календаре закроются для новых записей, пока вы не нажмёте «Закончить».",
+  startBusyButton: "Начать",
+  finishBusyButton: "Закончить",
+  busyStatusSince: "Вы заняты с {time}",
+  busyUntilText: "Ориентировочно освободитесь в {time}",
+  busyOpenEndedNote: "Без оценки времени часы останутся закрытыми, пока вы не нажмёте «Закончить».",
+  busyEstimateLabel: "Предположительное время работы (мин.)",
+  busyEstimateHint: "Укажите — и через это время плюс 30 минут часы снова откроются для записи.",
+  busyEstimatePlaceholder: "например, 60",
+  busyActionError: "Не удалось обновить статус. Попробуйте ещё раз.",
 };
 
 export const t = buildTranslations(TRANSLATIONS_FIXTURE);
@@ -268,11 +282,27 @@ export async function mockLogout(page: Page) {
  * sees the new value, same as the real backend. */
 export async function mockProviderSettings(
   page: Page,
-  opts?: { requiresConfirmation?: boolean; callOutFee?: number | null; shareLocation?: boolean; patchStatus?: number },
+  opts?: {
+    requiresConfirmation?: boolean;
+    callOutFee?: number | null;
+    shareLocation?: boolean;
+    patchStatus?: number;
+    // "Занят сейчас" initial state + the status the three busy/* endpoints
+    // below should answer with (defaults to success, same as patchStatus's
+    // default above).
+    busyStartedAt?: string | null;
+    busyEstimatedMinutes?: number | null;
+    busyUntil?: string | null;
+    busyActionStatus?: number;
+  },
 ) {
   let currentConfirmation = opts?.requiresConfirmation ?? true;
   let currentFee = opts?.callOutFee ?? null;
   let currentShareLocation = opts?.shareLocation ?? false;
+  let busyStartedAt = opts?.busyStartedAt ?? null;
+  let busyEstimatedMinutes = opts?.busyEstimatedMinutes ?? null;
+  let busyUntil = opts?.busyUntil ?? null;
+
   const settingsBody = () =>
     JSON.stringify({
       id: PROVIDER.id,
@@ -280,7 +310,22 @@ export async function mockProviderSettings(
       requires_booking_confirmation: currentConfirmation,
       call_out_fee: currentFee,
       share_location: currentShareLocation,
+      busy_started_at: busyStartedAt,
+      busy_estimated_minutes: busyEstimatedMinutes,
+      busy_until: busyUntil,
     });
+
+  const busyBody = () =>
+    JSON.stringify({
+      busy_started_at: busyStartedAt,
+      busy_estimated_minutes: busyEstimatedMinutes,
+      busy_until: busyUntil,
+    });
+
+  const busyActionFailure = () =>
+    opts?.busyActionStatus && opts.busyActionStatus !== 200
+      ? { status: opts.busyActionStatus, contentType: "application/json", body: JSON.stringify({ detail: "boom" }) }
+      : null;
 
   await page.route("**/api/providers/me", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: settingsBody() }),
@@ -298,6 +343,38 @@ export async function mockProviderSettings(
     currentFee = payload.call_out_fee;
     currentShareLocation = payload.share_location;
     return route.fulfill({ status: 200, contentType: "application/json", body: settingsBody() });
+  });
+
+  // Fixed instant regardless of when the suite runs — specs read the
+  // *displayed* label back out of lib/format's own formatTime rather than
+  // hardcoding a wall-clock string, same convention as SLOT_A/SLOT_B above.
+  await page.route("**/api/providers/me/busy/start", (route) => {
+    const failure = busyActionFailure();
+    if (failure) return route.fulfill(failure);
+    busyStartedAt = "2027-06-07T10:00:00Z";
+    busyEstimatedMinutes = null;
+    busyUntil = null;
+    return route.fulfill({ status: 200, contentType: "application/json", body: busyBody() });
+  });
+  await page.route("**/api/providers/me/busy/finish", (route) => {
+    const failure = busyActionFailure();
+    if (failure) return route.fulfill(failure);
+    busyStartedAt = null;
+    busyEstimatedMinutes = null;
+    busyUntil = null;
+    return route.fulfill({ status: 200, contentType: "application/json", body: busyBody() });
+  });
+  await page.route("**/api/providers/me/busy", (route) => {
+    if (route.request().method() !== "PATCH") return route.fallback();
+    const failure = busyActionFailure();
+    if (failure) return route.fulfill(failure);
+    const payload = JSON.parse(route.request().postData() ?? "{}");
+    busyEstimatedMinutes = payload.estimated_minutes;
+    busyUntil =
+      busyEstimatedMinutes != null && busyStartedAt != null
+        ? new Date(new Date(busyStartedAt).getTime() + (busyEstimatedMinutes + 30) * 60_000).toISOString()
+        : null;
+    return route.fulfill({ status: 200, contentType: "application/json", body: busyBody() });
   });
 }
 
@@ -380,4 +457,119 @@ export async function mockBookingStatusUpdate(
     const { status, body } = respond(bookingId, payload.status);
     return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
   });
+}
+
+// ----------------------------------------------------------------------------
+// Admin panel (/admin) — separate session flag from the master cabinet above
+// (see app/main.py's require_admin: X-Admin-Secret header OR
+// session["is_admin"]).
+// ----------------------------------------------------------------------------
+
+interface AdminMasterFixture {
+  master_user_id: string;
+  provider_id: string;
+  name: string;
+  email: string;
+  travel_buffer_minutes: number;
+  is_active: boolean;
+  telegram_linked: boolean;
+}
+
+export function adminMaster(overrides: Partial<AdminMasterFixture> = {}): AdminMasterFixture {
+  return {
+    master_user_id: "55555555-5555-5555-5555-555555555555",
+    provider_id: PROVIDER.id,
+    name: PROVIDER.name,
+    email: "vladimir@example.com",
+    travel_buffer_minutes: 30,
+    is_active: true,
+    telegram_linked: false,
+    ...overrides,
+  };
+}
+
+/** GET /admin/me — whether the admin session cookie (if any) is still
+ * valid. Mirrors mockAuthMe's shape for the master session. */
+export async function mockAdminMe(page: Page, opts: { isAdmin: boolean }) {
+  await page.route("**/admin/me", (route) =>
+    route.fulfill(
+      opts.isAdmin
+        ? { status: 200, contentType: "application/json", body: JSON.stringify({ is_admin: true }) }
+        : { status: 403, contentType: "application/json", body: JSON.stringify({ detail: "Not admin" }) },
+    ),
+  );
+}
+
+/** POST /admin/login. Defaults to success; pass a non-200 status to
+ * simulate a wrong password (401) or rate limiting (429). */
+export async function mockAdminLogin(page: Page, opts?: { status?: number }) {
+  const status = opts?.status ?? 200;
+  await page.route("**/admin/login", (route) =>
+    route.fulfill(
+      status === 200
+        ? { status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }
+        : { status, contentType: "application/json", body: JSON.stringify({ detail: "boom" }) },
+    ),
+  );
+}
+
+export async function mockAdminLogout(page: Page) {
+  await page.route("**/admin/logout", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }),
+  );
+}
+
+/** GET /admin/masters (list) and POST /admin/masters (create) — POST
+ * appends to the in-memory list the GET handler serves, so the panel's
+ * "create then see it in the table" flow works without a page reload,
+ * same as the real backend. `createStatus` simulates a duplicate-email
+ * (409) or validation (422) failure instead. */
+export async function mockAdminMasters(
+  page: Page,
+  initial: AdminMasterFixture[] = [],
+  opts?: { createStatus?: number },
+) {
+  let current = [...initial];
+  await page.route("**/admin/masters", (route) => {
+    if (route.request().method() === "GET") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(current) });
+    }
+    // POST
+    if (opts?.createStatus && opts.createStatus !== 200) {
+      return route.fulfill({
+        status: opts.createStatus,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "boom" }),
+      });
+    }
+    const payload = JSON.parse(route.request().postData() ?? "{}");
+    const created = adminMaster({
+      master_user_id: `created-${current.length + 1}`,
+      provider_id: `created-provider-${current.length + 1}`,
+      name: payload.name,
+      email: payload.email,
+      travel_buffer_minutes: payload.travel_buffer_minutes ?? 30,
+    });
+    current = [...current, created];
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ provider_id: created.provider_id, master_user_id: created.master_user_id }),
+    });
+  });
+}
+
+/** POST /admin/masters/{id}/telegram-link. */
+export async function mockTelegramLink(page: Page) {
+  await page.route("**/admin/masters/*/telegram-link", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        deep_link: "https://t.me/test_bot?start=mock-token",
+        token: "mock-token",
+        expires_note: "одноразовый — сгорает после первого /start",
+      }),
+    }),
+  );
 }

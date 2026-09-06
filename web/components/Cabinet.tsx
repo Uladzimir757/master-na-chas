@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import { Card, Centered } from "@/components/ui";
+import { PasswordInput } from "@/components/PasswordInput";
 import CabinetDashboard from "@/components/CabinetDashboard";
 
 type AuthState = "checking" | "anon" | "authed";
@@ -79,14 +80,14 @@ export default function Cabinet() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-        <input
-          type="password"
+        <PasswordInput
+          value={password}
+          onChange={setPassword}
           required
           autoComplete="current-password"
           placeholder={t.passwordPlaceholder}
-          className="rounded-lg border border-neutral-300 px-3 py-2"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          showLabel={t.showPassword}
+          hideLabel={t.hidePassword}
         />
         {loginError && <p className="text-sm text-red-600">{loginError}</p>}
         <button

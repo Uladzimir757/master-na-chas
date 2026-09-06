@@ -10,15 +10,22 @@ Routes:
   GET   /api/providers/me/services            (logged-in master only)
   PUT   /api/providers/me/services            (logged-in master only)
   PUT   /api/providers/me/location            (logged-in master only — foreground GPS ping, Этап 4)
+  POST  /api/providers/me/busy/start          (logged-in master only — "занят сейчас" on)
+  PATCH /api/providers/me/busy                (logged-in master only — set/clear estimate)
+  POST  /api/providers/me/busy/finish         (logged-in master only — "занят сейчас" off)
   GET   /api/translations                     (public — approved UI strings for a lang)
   POST  /auth/login
   POST  /auth/logout
   GET   /auth/me
-  POST  /admin/masters                       (ADMIN_SECRET header required)
-  POST  /admin/masters/{id}/telegram-link     (ADMIN_SECRET header required)
-  GET   /admin/translations                  (ADMIN_SECRET header required)
-  PUT   /admin/translations                  (ADMIN_SECRET header required — upsert, does NOT go live)
-  POST  /admin/translations/approve          (ADMIN_SECRET header required — the only thing that does)
+  POST  /admin/login                          (ADMIN_SECRET as a password — starts an admin session)
+  POST  /admin/logout
+  GET   /admin/me                             (ADMIN_SECRET header OR admin session required)
+  GET   /admin/masters                        (ADMIN_SECRET header OR admin session required)
+  POST  /admin/masters                       (ADMIN_SECRET header OR admin session required)
+  POST  /admin/masters/{id}/telegram-link     (ADMIN_SECRET header OR admin session required)
+  GET   /admin/translations                  (ADMIN_SECRET header OR admin session required)
+  PUT   /admin/translations                  (ADMIN_SECRET header OR admin session required — upsert, does NOT go live)
+  POST  /admin/translations/approve          (ADMIN_SECRET header OR admin session required — the only thing that does)
   POST  /telegram/webhook                     (called by Telegram, not by us)
   POST  /push/subscribe                       (logged-in master only)
 """
@@ -55,11 +62,16 @@ from app.models import (
 )
 from app.notifications import send_sms, send_telegram_message, send_web_push
 from app.schemas import (
+    AdminLoginRequest,
     AvailabilityQuery,
     BookingCreate,
     BookingOut,
     BookingStatusUpdate,
+    BusyEstimateUpdate,
+    CreateMasterRequest,
     LoginRequest,
+    MasterOut,
+    ProviderBusyOut,
     ProviderLocationOut,
     ProviderLocationUpdate,
     ProviderOut,
@@ -75,7 +87,15 @@ from app.schemas import (
     TranslationUpsert,
 )
 from app.security import hash_password, require_master_user_id, verify_password
-from app.slot_engine import LOCATION_FRESHNESS, SlotOut, get_availability, is_within_working_hours, provider_offers_service
+from app.slot_engine import (
+    LOCATION_FRESHNESS,
+    SlotOut,
+    get_availability,
+    is_within_working_hours,
+    overlaps_provider_busy_range,
+    provider_busy_range,
+    provider_offers_service,
+)
 from app.translations import DEFAULT_LANG, SUPPORTED_LANGS, refresh_translation_cache, translation_cache
 
 # Without this, the root logger has no handler at all: Python's implicit
@@ -140,7 +160,14 @@ app.add_middleware(
 )
 
 
-def require_admin(x_admin_secret: str = Header(default="")) -> None:
+def require_admin(request: Request, x_admin_secret: str = Header(default="")) -> None:
+    """Two ways in, same gate: an X-Admin-Secret header (scripts/curl, the
+    original shape) or an admin session cookie set by POST /admin/login (the
+    admin panel — web/app/admin/page.tsx). Checking the session first means
+    the panel never has to hold the raw ADMIN_SECRET in browser JS beyond the
+    single login request."""
+    if request.session.get("is_admin") is True:
+        return
     if not secrets.compare_digest(x_admin_secret, settings.ADMIN_SECRET):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Not admin")
 
@@ -291,6 +318,14 @@ async def create_booking(request: Request, payload: BookingCreate, db: AsyncSess
 
     end_at = payload.start_at + timedelta(minutes=service.duration_minutes)
 
+    # Same defense-in-depth as the provider_offers_service check above: a
+    # client could have this slot cached/queued from before the master
+    # pressed "начать" (app/slot_engine.py's provider_busy_range) — without
+    # this, GET /api/availability would correctly stop offering the slot,
+    # but nothing would stop a POST that already has it from going through.
+    if overlaps_provider_busy_range(provider, payload.start_at, end_at):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Provider is currently busy")
+
     # each master's own switch (mvp-task.md / Этап 2): confirmed straight
     # away if he's turned off manual confirmation, pending (needs his
     # PATCH .../status) otherwise — see Provider.requires_booking_confirmation.
@@ -411,7 +446,8 @@ async def update_booking_status(
 
 
 @app.post("/auth/login")
-async def login(payload: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)) -> dict:
+@limiter.limit("5/minute")
+async def login(request: Request, payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> dict:
     master_user = (
         await db.execute(select(MasterUser).where(MasterUser.email == payload.email))
     ).scalar_one_or_none()
@@ -449,12 +485,45 @@ async def _get_own_provider(master_user_id: str, db: AsyncSession) -> Provider:
     return provider
 
 
+def _busy_until(provider: Provider) -> datetime | None:
+    """The finite instant a busy master is expected free again, or None —
+    either he isn't busy at all, or he is but hasn't given an estimate yet
+    (see app/slot_engine.py's provider_busy_range: no estimate means no
+    upper bound, so there's nothing finite to show)."""
+    busy = provider_busy_range(provider)
+    if busy is None or provider.busy_estimated_minutes is None:
+        return None
+    return busy[1]
+
+
+def _provider_settings_out(provider: Provider) -> ProviderSettingsOut:
+    return ProviderSettingsOut(
+        id=provider.id,
+        name=provider.name,
+        requires_booking_confirmation=provider.requires_booking_confirmation,
+        call_out_fee=float(provider.call_out_fee) if provider.call_out_fee is not None else None,
+        share_location=provider.share_location,
+        busy_started_at=provider.busy_started_at,
+        busy_estimated_minutes=provider.busy_estimated_minutes,
+        busy_until=_busy_until(provider),
+    )
+
+
+def _provider_busy_out(provider: Provider) -> ProviderBusyOut:
+    return ProviderBusyOut(
+        busy_started_at=provider.busy_started_at,
+        busy_estimated_minutes=provider.busy_estimated_minutes,
+        busy_until=_busy_until(provider),
+    )
+
+
 @app.get("/api/providers/me", response_model=ProviderSettingsOut)
 async def get_my_provider_settings(
     master_user_id: str = Depends(require_master_user_id),
     db: AsyncSession = Depends(get_db),
-) -> Provider:
-    return await _get_own_provider(master_user_id, db)
+) -> ProviderSettingsOut:
+    provider = await _get_own_provider(master_user_id, db)
+    return _provider_settings_out(provider)
 
 
 @app.patch("/api/providers/me/settings", response_model=ProviderSettingsOut)
@@ -462,14 +531,14 @@ async def update_my_provider_settings(
     payload: ProviderSettingsUpdate,
     master_user_id: str = Depends(require_master_user_id),
     db: AsyncSession = Depends(get_db),
-) -> Provider:
+) -> ProviderSettingsOut:
     provider = await _get_own_provider(master_user_id, db)
     provider.requires_booking_confirmation = payload.requires_booking_confirmation
     provider.call_out_fee = payload.call_out_fee
     provider.share_location = payload.share_location
     await db.commit()
     await db.refresh(provider)
-    return provider
+    return _provider_settings_out(provider)
 
 
 @app.put("/api/providers/me/location")
@@ -491,6 +560,65 @@ async def update_my_location(
     provider.location_updated_at = datetime.now(timezone.utc)
     await db.commit()
     return {"ok": True}
+
+
+# ============================================================================
+# "Занят сейчас" — a manual busy override the master flips himself, on top
+# of whatever his actual bookings say (a job running long, or off-app work
+# never booked through the site at all). See app/slot_engine.py's
+# provider_busy_range for exactly how this turns into a blocked range, and
+# Provider.busy_started_at in app/models.py for the field-level docstring.
+# ============================================================================
+
+
+@app.post("/api/providers/me/busy/start", response_model=ProviderBusyOut)
+async def start_busy(
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> ProviderBusyOut:
+    provider = await _get_own_provider(master_user_id, db)
+    if provider.busy_started_at is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Already marked busy")
+    provider.busy_started_at = datetime.now(timezone.utc)
+    provider.busy_estimated_minutes = None
+    await db.commit()
+    await db.refresh(provider)
+    return _provider_busy_out(provider)
+
+
+@app.patch("/api/providers/me/busy", response_model=ProviderBusyOut)
+async def update_busy_estimate(
+    payload: BusyEstimateUpdate,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> ProviderBusyOut:
+    """Sets (or, with estimated_minutes: null, clears back to open-ended)
+    how much longer the master expects to be busy. Only meaningful while
+    already busy — see start_busy above; 409 rather than silently no-op'ing
+    the value so the cabinet can't end up showing an estimate attached to no
+    active busy session."""
+    provider = await _get_own_provider(master_user_id, db)
+    if provider.busy_started_at is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Not currently marked busy")
+    provider.busy_estimated_minutes = payload.estimated_minutes
+    await db.commit()
+    await db.refresh(provider)
+    return _provider_busy_out(provider)
+
+
+@app.post("/api/providers/me/busy/finish", response_model=ProviderBusyOut)
+async def finish_busy(
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> ProviderBusyOut:
+    provider = await _get_own_provider(master_user_id, db)
+    if provider.busy_started_at is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Not currently marked busy")
+    provider.busy_started_at = None
+    provider.busy_estimated_minutes = None
+    await db.commit()
+    await db.refresh(provider)
+    return _provider_busy_out(provider)
 
 
 @app.get("/api/providers/me/services", response_model=list[ServiceToggleOut])
@@ -584,16 +712,63 @@ async def update_my_services(
 
 
 # ============================================================================
-# Admin (superadmin-only — see docs/decisions.md: no public self-registration)
+# Admin auth (superadmin-only — see docs/decisions.md: no public
+# self-registration). Session-based, same shape as /auth/login, so the panel
+# (web/app/admin/page.tsx) never needs to hold ADMIN_SECRET beyond the login
+# call itself — see require_admin's docstring above. The X-Admin-Secret
+# header keeps working unchanged for curl/scripts.
 # ============================================================================
+
+
+@app.post("/admin/login")
+@limiter.limit("5/minute")
+async def admin_login(request: Request, payload: AdminLoginRequest) -> dict:
+    if not secrets.compare_digest(payload.password, settings.ADMIN_SECRET):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid password")
+    request.session["is_admin"] = True
+    return {"ok": True}
+
+
+@app.post("/admin/logout")
+async def admin_logout(request: Request) -> dict:
+    request.session.pop("is_admin", None)
+    return {"ok": True}
+
+
+@app.get("/admin/me", dependencies=[Depends(require_admin)])
+async def admin_whoami() -> dict:
+    return {"is_admin": True}
+
+
+# ============================================================================
+# Admin — master management (superadmin-only)
+# ============================================================================
+
+
+@app.get("/admin/masters", response_model=list[MasterOut], dependencies=[Depends(require_admin)])
+async def list_masters(db: AsyncSession = Depends(get_db)) -> list[MasterOut]:
+    rows = (
+        await db.execute(
+            select(MasterUser, Provider).join(Provider, Provider.id == MasterUser.provider_id).order_by(Provider.name)
+        )
+    ).all()
+    return [
+        MasterOut(
+            master_user_id=master_user.id,
+            provider_id=provider.id,
+            name=provider.name,
+            email=master_user.email,
+            travel_buffer_minutes=provider.travel_buffer_minutes,
+            is_active=provider.is_active,
+            telegram_linked=master_user.telegram_chat_id is not None,
+        )
+        for master_user, provider in rows
+    ]
 
 
 @app.post("/admin/masters", dependencies=[Depends(require_admin)])
 async def create_master(
-    name: str,
-    email: str,
-    password: str,
-    travel_buffer_minutes: int = 30,
+    payload: CreateMasterRequest,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     # single-tenant setup (docs/decisions.md) — the one tenant row is expected
@@ -607,8 +782,8 @@ async def create_master(
     provider = Provider(
         id=uuid.uuid4(),
         tenant_id=tenant_row.id,
-        name=name,
-        travel_buffer_minutes=travel_buffer_minutes,
+        name=payload.name,
+        travel_buffer_minutes=payload.travel_buffer_minutes,
     )
     db.add(provider)
     await db.flush()
@@ -616,11 +791,18 @@ async def create_master(
     master_user = MasterUser(
         id=uuid.uuid4(),
         provider_id=provider.id,
-        email=email,
-        password_hash=hash_password(password),
+        email=payload.email,
+        password_hash=hash_password(payload.password),
     )
     db.add(master_user)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        # MasterUser.email is unique — without this the panel's "create
+        # master" form would surface a raw 500 for a typo'd duplicate email
+        # instead of a message the superadmin can act on.
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "A master with this email already exists") from exc
     return {"provider_id": str(provider.id), "master_user_id": str(master_user.id)}
 
 

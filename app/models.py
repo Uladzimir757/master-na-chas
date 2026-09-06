@@ -10,7 +10,7 @@ import uuid
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ENUM as PgEnum
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -96,6 +96,21 @@ class Provider(Base):
     location_lat: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
     location_lng: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
     location_updated_at: Mapped[datetime | None] = mapped_column(TZDateTime)
+
+    # "Занят сейчас" — a manual override the master flips on top of whatever
+    # his actual bookings say, for when a job runs long or for off-app work
+    # that was never booked through the site at all. Not null = currently
+    # busy. See app/slot_engine.py's provider_busy_range for how this turns
+    # into a blocked range: with no estimate it blocks every slot from
+    # busy_started_at on with NO upper bound (safe-by-default — never show a
+    # slot that might still be taken; nothing here auto-expires, the master
+    # has to press "закончить" or add an estimate), with one it blocks until
+    # busy_started_at + busy_estimated_minutes + BUSY_ESTIMATE_BUFFER.
+    # POST /api/providers/me/busy/start sets busy_started_at (and clears any
+    # leftover estimate); PATCH /api/providers/me/busy sets/clears the
+    # estimate; POST .../busy/finish clears both.
+    busy_started_at: Mapped[datetime | None] = mapped_column(TZDateTime)
+    busy_estimated_minutes: Mapped[int | None] = mapped_column(Integer)
 
     working_hours: Mapped[list["WorkingHours"]] = relationship(back_populates="provider")
     master_user: Mapped["MasterUser | None"] = relationship(back_populates="provider", uselist=False)
