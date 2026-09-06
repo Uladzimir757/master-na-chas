@@ -103,6 +103,17 @@ export const TRANSLATIONS_FIXTURE: Record<string, string> = {
   busyEstimateHint: "Укажите — и через это время плюс 30 минут часы снова откроются для записи.",
   busyEstimatePlaceholder: "например, 60",
   busyActionError: "Не удалось обновить статус. Попробуйте ещё раз.",
+  changePasswordTitle: "Сменить пароль",
+  currentPasswordPlaceholder: "Текущий пароль",
+  newPasswordPlaceholder: "Новый пароль",
+  confirmNewPasswordPlaceholder: "Повторите новый пароль",
+  changePasswordButton: "Сменить пароль",
+  changingPassword: "Сохранение…",
+  changePasswordSuccess: "Пароль изменён.",
+  changePasswordMismatchError: "Пароли не совпадают.",
+  changePasswordTooShortError: "Новый пароль должен быть не короче 8 символов.",
+  changePasswordWrongCurrentError: "Неверный текущий пароль.",
+  changePasswordGenericError: "Не удалось сменить пароль. Попробуйте ещё раз.",
 };
 
 export const t = buildTranslations(TRANSLATIONS_FIXTURE);
@@ -273,6 +284,19 @@ export async function mockLogin(page: Page, opts?: { status?: number }) {
 export async function mockLogout(page: Page) {
   await page.route("**/auth/logout", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }),
+  );
+}
+
+/** POST /auth/change-password. Defaults to success; pass a non-200 status
+ * to simulate a wrong current password (401) or a server error (500). */
+export async function mockChangePassword(page: Page, opts?: { status?: number }) {
+  const status = opts?.status ?? 200;
+  await page.route("**/auth/change-password", (route) =>
+    route.fulfill(
+      status === 200
+        ? { status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }
+        : { status, contentType: "application/json", body: JSON.stringify({ detail: "boom" }) },
+    ),
   );
 }
 

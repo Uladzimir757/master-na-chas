@@ -218,6 +218,16 @@ export const api = {
     request<{ ok: true }>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   logout: () => request<{ ok: true }>("/auth/logout", { method: "POST" }),
   me: () => request<{ master_user_id: string }>("/auth/me"),
+  // A logged-in master changing their own password — previously only the
+  // superadmin could ever set one, at creation time (see AdminMaster's
+  // createMaster below). 401 means the current password was wrong, 422
+  // means the new one is too short — see ChangePasswordRequest in
+  // app/schemas.py.
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ ok: true }>("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    }),
   getMySettings: () => request<ProviderSettings>("/api/providers/me"),
   updateMySettings: (payload: UpdateProviderSettingsPayload) =>
     request<ProviderSettings>("/api/providers/me/settings", { method: "PATCH", body: JSON.stringify(payload) }),

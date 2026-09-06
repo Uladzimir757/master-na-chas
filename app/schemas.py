@@ -58,6 +58,18 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class ChangePasswordRequest(BaseModel):
+    """POST /auth/change-password body — a logged-in master changing their
+    own password (previously only the superadmin could ever set one, at
+    creation time — see app/main.py's create_master). Requires the current
+    password (not just an active session) so a browser left logged in on a
+    shared computer can't have its password silently swapped by whoever
+    walks up to it."""
+
+    current_password: str
+    new_password: str = Field(min_length=8)
+
+
 class AdminLoginRequest(BaseModel):
     """Superadmin panel login (app/main.py's POST /admin/login) — checked
     against the same ADMIN_SECRET that /admin/* already accepts as an

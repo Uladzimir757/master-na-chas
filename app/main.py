@@ -68,6 +68,7 @@ from app.schemas import (
     BookingOut,
     BookingStatusUpdate,
     BusyEstimateUpdate,
+    ChangePasswordRequest,
     CreateMasterRequest,
     LoginRequest,
     MasterOut,
@@ -466,6 +467,28 @@ async def logout(request: Request) -> dict:
 @app.get("/auth/me")
 async def whoami(master_user_id: str = Depends(require_master_user_id)) -> dict:
     return {"master_user_id": master_user_id}
+
+
+@app.post("/auth/change-password")
+@limiter.limit("5/minute")
+async def change_password(
+    request: Request,
+    payload: ChangePasswordRequest,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    # Rate-limited same as /auth/login — an active session proves *a*
+    # correct login happened at some point, not that whoever's at the
+    # keyboard right now knows the current password (see
+    # ChangePasswordRequest's docstring in app/schemas.py), so this is the
+    # same brute-forceable secret check /auth/login already guards.
+    master_user = await db.get(MasterUser, uuid.UUID(master_user_id))
+    if master_user is None or not verify_password(payload.current_password, master_user.password_hash):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Current password is incorrect")
+    master_user.password_hash = hash_password(payload.new_password)
+    db.add(master_user)
+    await db.commit()
+    return {"ok": True}
 
 
 # ============================================================================

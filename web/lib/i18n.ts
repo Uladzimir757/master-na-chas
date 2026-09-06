@@ -113,6 +113,19 @@ export interface Translations {
   busyEstimateHint: string;
   busyEstimatePlaceholder: string;
   busyActionError: string;
+
+  // Master changing their own password — components/CabinetDashboard.tsx.
+  changePasswordTitle: string;
+  currentPasswordPlaceholder: string;
+  newPasswordPlaceholder: string;
+  confirmNewPasswordPlaceholder: string;
+  changePasswordButton: string;
+  changingPassword: string;
+  changePasswordSuccess: string;
+  changePasswordMismatchError: string;
+  changePasswordTooShortError: string;
+  changePasswordWrongCurrentError: string;
+  changePasswordGenericError: string;
 }
 
 export function buildTranslations(map: TranslationMap): Translations {
@@ -208,5 +221,17 @@ export function buildTranslations(map: TranslationMap): Translations {
     busyEstimateHint: pick(map, "busyEstimateHint"),
     busyEstimatePlaceholder: pick(map, "busyEstimatePlaceholder"),
     busyActionError: pick(map, "busyActionError"),
+
+    changePasswordTitle: pick(map, "changePasswordTitle"),
+    currentPasswordPlaceholder: pick(map, "currentPasswordPlaceholder"),
+    newPasswordPlaceholder: pick(map, "newPasswordPlaceholder"),
+    confirmNewPasswordPlaceholder: pick(map, "confirmNewPasswordPlaceholder"),
+    changePasswordButton: pick(map, "changePasswordButton"),
+    changingPassword: pick(map, "changingPassword"),
+    changePasswordSuccess: pick(map, "changePasswordSuccess"),
+    changePasswordMismatchError: pick(map, "changePasswordMismatchError"),
+    changePasswordTooShortError: pick(map, "changePasswordTooShortError"),
+    changePasswordWrongCurrentError: pick(map, "changePasswordWrongCurrentError"),
+    changePasswordGenericError: pick(map, "changePasswordGenericError"),
   };
 }

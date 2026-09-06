@@ -280,6 +280,28 @@ ENTRIES: list[tuple[str, str, str, str]] = [
         "Nie udało się zaktualizować statusu. Spróbuj ponownie.",
         "Не вдалося оновити статус. Спробуйте ще раз.",
     ),
+    # Master changing their own password — components/CabinetDashboard.tsx.
+    ("changePasswordTitle", "Сменить пароль", "Zmień hasło", "Змінити пароль"),
+    ("currentPasswordPlaceholder", "Текущий пароль", "Obecne hasło", "Поточний пароль"),
+    ("newPasswordPlaceholder", "Новый пароль", "Nowe hasło", "Новий пароль"),
+    ("confirmNewPasswordPlaceholder", "Повторите новый пароль", "Powtórz nowe hasło", "Повторіть новий пароль"),
+    ("changePasswordButton", "Сменить пароль", "Zmień hasło", "Змінити пароль"),
+    ("changingPassword", "Сохранение…", "Zapisywanie…", "Збереження…"),
+    ("changePasswordSuccess", "Пароль изменён.", "Hasło zostało zmienione.", "Пароль змінено."),
+    ("changePasswordMismatchError", "Пароли не совпадают.", "Hasła się nie zgadzają.", "Паролі не збігаються."),
+    (
+        "changePasswordTooShortError",
+        "Новый пароль должен быть не короче 8 символов.",
+        "Nowe hasło musi mieć co najmniej 8 znaków.",
+        "Новий пароль має бути не коротшим за 8 символів.",
+    ),
+    ("changePasswordWrongCurrentError", "Неверный текущий пароль.", "Nieprawidłowe obecne hasło.", "Невірний поточний пароль."),
+    (
+        "changePasswordGenericError",
+        "Не удалось сменить пароль. Попробуйте ещё раз.",
+        "Nie udało się zmienić hasła. Spróbuj ponownie.",
+        "Не вдалося змінити пароль. Спробуйте ще раз.",
+    ),
 ]
 
 SERVICE_NAME_TRANSLATIONS = {

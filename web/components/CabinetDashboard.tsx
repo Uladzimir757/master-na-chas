@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, type Booking, type BookingStatus, type ProviderSettings, type ServiceToggle } from "@/lib/api";
+import { api, ApiError, type Booking, type BookingStatus, type ProviderSettings, type ServiceToggle } from "@/lib/api";
 import { formatDayLabel, formatTime } from "@/lib/format";
 import { useLocale } from "@/lib/LocaleContext";
 import { useLocationSharing, type LocationSharingStatus } from "@/lib/useLocationSharing";
 import type { Translations } from "@/lib/i18n";
 import { Card, Centered } from "@/components/ui";
+import { PasswordInput } from "@/components/PasswordInput";
 
 function locationStatusText(status: LocationSharingStatus, t: Translations): string | null {
   switch (status) {
@@ -50,6 +51,13 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
 
   const [savingBusy, setSavingBusy] = useState(false);
   const [busyError, setBusyError] = useState<string | null>(null);
+
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [changePasswordError, setChangePasswordError] = useState<string | null>(null);
+  const [changePasswordSuccess, setChangePasswordSuccess] = useState(false);
 
   const feeInputRef = useRef<HTMLInputElement>(null);
   const busyEstimateInputRef = useRef<HTMLInputElement>(null);
@@ -223,6 +231,43 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
       setSavingBusy(false);
     }
   }, [settings, t]);
+
+  // Master changing their own password (previously only the superadmin
+  // could ever set one, at creation time). Validated client-side first
+  // (match + minimum length) so a typo never even reaches the network —
+  // the backend re-validates the length anyway (defense-in-depth, same
+  // shape as everywhere else in this codebase), but there's no reason to
+  // round-trip for a check we can already do here.
+  const handleChangePassword = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setChangePasswordError(null);
+      setChangePasswordSuccess(false);
+      if (newPassword.length < 8) {
+        setChangePasswordError(t.changePasswordTooShortError);
+        return;
+      }
+      if (newPassword !== confirmNewPassword) {
+        setChangePasswordError(t.changePasswordMismatchError);
+        return;
+      }
+      setChangingPassword(true);
+      try {
+        await api.changePassword(currentPassword, newPassword);
+        setChangePasswordSuccess(true);
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmNewPassword("");
+      } catch (err) {
+        setChangePasswordError(
+          err instanceof ApiError && err.status === 401 ? t.changePasswordWrongCurrentError : t.changePasswordGenericError,
+        );
+      } finally {
+        setChangingPassword(false);
+      }
+    },
+    [currentPassword, newPassword, confirmNewPassword, t],
+  );
 
   const handleStatusChange = useCallback(async (bookingId: string, status: BookingStatus) => {
     setActionError(null);
@@ -455,6 +500,53 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
             ))}
           </ul>
         )}
+      </section>
+
+      <section className="mt-6 border-t border-neutral-200 pt-5">
+        <h2 className="mb-2 text-sm font-medium text-neutral-500">{t.changePasswordTitle}</h2>
+        <form onSubmit={handleChangePassword} className="flex max-w-xs flex-col gap-3">
+          <PasswordInput
+            value={currentPassword}
+            onChange={setCurrentPassword}
+            required
+            autoComplete="current-password"
+            placeholder={t.currentPasswordPlaceholder}
+            showLabel={t.showPassword}
+            hideLabel={t.hidePassword}
+          />
+          <PasswordInput
+            value={newPassword}
+            onChange={setNewPassword}
+            required
+            // No minLength here (unlike the login field) — the length
+            // check below is a custom message (changePasswordTooShortError)
+            // rather than the browser's native validation bubble, so it
+            // needs to actually reach handleChangePassword instead of being
+            // intercepted by HTML5 constraint validation first.
+            autoComplete="new-password"
+            placeholder={t.newPasswordPlaceholder}
+            showLabel={t.showPassword}
+            hideLabel={t.hidePassword}
+          />
+          <PasswordInput
+            value={confirmNewPassword}
+            onChange={setConfirmNewPassword}
+            required
+            autoComplete="new-password"
+            placeholder={t.confirmNewPasswordPlaceholder}
+            showLabel={t.showPassword}
+            hideLabel={t.hidePassword}
+          />
+          {changePasswordError && <p className="text-sm text-red-600">{changePasswordError}</p>}
+          {changePasswordSuccess && <p className="text-sm text-green-700">{t.changePasswordSuccess}</p>}
+          <button
+            type="submit"
+            disabled={changingPassword}
+            className="self-start rounded-lg bg-neutral-900 px-3 py-1.5 text-sm text-white disabled:opacity-40"
+          >
+            {changingPassword ? t.changingPassword : t.changePasswordButton}
+          </button>
+        </form>
       </section>
     </Card>
   );
