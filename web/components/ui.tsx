@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes } from "react";
 
 export function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto w-full max-w-md rounded-md border border-line bg-bg p-4 sm:p-6">
+    <div className="mx-auto w-[90%] rounded-md border border-line bg-bg p-4 sm:p-6">
       {children}
     </div>
   );
