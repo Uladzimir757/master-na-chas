@@ -330,4 +330,8 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ rating, rating_count: ratingCount }),
     }),
+  // 409 when the master has bookings — see app/main.py::delete_master's
+  // docstring for why that's checked instead of a raw cascade.
+  deleteMaster: (masterUserId: string) =>
+    request<{ ok: true }>(`/admin/masters/${masterUserId}`, { method: "DELETE" }),
 };

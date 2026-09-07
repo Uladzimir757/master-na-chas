@@ -5,6 +5,7 @@ import {
   mockAdminLogout,
   mockAdminMasters,
   mockAdminMe,
+  mockDeleteMaster,
   mockTelegramLink,
   mockUpdateMasterRating,
 } from "./mocks";
@@ -137,6 +138,54 @@ test("a failed rating save shows an error message", async ({ page }) => {
   await ratingInput.blur();
 
   await expect(page.getByText("Не удалось сохранить оценку")).toBeVisible();
+});
+
+// DELETE /admin/masters/{id} — a second click confirms, matching the rest
+// of the site not using window.confirm (see AdminPanel.tsx).
+test("deleting a master requires a confirm click, then removes it from the list", async ({ page }) => {
+  await mockAdminMe(page, { isAdmin: true });
+  const master = adminMaster({ name: "Друг", email: "friend@example.com" });
+  await mockAdminMasters(page, [master]);
+  await mockDeleteMaster(page, master);
+
+  await page.goto("/admin/");
+  await expect(page.getByText("Друг")).toBeVisible();
+
+  await page.getByRole("button", { name: "Удалить" }).click();
+  await expect(page.getByRole("button", { name: "Да, удалить" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Да, удалить" }).click();
+
+  await expect(page.getByText("Друг")).toHaveCount(0);
+  await expect(page.getByText("Мастеров пока нет")).toBeVisible();
+});
+
+test("clicking away from the delete confirmation cancels it", async ({ page }) => {
+  await mockAdminMe(page, { isAdmin: true });
+  const master = adminMaster({ name: "Друг" });
+  await mockAdminMasters(page, [master]);
+  await mockDeleteMaster(page, master);
+
+  await page.goto("/admin/");
+  await page.getByRole("button", { name: "Удалить" }).click();
+  await page.getByRole("button", { name: "Отмена" }).click();
+
+  await expect(page.getByRole("button", { name: "Удалить" })).toBeVisible();
+  await expect(page.getByText("Друг")).toBeVisible();
+});
+
+test("a master with existing bookings can't be deleted — shows the backend's 409 as a message", async ({ page }) => {
+  await mockAdminMe(page, { isAdmin: true });
+  const master = adminMaster({ name: "Владимир" });
+  await mockAdminMasters(page, [master]);
+  await mockDeleteMaster(page, master, { status: 409 });
+
+  await page.goto("/admin/");
+  await page.getByRole("button", { name: "Удалить" }).click();
+  await page.getByRole("button", { name: "Да, удалить" }).click();
+
+  await expect(page.getByText("есть бронирования")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Владимир" })).toBeVisible();
 });
 
 test("logging out returns to the login form", async ({ page }) => {

@@ -637,6 +637,19 @@ export async function mockUpdateMasterRating(page: Page, current: AdminMasterFix
   });
 }
 
+/** DELETE /admin/masters/{id}. `status: 409` simulates the "has bookings"
+ * block (app/main.py::delete_master). */
+export async function mockDeleteMaster(page: Page, current: AdminMasterFixture, opts?: { status?: number }) {
+  const status = opts?.status ?? 200;
+  await page.route(`**/admin/masters/${current.master_user_id}`, (route) => {
+    if (route.request().method() !== "DELETE") return route.fallback();
+    if (status !== 200) {
+      return route.fulfill({ status, contentType: "application/json", body: JSON.stringify({ detail: "boom" }) });
+    }
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+  });
+}
+
 /** GET /admin/me — whether the admin session cookie (if any) is still
  * valid. Mirrors mockAuthMe's shape for the master session. */
 export async function mockAdminMe(page: Page, opts: { isAdmin: boolean }) {

@@ -116,6 +116,13 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [savingRatingFor, setSavingRatingFor] = useState<string | null>(null);
   const [ratingError, setRatingError] = useState<string | null>(null);
 
+  // Two-step (arm, then confirm) instead of window.confirm — matches the
+  // rest of the site not using native dialogs, and keeps this reliably
+  // clickable from Playwright.
+  const [confirmDeleteFor, setConfirmDeleteFor] = useState<string | null>(null);
+  const [deletingFor, setDeletingFor] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     try {
       setMasters(await api.listMasters());
@@ -175,6 +182,24 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     }
   }, []);
 
+  const handleDeleteMaster = useCallback(async (master: AdminMaster) => {
+    setDeleteError(null);
+    setDeletingFor(master.master_user_id);
+    try {
+      await api.deleteMaster(master.master_user_id);
+      setMasters((prev) => prev?.filter((m) => m.master_user_id !== master.master_user_id) ?? prev);
+      setConfirmDeleteFor(null);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setDeleteError(`${master.name}: есть бронирования — сначала перенесите или отмените их`);
+      } else {
+        setDeleteError("Не удалось удалить мастера — попробуйте ещё раз");
+      }
+    } finally {
+      setDeletingFor(null);
+    }
+  }, []);
+
   return (
     <div className="flex w-full max-w-3xl flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -199,6 +224,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   <th className="py-2 pr-3 font-normal">Буфер выезда</th>
                   <th className="py-2 pr-3 font-normal">Рейтинг</th>
                   <th className="py-2 pr-3 font-normal">Telegram</th>
+                  <th className="py-2 pr-3 font-normal">&nbsp;</th>
                   <th className="py-2 font-normal">&nbsp;</th>
                 </tr>
               </thead>
@@ -259,6 +285,31 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                           </button>
                         ))}
                     </td>
+                    <td className="py-2">
+                      {confirmDeleteFor === m.master_user_id ? (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMaster(m)}
+                            disabled={deletingFor === m.master_user_id}
+                            className="text-danger underline"
+                          >
+                            {deletingFor === m.master_user_id ? "Удаляем…" : "Да, удалить"}
+                          </button>
+                          <button type="button" onClick={() => setConfirmDeleteFor(null)} className="text-ink/60 underline">
+                            Отмена
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteFor(m.master_user_id)}
+                          className="text-danger underline"
+                        >
+                          Удалить
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -267,6 +318,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         )}
         {linkError && <p className="mt-2 text-sm text-danger">{linkError}</p>}
         {ratingError && <p className="mt-2 text-sm text-danger">{ratingError}</p>}
+        {deleteError && <p className="mt-2 text-sm text-danger">{deleteError}</p>}
       </Card>
 
       <CreateMasterForm onCreated={load} />

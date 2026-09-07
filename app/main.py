@@ -22,6 +22,8 @@ Routes:
   GET   /admin/me                             (ADMIN_SECRET header OR admin session required)
   GET   /admin/masters                        (ADMIN_SECRET header OR admin session required)
   POST  /admin/masters                       (ADMIN_SECRET header OR admin session required)
+  PATCH /admin/masters/{id}                  (ADMIN_SECRET header OR admin session required — rating/rating_count only)
+  DELETE /admin/masters/{id}                 (ADMIN_SECRET header OR admin session required — blocked if bookings exist)
   POST  /admin/masters/{id}/telegram-link     (ADMIN_SECRET header OR admin session required)
   GET   /admin/translations                  (ADMIN_SECRET header OR admin session required)
   PUT   /admin/translations                  (ADMIN_SECRET header OR admin session required — upsert, does NOT go live)
@@ -42,7 +44,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, sta
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.sessions import SessionMiddleware
@@ -899,6 +901,39 @@ async def update_master_rating(
         rating=provider.rating,
         rating_count=provider.rating_count,
     )
+
+
+@app.delete("/admin/masters/{master_user_id}", dependencies=[Depends(require_admin)])
+async def delete_master(master_user_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
+    """Removes a master and everything scoped to him (provider_service,
+    working_hours*, telegram_link_token, web_push_subscription — all
+    ON DELETE CASCADE off provider/master_user, see db/schema.sql). Blocked
+    with 409 if he has any bookings — booking.provider_id has no cascade on
+    purpose (a booking must survive even if the provider row later goes
+    away), so an unconditional delete would just surface as a raw 500 here;
+    checking first gives the superadmin a clear reason instead."""
+    master_user = await db.get(MasterUser, master_user_id)
+    if master_user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Master not found")
+
+    has_booking = (
+        await db.execute(select(Booking.id).where(Booking.provider_id == master_user.provider_id).limit(1))
+    ).first()
+    if has_booking is not None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "У мастера есть бронирования — удаление невозможно, пока они не будут перенесены/отменены",
+        )
+
+    # Raw DELETE, not db.delete(provider) — the ORM's own unit-of-work would
+    # first try to UPDATE the (NOT NULL) child FKs to null before removing
+    # the parent, since Provider.master_user/.working_hours are plain
+    # relationships with no cascade="delete"/passive_deletes configured.
+    # Going straight to SQL leaves it entirely to Postgres's own
+    # ON DELETE CASCADE (db/schema.sql), which is what actually needs to run.
+    await db.execute(delete(Provider).where(Provider.id == master_user.provider_id))
+    await db.commit()
+    return {"ok": True}
 
 
 @app.post("/admin/masters", dependencies=[Depends(require_admin)])

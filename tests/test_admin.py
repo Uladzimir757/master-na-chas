@@ -5,11 +5,17 @@ web/app/admin/page.tsx)."""
 
 from __future__ import annotations
 
+import uuid
+from datetime import datetime, timedelta
+
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models import MasterUser, Tenant
+from app.models import Booking, MasterUser, Provider, Service, Tenant
+from app.slot_engine import BUSINESS_TZ
 
 TEST_SECRET = "test-admin-secret"
 
@@ -220,3 +226,63 @@ async def test_admin_set_master_rating_404s_for_unknown_master(client: AsyncClie
         f"/admin/masters/{uuid.uuid4()}", json={"rating": 4.0, "rating_count": 1}, headers={"x-admin-secret": TEST_SECRET}
     )
     assert resp.status_code == 404
+
+
+# ----------------------------------------------------------------------------
+# DELETE /admin/masters/{id} — cleanup for a test/duplicate master. Blocked
+# (409) rather than cascading if he has bookings — see delete_master's
+# docstring in app/main.py.
+# ----------------------------------------------------------------------------
+
+
+async def test_admin_can_delete_master(client: AsyncClient, master_user: MasterUser, db_session: AsyncSession):
+    headers = {"x-admin-secret": TEST_SECRET}
+    resp = await client.delete(f"/admin/masters/{master_user.id}", headers=headers)
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"ok": True}
+
+    listing = await client.get("/admin/masters", headers=headers)
+    assert all(row["master_user_id"] != str(master_user.id) for row in listing.json())
+
+    # provider row itself is gone too, not just the master_user login — a
+    # fresh SELECT, not db_session.get() (that would return the row it
+    # already cached in its identity map from the `provider` fixture setup,
+    # without re-checking the DB where a *different* session did the delete)
+    remaining = await db_session.execute(select(Provider).where(Provider.id == master_user.provider_id))
+    assert remaining.scalar_one_or_none() is None
+
+
+async def test_delete_master_requires_admin(client: AsyncClient, master_user: MasterUser):
+    resp = await client.delete(f"/admin/masters/{master_user.id}")
+    assert resp.status_code == 403
+
+
+async def test_delete_master_404s_for_unknown_master(client: AsyncClient):
+    resp = await client.delete(f"/admin/masters/{uuid.uuid4()}", headers={"x-admin-secret": TEST_SECRET})
+    assert resp.status_code == 404
+
+
+async def test_delete_master_blocked_when_bookings_exist(
+    client: AsyncClient, master_user: MasterUser, provider: Provider, service: Service, db_session: AsyncSession
+):
+    start_at = datetime.combine(datetime.now(BUSINESS_TZ).date() + timedelta(days=7), datetime.min.time(), tzinfo=BUSINESS_TZ).replace(
+        hour=10
+    )
+    booking = Booking(
+        id=uuid.uuid4(),
+        tenant_id=provider.tenant_id,
+        provider_id=provider.id,
+        service_id=service.id,
+        client_name="Клиент",
+        start_at=start_at,
+        end_at=start_at + timedelta(hours=1),
+    )
+    db_session.add(booking)
+    await db_session.commit()
+
+    resp = await client.delete(f"/admin/masters/{master_user.id}", headers={"x-admin-secret": TEST_SECRET})
+    assert resp.status_code == 409
+
+    # nothing was actually removed
+    listing = await client.get("/admin/masters", headers={"x-admin-secret": TEST_SECRET})
+    assert any(row["master_user_id"] == str(master_user.id) for row in listing.json())
