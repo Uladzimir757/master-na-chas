@@ -29,6 +29,10 @@ export interface Translations {
   brandName: string;
   heroTitle: string;
   heroSubtitle: string;
+  timeOfDayMorning: string;
+  timeOfDayAfternoon: string;
+  timeOfDayEvening: string;
+  continueToFormButton: string;
   loading: string;
   catalogLoadError: string;
   pickServiceTitle: string;
@@ -151,6 +155,10 @@ export function buildTranslations(map: TranslationMap): Translations {
     brandName: pick(map, "brandName"),
     heroTitle: pick(map, "heroTitle"),
     heroSubtitle: pick(map, "heroSubtitle"),
+    timeOfDayMorning: pick(map, "timeOfDayMorning"),
+    timeOfDayAfternoon: pick(map, "timeOfDayAfternoon"),
+    timeOfDayEvening: pick(map, "timeOfDayEvening"),
+    continueToFormButton: pick(map, "continueToFormButton"),
     loading: pick(map, "loading"),
     catalogLoadError: pick(map, "catalogLoadError"),
     pickServiceTitle: pick(map, "pickServiceTitle"),

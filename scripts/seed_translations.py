@@ -53,6 +53,10 @@ ENTRIES: list[tuple[str, str, str]] = [
         "Montaż mebli, drobne naprawy i instalacje — rezerwacja wolnego terminu w kilka minut",
         "Furniture assembly, small repairs and installations — book a free slot in a couple of minutes",
     ),
+    ("timeOfDayMorning", "Rano", "Morning"),
+    ("timeOfDayAfternoon", "Popołudnie", "Afternoon"),
+    ("timeOfDayEvening", "Wieczór", "Evening"),
+    ("continueToFormButton", "Przejdź do rezerwacji", "Continue to booking"),
     ("loading", "Ładowanie…", "Loading…"),
     (
         "catalogLoadError",

@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, type Booking, type Provider, type Service, type Slot } from "@/lib/api";
-import { addDays, dateKey, formatDayLabel, formatTime, toDateParam } from "@/lib/format";
+import { addDays, businessHour, dateKey, formatDayLabel, formatTime, toDateParam } from "@/lib/format";
 import { useLocale } from "@/lib/LocaleContext";
 import type { Translations } from "@/lib/i18n";
 import { Button, Card, Centered } from "@/components/ui";
@@ -21,6 +21,12 @@ function formatLocationAgo(updatedAtIso: string, t: Translations): string {
 }
 
 const DAYS_AHEAD = 14;
+
+// Cycled by provider list order (not hashed) so the same provider keeps the
+// same tag color across renders/reloads without needing a color stored
+// anywhere — only shown when providers.length > 1 (see the slot grid below),
+// so it's fine that a 4th provider would repeat a color.
+const PROVIDER_TAG_CLASSES = ["bg-accent", "bg-accent-2", "bg-ink"];
 
 interface Props {
   service: Service;
@@ -93,6 +99,13 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
     return (id: string) => map.get(id) ?? t.defaultMasterName;
   }, [providers, t]);
 
+  const providerTagClass = useMemo(() => {
+    const map = new Map(providers.map((p, i) => [p.id, PROVIDER_TAG_CLASSES[i % PROVIDER_TAG_CLASSES.length]]));
+    return (id: string) => map.get(id) ?? PROVIDER_TAG_CLASSES[0];
+  }, [providers]);
+
+  const formSectionRef = useRef<HTMLDivElement>(null);
+
   // null/0 = no separate line shown — see Provider.call_out_fee in
   // app/models.py. Per-provider (not per-service), so this only resolves
   // once a specific provider is known, i.e. once a slot is picked.
@@ -134,6 +147,23 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
       .filter((s) => dateKey(s.start_at) === selectedDateKey)
       .sort((a, b) => a.start_at.localeCompare(b.start_at));
   }, [slots, selectedDateKey]);
+
+  // Утро/День/Вечер — a day with two providers on a 15-minute grid runs to
+  // dozens of same-looking chips; grouping gives the eye somewhere to land
+  // instead of scanning the whole grid for a rough time of day.
+  const slotsByTimeOfDay = useMemo(() => {
+    const buckets = [
+      { label: t.timeOfDayMorning, slots: [] as Slot[] },
+      { label: t.timeOfDayAfternoon, slots: [] as Slot[] },
+      { label: t.timeOfDayEvening, slots: [] as Slot[] },
+    ];
+    for (const s of slotsForSelectedDay) {
+      const hour = businessHour(s.start_at);
+      const bucket = hour < 12 ? buckets[0] : hour < 17 ? buckets[1] : buckets[2];
+      bucket.slots.push(s);
+    }
+    return buckets.filter((b) => b.slots.length > 0);
+  }, [slotsForSelectedDay, t]);
 
   async function submitBooking() {
     if (!selectedSlot || clientName.trim().length === 0) return;
@@ -193,123 +223,174 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
   }
 
   return (
-    <Card>
-      {showChangeService && (
-        <button className="mb-3 text-sm text-ink/50 hover:text-accent-2" onClick={onChangeService}>
-          {t.changeService}
-        </button>
-      )}
-      <h1 className="mb-1 text-xl font-extrabold tracking-[-0.01em]">{service.name}</h1>
-      <p className="mb-1 text-sm text-ink/60">
-        {t.durationMinutes(service.duration_minutes)}
-        {service.price_min != null || service.price_max != null ? (
+    <>
+      <Card>
+        {showChangeService && (
+          <button className="mb-3 text-sm text-ink/50 hover:text-accent-2" onClick={onChangeService}>
+            {t.changeService}
+          </button>
+        )}
+        <h1 className="mb-1 text-xl font-extrabold tracking-[-0.01em]">{service.name}</h1>
+        <p className="mb-1 text-sm text-ink/60">
+          {t.durationMinutes(service.duration_minutes)}
+          {service.price_min != null || service.price_max != null ? (
+            <>
+              {" · "}
+              <PriceLabel min={service.price_min} max={service.price_max} t={t} />
+            </>
+          ) : null}
+        </p>
+        {description && <p className="mb-4 text-sm text-ink/70">{description}</p>}
+        {!description && <div className="mb-4" />}
+
+        {slotsError && <Centered>{slotsError}</Centered>}
+
+        {!slotsError && slots === null && <Centered>{t.slotsLoading}</Centered>}
+
+        {!slotsError && slots !== null && daysWithSlots.length === 0 && (
+          <Centered>{t.noSlotsInRange(DAYS_AHEAD)}</Centered>
+        )}
+
+        {!slotsError && daysWithSlots.length > 0 && (
           <>
-            {" · "}
-            <PriceLabel min={service.price_min} max={service.price_max} t={t} />
-          </>
-        ) : null}
-      </p>
-      {description && <p className="mb-4 text-sm text-ink/70">{description}</p>}
-      {!description && <div className="mb-4" />}
-
-      {slotsError && <Centered>{slotsError}</Centered>}
-
-      {!slotsError && slots === null && <Centered>{t.slotsLoading}</Centered>}
-
-      {!slotsError && slots !== null && daysWithSlots.length === 0 && (
-        <Centered>{t.noSlotsInRange(DAYS_AHEAD)}</Centered>
-      )}
-
-      {!slotsError && daysWithSlots.length > 0 && (
-        <>
-          <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
-            {daysWithSlots.map(([key, iso]) => (
-              <button
-                key={key}
-                className={`shrink-0 rounded-md border px-4 py-2 text-sm whitespace-nowrap ${
-                  key === selectedDateKey
-                    ? "border-ink bg-ink text-bg"
-                    : "border-line bg-bg text-ink hover:border-accent-2"
-                }`}
-                onClick={() => setSelectedDateKey(key)}
-              >
-                {formatDayLabel(iso, locale, t)}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-            {slotsForSelectedDay.map((s) => {
-              const isSelected = selectedSlot?.start_at === s.start_at && selectedSlot?.provider_id === s.provider_id;
-              return (
+            <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+              {daysWithSlots.map(([key, iso]) => (
                 <button
-                  key={`${s.provider_id}-${s.start_at}`}
-                  className={`rounded-md border px-2 py-2 text-sm ${
-                    isSelected ? "chip-settle border-accent bg-accent text-bg" : "border-line hover:border-accent-2"
+                  key={key}
+                  className={`shrink-0 rounded-md border px-4 py-2 text-sm whitespace-nowrap ${
+                    key === selectedDateKey
+                      ? "border-ink bg-ink text-bg"
+                      : "border-line bg-bg text-ink hover:border-accent-2"
                   }`}
-                  onClick={() => setSelectedSlot(s)}
+                  onClick={() => setSelectedDateKey(key)}
                 >
-                  <div className="font-mono font-medium">{formatTime(s.start_at, locale)}</div>
-                  {providers.length > 1 && <div className="truncate text-xs opacity-70">{providerName(s.provider_id)}</div>}
+                  {formatDayLabel(iso, locale, t)}
                 </button>
-              );
-            })}
-          </div>
-        </>
-      )}
-
-      {/* Not nested inside `selectedSlot &&` below: the 409 handler in
-          submitBooking() clears selectedSlot in the same breath it sets this,
-          so the message would never actually render if it were. */}
-      {submitError && <p className="mt-3 text-sm text-danger">{submitError}</p>}
-
-      {selectedSlot && (
-        <div className="mt-5 border-t border-line pt-4">
-          <p className="mb-3 text-sm text-ink/70">
-            {formatDayLabel(selectedSlot.start_at, locale, t)},{" "}
-            <span className="font-mono">{formatTime(selectedSlot.start_at, locale)}</span> ·{" "}
-            {providerName(selectedSlot.provider_id)}
-            {providerCallOutFee(selectedSlot.provider_id) ? (
-              <span className="text-ink/60"> · {t.callOutFeeLine(providerCallOutFee(selectedSlot.provider_id)!)}</span>
-            ) : null}
-          </p>
-
-          {providerLocation(selectedSlot.provider_id) && (
-            // key={locationClock}: the only reason this block re-renders on
-            // its own (nothing else here changes every 30s) — see the
-            // locationClock tick above.
-            <div key={locationClock} className="mb-4">
-              <p className="mb-1.5 text-sm font-medium">{t.masterLocationTitle}</p>
-              <ProviderMap
-                lat={providerLocation(selectedSlot.provider_id)!.lat}
-                lng={providerLocation(selectedSlot.provider_id)!.lng}
-              />
-              <p className="mt-1 text-xs text-ink/60">
-                {formatLocationAgo(providerLocation(selectedSlot.provider_id)!.updated_at, t)}
-              </p>
+              ))}
             </div>
-          )}
 
-          <div className="flex flex-col gap-2">
-            <input
-              className="rounded-md border border-line px-4 py-2"
-              placeholder={t.namePlaceholder}
-              value={clientName}
-              onChange={(e) => setClientName(e.target.value)}
-            />
-            <input
-              className="rounded-md border border-line px-4 py-2"
-              placeholder={t.phonePlaceholder}
-              type="tel"
-              value={clientPhone}
-              onChange={(e) => setClientPhone(e.target.value)}
-            />
-            <Button className="mt-1" disabled={clientName.trim().length === 0 || submitting} onClick={submitBooking}>
-              {submitting ? t.submitting : t.submitBooking}
+            <div className="flex flex-col gap-4">
+              {slotsByTimeOfDay.map((bucket) => (
+                <div key={bucket.label}>
+                  <h2 className="mb-2 text-xs font-semibold tracking-wide text-ink/50 uppercase">{bucket.label}</h2>
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                    {bucket.slots.map((s) => {
+                      const isSelected =
+                        selectedSlot?.start_at === s.start_at && selectedSlot?.provider_id === s.provider_id;
+                      return (
+                        <button
+                          key={`${s.provider_id}-${s.start_at}`}
+                          className={`rounded-md border px-2 py-2 text-sm ${
+                            isSelected
+                              ? "chip-settle border-accent bg-accent text-bg"
+                              : "border-line hover:border-accent-2"
+                          }`}
+                          onClick={() => setSelectedSlot(s)}
+                        >
+                          <div className="font-mono font-medium">{formatTime(s.start_at, locale)}</div>
+                          {providers.length > 1 && (
+                            <div className="mt-1 flex items-center gap-1">
+                              <span
+                                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-bg ${providerTagClass(s.provider_id)}`}
+                              >
+                                {providerName(s.provider_id).charAt(0).toUpperCase()}
+                              </span>
+                              <span className="truncate text-xs opacity-70">{providerName(s.provider_id)}</span>
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Not nested inside `selectedSlot &&` below: the 409 handler in
+            submitBooking() clears selectedSlot in the same breath it sets this,
+            so the message would never actually render if it were. */}
+        {submitError && <p className="mt-3 text-sm text-danger">{submitError}</p>}
+
+        {selectedSlot && (
+          <div ref={formSectionRef} className="mt-5 border-t border-line pt-4">
+            <p className="mb-3 text-sm text-ink/70">
+              {formatDayLabel(selectedSlot.start_at, locale, t)},{" "}
+              <span className="font-mono">{formatTime(selectedSlot.start_at, locale)}</span> ·{" "}
+              {providerName(selectedSlot.provider_id)}
+              {providerCallOutFee(selectedSlot.provider_id) ? (
+                <span className="text-ink/60">
+                  {" "}
+                  · {t.callOutFeeLine(providerCallOutFee(selectedSlot.provider_id)!)}
+                </span>
+              ) : null}
+            </p>
+
+            {providerLocation(selectedSlot.provider_id) && (
+              // key={locationClock}: the only reason this block re-renders on
+              // its own (nothing else here changes every 30s) — see the
+              // locationClock tick above.
+              <div key={locationClock} className="mb-4">
+                <p className="mb-1.5 text-sm font-medium">{t.masterLocationTitle}</p>
+                <ProviderMap
+                  lat={providerLocation(selectedSlot.provider_id)!.lat}
+                  lng={providerLocation(selectedSlot.provider_id)!.lng}
+                />
+                <p className="mt-1 text-xs text-ink/60">
+                  {formatLocationAgo(providerLocation(selectedSlot.provider_id)!.updated_at, t)}
+                </p>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2">
+              <input
+                className="rounded-md border border-line px-4 py-2"
+                placeholder={t.namePlaceholder}
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+              />
+              <input
+                className="rounded-md border border-line px-4 py-2"
+                placeholder={t.phonePlaceholder}
+                type="tel"
+                value={clientPhone}
+                onChange={(e) => setClientPhone(e.target.value)}
+              />
+              <Button
+                className="mt-1"
+                disabled={clientName.trim().length === 0 || submitting}
+                onClick={submitBooking}
+              >
+                {submitting ? t.submitting : t.submitBooking}
+              </Button>
+            </div>
+            {/* Reserves the sticky bar's own height so it never covers this
+                button once scrolled all the way down. */}
+            <div aria-hidden className="h-20" />
+          </div>
+        )}
+      </Card>
+
+      {/* The one non-scroll way to reach the form on a long slot list —
+          jumps straight to it instead of leaving the visitor to scroll
+          past a whole day's grid to notice it appeared. */}
+      {selectedSlot && (
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-bg px-4 py-3 sm:px-6">
+          <div className="mx-auto flex w-[90%] items-center justify-between gap-4">
+            <span className="truncate text-sm">
+              <span className="font-mono font-medium">{formatTime(selectedSlot.start_at, locale)}</span>{" "}
+              · {providerName(selectedSlot.provider_id)}
+            </span>
+            <Button
+              className="shrink-0"
+              onClick={() => formSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            >
+              {t.continueToFormButton}
             </Button>
           </div>
         </div>
       )}
-    </Card>
+    </>
   );
 }
