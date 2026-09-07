@@ -130,6 +130,41 @@ export const TRANSLATIONS_FIXTURE: Record<string, string> = {
   servicePriceMinPlaceholder: "Цена от",
   servicePriceMaxPlaceholder: "Цена до",
   serviceDescriptionPlaceholder: "Описание услуги (необязательно)",
+  workingHoursTitle: "Мои рабочие часы",
+  workingHoursHint: "Настройте недельный график — клиенты смогут бронировать только в эти часы.",
+  workingHoursLoadError: "Не удалось загрузить рабочие часы. Обновите страницу.",
+  weekdayMon: "Понедельник",
+  weekdayTue: "Вторник",
+  weekdayWed: "Среда",
+  weekdayThu: "Четверг",
+  weekdayFri: "Пятница",
+  weekdaySat: "Суббота",
+  weekdaySun: "Воскресенье",
+  workingHoursDayOff: "Выходной",
+  workingHoursFromLabel: "с",
+  workingHoursToLabel: "до",
+  workingHoursAddIntervalButton: "+ добавить интервал",
+  workingHoursRemoveIntervalLabel: "Удалить интервал",
+  workingHoursValidationHint:
+    "Время окончания должно быть позже начала, а интервалы в один день не должны пересекаться.",
+  workingHoursSaveButton: "Сохранить график",
+  workingHoursSaving: "Сохранение…",
+  workingHoursSaveError: "Не удалось сохранить график. Проверьте часы и попробуйте ещё раз.",
+  workingHoursExceptionsTitle: "Особые дни",
+  workingHoursExceptionsHint: "Исключения из обычного графика на конкретную дату — выходной или другие часы.",
+  workingHoursNoExceptions: "Особых дней пока не запланировано.",
+  workingHoursExceptionDayOffLabel: "Выходной",
+  workingHoursReasonLabel: "Причина",
+  workingHoursDeleteExceptionLabel: "Удалить",
+  workingHoursExceptionDeleteError: "Не удалось удалить особый день. Попробуйте ещё раз.",
+  workingHoursAddExceptionTitle: "Добавить особый день",
+  workingHoursExceptionDateLabel: "Дата",
+  workingHoursExceptionDayOffOption: "Выходной",
+  workingHoursExceptionCustomHoursOption: "Другие часы",
+  workingHoursExceptionReasonPlaceholder: "Причина (необязательно)",
+  workingHoursAddExceptionButton: "Добавить",
+  workingHoursSavingException: "Сохранение…",
+  workingHoursExceptionSaveError: "Не удалось сохранить особый день. Проверьте часы и попробуйте ещё раз.",
 };
 
 export const t = buildTranslations(TRANSLATIONS_FIXTURE);
@@ -500,6 +535,105 @@ export async function mockUpdateMyLocation(page: Page) {
   await page.route("**/api/providers/me/location", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }),
   );
+}
+
+export interface WorkingHoursSlotFixture {
+  weekday: number;
+  start_time: string;
+  end_time: string;
+}
+
+export interface WorkingHoursExceptionFixture {
+  id: string;
+  date: string;
+  is_available: boolean;
+  start_time: string | null;
+  end_time: string | null;
+  reason: string | null;
+}
+
+let _exceptionIdCounter = 0;
+
+/** GET/PUT /api/providers/me/working-hours (weekly template) and
+ * PUT/DELETE /api/providers/me/working-hours/exceptions/{date} (per-date
+ * overrides) — components/WorkingHoursEditor.tsx. Stateful, same convention
+ * as mockMyServices above: PUT on the template applies the real backend's
+ * replace semantics, and the exceptions route upserts-by-date / deletes-by-
+ * date, keyed off the {date} path segment (mirrors app/main.py's
+ * update_my_working_hours / upsert_working_hours_exception /
+ * delete_working_hours_exception). */
+export async function mockWorkingHours(
+  page: Page,
+  opts?: {
+    slots?: WorkingHoursSlotFixture[];
+    exceptions?: WorkingHoursExceptionFixture[];
+    putStatus?: number;
+    exceptionPutStatus?: number;
+    exceptionDeleteStatus?: number;
+  },
+) {
+  let slots = opts?.slots ?? [];
+  let exceptions = opts?.exceptions ?? [];
+
+  await page.route("**/api/providers/me/working-hours", (route) => {
+    if (route.request().method() === "GET") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ slots, exceptions }) });
+    }
+    // PUT — replace semantics
+    if (opts?.putStatus && opts.putStatus !== 200) {
+      return route.fulfill({
+        status: opts.putStatus,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "boom" }),
+      });
+    }
+    const payload = JSON.parse(route.request().postData() ?? "{}");
+    slots = payload.slots ?? [];
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ slots, exceptions }) });
+  });
+
+  await page.route("**/api/providers/me/working-hours/exceptions/*", (route) => {
+    const segments = new URL(route.request().url()).pathname.split("/");
+    const date = segments[segments.length - 1];
+    const method = route.request().method();
+
+    if (method === "DELETE") {
+      if (opts?.exceptionDeleteStatus && opts.exceptionDeleteStatus !== 200) {
+        return route.fulfill({
+          status: opts.exceptionDeleteStatus,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: "boom" }),
+        });
+      }
+      const existed = exceptions.some((ex) => ex.date === date);
+      exceptions = exceptions.filter((ex) => ex.date !== date);
+      return route.fulfill({
+        status: existed ? 200 : 404,
+        contentType: "application/json",
+        body: JSON.stringify(existed ? { ok: true } : { detail: "No exception for that date" }),
+      });
+    }
+
+    // PUT — upsert by date
+    if (opts?.exceptionPutStatus && opts.exceptionPutStatus !== 200) {
+      return route.fulfill({
+        status: opts.exceptionPutStatus,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "boom" }),
+      });
+    }
+    const payload = JSON.parse(route.request().postData() ?? "{}");
+    const updated: WorkingHoursExceptionFixture = {
+      id: exceptions.find((ex) => ex.date === date)?.id ?? `exc-${++_exceptionIdCounter}`,
+      date,
+      is_available: payload.is_available,
+      start_time: payload.is_available ? payload.start_time : null,
+      end_time: payload.is_available ? payload.end_time : null,
+      reason: payload.reason ?? null,
+    };
+    exceptions = [...exceptions.filter((ex) => ex.date !== date), updated];
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(updated) });
+  });
 }
 
 interface ServiceToggleFixture {

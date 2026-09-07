@@ -148,6 +148,40 @@ export interface Translations {
   servicePriceMinPlaceholder: string;
   servicePriceMaxPlaceholder: string;
   serviceDescriptionPlaceholder: string;
+
+  // "Мои рабочие часы" — components/WorkingHoursEditor.tsx. Weekly template
+  // (multiple intervals per day allowed, e.g. a lunch gap) + per-date
+  // exceptions (day off / custom hours on a specific date).
+  workingHoursTitle: string;
+  workingHoursHint: string;
+  workingHoursLoadError: string;
+  weekdayLabels: string[]; // index 0=Monday .. 6=Sunday, matches WorkingHoursSlot.weekday
+  workingHoursDayOff: string;
+  workingHoursFromLabel: string;
+  workingHoursToLabel: string;
+  workingHoursAddIntervalButton: string;
+  workingHoursRemoveIntervalLabel: string;
+  workingHoursValidationHint: string;
+  workingHoursSaveButton: string;
+  workingHoursSaving: string;
+  workingHoursSaveError: string;
+
+  workingHoursExceptionsTitle: string;
+  workingHoursExceptionsHint: string;
+  workingHoursNoExceptions: string;
+  workingHoursExceptionDayOffLabel: string;
+  workingHoursReasonLabel: string;
+  workingHoursDeleteExceptionLabel: string;
+  workingHoursExceptionDeleteError: string;
+
+  workingHoursAddExceptionTitle: string;
+  workingHoursExceptionDateLabel: string;
+  workingHoursExceptionDayOffOption: string;
+  workingHoursExceptionCustomHoursOption: string;
+  workingHoursExceptionReasonPlaceholder: string;
+  workingHoursAddExceptionButton: string;
+  workingHoursSavingException: string;
+  workingHoursExceptionSaveError: string;
 }
 
 export function buildTranslations(map: TranslationMap): Translations {
@@ -272,5 +306,44 @@ export function buildTranslations(map: TranslationMap): Translations {
     servicePriceMinPlaceholder: pick(map, "servicePriceMinPlaceholder"),
     servicePriceMaxPlaceholder: pick(map, "servicePriceMaxPlaceholder"),
     serviceDescriptionPlaceholder: pick(map, "serviceDescriptionPlaceholder"),
+
+    workingHoursTitle: pick(map, "workingHoursTitle"),
+    workingHoursHint: pick(map, "workingHoursHint"),
+    workingHoursLoadError: pick(map, "workingHoursLoadError"),
+    weekdayLabels: [
+      pick(map, "weekdayMon"),
+      pick(map, "weekdayTue"),
+      pick(map, "weekdayWed"),
+      pick(map, "weekdayThu"),
+      pick(map, "weekdayFri"),
+      pick(map, "weekdaySat"),
+      pick(map, "weekdaySun"),
+    ],
+    workingHoursDayOff: pick(map, "workingHoursDayOff"),
+    workingHoursFromLabel: pick(map, "workingHoursFromLabel"),
+    workingHoursToLabel: pick(map, "workingHoursToLabel"),
+    workingHoursAddIntervalButton: pick(map, "workingHoursAddIntervalButton"),
+    workingHoursRemoveIntervalLabel: pick(map, "workingHoursRemoveIntervalLabel"),
+    workingHoursValidationHint: pick(map, "workingHoursValidationHint"),
+    workingHoursSaveButton: pick(map, "workingHoursSaveButton"),
+    workingHoursSaving: pick(map, "workingHoursSaving"),
+    workingHoursSaveError: pick(map, "workingHoursSaveError"),
+
+    workingHoursExceptionsTitle: pick(map, "workingHoursExceptionsTitle"),
+    workingHoursExceptionsHint: pick(map, "workingHoursExceptionsHint"),
+    workingHoursNoExceptions: pick(map, "workingHoursNoExceptions"),
+    workingHoursExceptionDayOffLabel: pick(map, "workingHoursExceptionDayOffLabel"),
+    workingHoursReasonLabel: pick(map, "workingHoursReasonLabel"),
+    workingHoursDeleteExceptionLabel: pick(map, "workingHoursDeleteExceptionLabel"),
+    workingHoursExceptionDeleteError: pick(map, "workingHoursExceptionDeleteError"),
+
+    workingHoursAddExceptionTitle: pick(map, "workingHoursAddExceptionTitle"),
+    workingHoursExceptionDateLabel: pick(map, "workingHoursExceptionDateLabel"),
+    workingHoursExceptionDayOffOption: pick(map, "workingHoursExceptionDayOffOption"),
+    workingHoursExceptionCustomHoursOption: pick(map, "workingHoursExceptionCustomHoursOption"),
+    workingHoursExceptionReasonPlaceholder: pick(map, "workingHoursExceptionReasonPlaceholder"),
+    workingHoursAddExceptionButton: pick(map, "workingHoursAddExceptionButton"),
+    workingHoursSavingException: pick(map, "workingHoursSavingException"),
+    workingHoursExceptionSaveError: pick(map, "workingHoursExceptionSaveError"),
   };
 }

@@ -9,6 +9,10 @@ Routes:
   PATCH /api/providers/me/settings            (logged-in master only)
   GET   /api/providers/me/services            (logged-in master only)
   PUT   /api/providers/me/services            (logged-in master only)
+  GET   /api/providers/me/working-hours       (logged-in master only)
+  PUT   /api/providers/me/working-hours       (logged-in master only — replaces the weekly template)
+  PUT   /api/providers/me/working-hours/exceptions/{date}    (logged-in master only — upsert a day override)
+  DELETE /api/providers/me/working-hours/exceptions/{date}   (logged-in master only)
   PUT   /api/providers/me/location            (logged-in master only — foreground GPS ping, Этап 4)
   POST  /api/providers/me/busy/start          (logged-in master only — "занят сейчас" on)
   PATCH /api/providers/me/busy                (logged-in master only — set/clear estimate)
@@ -38,7 +42,7 @@ import logging
 import secrets
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -61,6 +65,8 @@ from app.models import (
     TelegramLinkToken,
     TranslationEntry,
     WebPushSubscription,
+    WorkingHours,
+    WorkingHoursException,
 )
 from app.notifications import send_sms, send_telegram_message, send_web_push
 from app.schemas import (
@@ -90,9 +96,15 @@ from app.schemas import (
     TranslationApproveRequest,
     TranslationEntryOut,
     TranslationUpsert,
+    WorkingHoursExceptionOut,
+    WorkingHoursExceptionUpsert,
+    WorkingHoursOut,
+    WorkingHoursSlot,
+    WorkingHoursUpdate,
 )
 from app.security import hash_password, require_master_user_id, verify_password
 from app.slot_engine import (
+    BUSINESS_TZ,
     LOCATION_FRESHNESS,
     SlotOut,
     get_availability,
@@ -763,6 +775,139 @@ async def update_my_services(
 
     await db.commit()
     return await get_my_services(lang=lang, master_user_id=master_user_id, db=db)
+
+
+# ============================================================================
+# "Мои рабочие часы" — a master's own weekly template (WorkingHours) plus
+# per-date overrides (WorkingHoursException). Both tables have existed since
+# day one for slot_engine.py to read (get_availability, is_within_working_hours)
+# but until this segment nothing let a master actually edit them himself —
+# only seed scripts / hand-written SQL ever touched these two tables.
+# ============================================================================
+
+
+async def _working_hours_out(provider: Provider, db: AsyncSession) -> WorkingHoursOut:
+    rows = (
+        await db.execute(
+            select(WorkingHours)
+            .where(WorkingHours.provider_id == provider.id)
+            .order_by(WorkingHours.weekday, WorkingHours.start_time)
+        )
+    ).scalars().all()
+    # Only ever show upcoming/current exceptions — a master editing his own
+    # schedule has no use for a date that's already passed, and leaving past
+    # rows out keeps this response from growing without bound over time
+    # (nothing here ever deletes an old exception row itself, this just
+    # doesn't surface it).
+    today = datetime.now(BUSINESS_TZ).date()
+    exceptions = (
+        await db.execute(
+            select(WorkingHoursException)
+            .where(WorkingHoursException.provider_id == provider.id, WorkingHoursException.date >= today)
+            .order_by(WorkingHoursException.date)
+        )
+    ).scalars().all()
+    return WorkingHoursOut(
+        slots=[WorkingHoursSlot(weekday=r.weekday, start_time=r.start_time, end_time=r.end_time) for r in rows],
+        exceptions=[WorkingHoursExceptionOut.model_validate(e) for e in exceptions],
+    )
+
+
+@app.get("/api/providers/me/working-hours", response_model=WorkingHoursOut)
+async def get_my_working_hours(
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> WorkingHoursOut:
+    provider = await _get_own_provider(master_user_id, db)
+    return await _working_hours_out(provider, db)
+
+
+@app.put("/api/providers/me/working-hours", response_model=WorkingHoursOut)
+async def update_my_working_hours(
+    payload: WorkingHoursUpdate,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> WorkingHoursOut:
+    """Replace semantics — the FULL desired weekly template (same shape as
+    update_my_services above): every existing WorkingHours row for this
+    provider is dropped and replaced with exactly what's posted. Per-date
+    overrides (WorkingHoursException) are untouched by this — see the
+    dedicated .../exceptions endpoints below."""
+    provider = await _get_own_provider(master_user_id, db)
+    await db.execute(delete(WorkingHours).where(WorkingHours.provider_id == provider.id))
+    for slot in payload.slots:
+        db.add(
+            WorkingHours(
+                id=uuid.uuid4(),
+                provider_id=provider.id,
+                weekday=slot.weekday,
+                start_time=slot.start_time,
+                end_time=slot.end_time,
+            )
+        )
+    await db.commit()
+    return await _working_hours_out(provider, db)
+
+
+@app.put("/api/providers/me/working-hours/exceptions/{exception_date}", response_model=WorkingHoursExceptionOut)
+async def upsert_working_hours_exception(
+    exception_date: date,
+    payload: WorkingHoursExceptionUpsert,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> WorkingHoursExceptionOut:
+    """Upsert by (provider_id, date) — db/schema.sql's UNIQUE constraint on
+    working_hours_exception matches this exactly, so posting again for a
+    date already overridden simply replaces it rather than needing a
+    separate edit path."""
+    provider = await _get_own_provider(master_user_id, db)
+    existing = (
+        await db.execute(
+            select(WorkingHoursException).where(
+                WorkingHoursException.provider_id == provider.id,
+                WorkingHoursException.date == exception_date,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is None:
+        existing = WorkingHoursException(id=uuid.uuid4(), provider_id=provider.id, date=exception_date)
+        db.add(existing)
+    existing.is_available = payload.is_available
+    # start_time/end_time are only ever non-null when is_available (matches
+    # db/schema.sql's comment "null when is_available=false") — the request
+    # schema already enforces they're present together with is_available=True
+    # (see WorkingHoursExceptionUpsert), this just makes sure a day-off
+    # request can't leave stale hours behind from a previous custom-hours
+    # override on the same date.
+    existing.start_time = payload.start_time if payload.is_available else None
+    existing.end_time = payload.end_time if payload.is_available else None
+    existing.reason = payload.reason
+    await db.commit()
+    await db.refresh(existing)
+    return WorkingHoursExceptionOut.model_validate(existing)
+
+
+@app.delete("/api/providers/me/working-hours/exceptions/{exception_date}")
+async def delete_working_hours_exception(
+    exception_date: date,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Removes the override for that date — the day reverts to whatever the
+    weekly template says. 404 if there was nothing to delete (scoped to the
+    caller's own provider, same as every .../me/* endpoint, so this can
+    never touch another master's exception)."""
+    provider = await _get_own_provider(master_user_id, db)
+    result = await db.execute(
+        delete(WorkingHoursException).where(
+            WorkingHoursException.provider_id == provider.id,
+            WorkingHoursException.date == exception_date,
+        )
+    )
+    await db.commit()
+    if result.rowcount == 0:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No exception for that date")
+    return {"ok": True}
 
 
 @app.get("/api/providers/{provider_id}/services", response_model=list[ProviderServiceOut])

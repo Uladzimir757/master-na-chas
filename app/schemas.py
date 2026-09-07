@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 from app.models import BookingStatus
 
@@ -298,6 +298,105 @@ class AvailabilityQuery(BaseModel):
     provider_id: uuid.UUID | None = None
     date_from: date
     date_to: date
+
+
+# ============================================================================
+# "Мои рабочие часы" — a master's own weekly template (WorkingHours) plus
+# per-date overrides (WorkingHoursException), the same tables
+# app/slot_engine.py has been reading from since day one for slot generation
+# and the is_within_working_hours gate on the public location dot (Этап 4) —
+# there was simply no way for a master to edit either one himself before
+# this segment; only seed scripts / hand-written SQL ever touched them.
+# ============================================================================
+
+
+class WorkingHoursSlot(BaseModel):
+    """One contiguous open window on a given weekday (0=Monday..6=Sunday,
+    matches date.weekday() and db/schema.sql's CHECK). Multiple rows per
+    weekday are allowed by the schema (e.g. 9-13 and 15-19, a lunch gap) —
+    the shape here carries that through rather than collapsing to one
+    window per day."""
+
+    weekday: int = Field(ge=0, le=6)
+    start_time: time
+    end_time: time
+
+    @model_validator(mode="after")
+    def _end_after_start(self) -> "WorkingHoursSlot":
+        if self.end_time <= self.start_time:
+            raise ValueError("end_time must be after start_time")
+        return self
+
+
+class WorkingHoursUpdate(BaseModel):
+    """PUT /api/providers/me/working-hours body — the FULL desired weekly
+    template, replace semantics (same shape as ProviderServicesUpdate):
+    every existing WorkingHours row for this provider is replaced with
+    exactly what's posted here. Rejects windows that overlap each other on
+    the same weekday — slot_engine.py's day_windows has no defined ordering
+    for overlapping ranges, so this catches an ambiguous schedule at the API
+    boundary instead of silently generating confusing/duplicate slots."""
+
+    slots: list[WorkingHoursSlot]
+
+    @field_validator("slots")
+    @classmethod
+    def _no_overlaps_per_weekday(cls, v: list[WorkingHoursSlot]) -> list[WorkingHoursSlot]:
+        by_weekday: dict[int, list[WorkingHoursSlot]] = {}
+        for slot in v:
+            by_weekday.setdefault(slot.weekday, []).append(slot)
+        for weekday, windows in by_weekday.items():
+            windows = sorted(windows, key=lambda w: w.start_time)
+            for a, b in zip(windows, windows[1:]):
+                if b.start_time < a.end_time:
+                    raise ValueError(f"overlapping working-hours windows on weekday {weekday}")
+        return v
+
+
+class WorkingHoursExceptionOut(BaseModel):
+    id: uuid.UUID
+    date: date
+    is_available: bool
+    start_time: time | None
+    end_time: time | None
+    reason: str | None
+
+    class Config:
+        from_attributes = True
+
+
+class WorkingHoursExceptionUpsert(BaseModel):
+    """PUT /api/providers/me/working-hours/exceptions/{date} body — one-off
+    override for a specific date: a day off (is_available=False, no hours)
+    or custom hours that day (is_available=True, start_time/end_time
+    required). Upsert by date (db/schema.sql's UNIQUE (provider_id, date)),
+    so posting again for a date already overridden just replaces it — no
+    separate "edit" endpoint needed."""
+
+    is_available: bool
+    start_time: time | None = None
+    end_time: time | None = None
+    reason: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def _hours_required_when_available(self) -> "WorkingHoursExceptionUpsert":
+        if self.is_available:
+            if self.start_time is None or self.end_time is None:
+                raise ValueError("start_time and end_time are required when is_available is true")
+            if self.end_time <= self.start_time:
+                raise ValueError("end_time must be after start_time")
+        return self
+
+
+class WorkingHoursOut(BaseModel):
+    """GET/PUT /api/providers/me/working-hours response — the weekly
+    template plus every upcoming exception (date >= today in
+    app/slot_engine.py's BUSINESS_TZ; past ones aren't useful to a master
+    editing his own schedule, so they're left out rather than growing this
+    response forever)."""
+
+    slots: list[WorkingHoursSlot]
+    exceptions: list[WorkingHoursExceptionOut]
 
 
 # ============================================================================

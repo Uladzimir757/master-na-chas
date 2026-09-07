@@ -16,6 +16,7 @@ import { useLocationSharing, type LocationSharingStatus } from "@/lib/useLocatio
 import type { Translations } from "@/lib/i18n";
 import { Card, Centered } from "@/components/ui";
 import { PasswordInput } from "@/components/PasswordInput";
+import WorkingHoursEditor from "@/components/WorkingHoursEditor";
 
 function locationStatusText(status: LocationSharingStatus, t: Translations): string | null {
   switch (status) {
@@ -505,6 +506,8 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
 
         {settingsError && <p className="mt-2 text-sm text-red-600">{settingsError}</p>}
       </section>
+
+      <WorkingHoursEditor />
 
       <section className="mb-6 border-b border-neutral-200 pb-5">
         <h2 className="mb-1 text-sm font-medium text-neutral-500">{t.servicesOfferedTitle}</h2>

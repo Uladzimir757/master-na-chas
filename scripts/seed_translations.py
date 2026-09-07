@@ -239,6 +239,74 @@ ENTRIES: list[tuple[str, str, str]] = [
     ("servicePriceMinPlaceholder", "Cena od", "Price from"),
     ("servicePriceMaxPlaceholder", "Cena do", "Price to"),
     ("serviceDescriptionPlaceholder", "Opis usługi (opcjonalnie)", "Service description (optional)"),
+    # "Мои рабочие часы" (this segment) — components/WorkingHoursEditor.tsx.
+    # Weekly template (WorkingHours, multiple intervals per day allowed) +
+    # per-date exceptions (WorkingHoursException) — both tables already
+    # backed app/slot_engine.py's availability computation; this is the
+    # first time a master can edit either one himself instead of only via a
+    # seed script / hand-written SQL.
+    ("workingHoursTitle", "Moje godziny pracy", "My working hours"),
+    (
+        "workingHoursHint",
+        "Ustaw swój tygodniowy grafik — klienci będą mogli rezerwować terminy tylko w tych godzinach.",
+        "Set your weekly schedule — clients will only be able to book slots within these hours.",
+    ),
+    (
+        "workingHoursLoadError",
+        "Nie udało się załadować godzin pracy. Odśwież stronę.",
+        "Couldn't load your working hours. Please refresh the page.",
+    ),
+    ("weekdayMon", "Poniedziałek", "Monday"),
+    ("weekdayTue", "Wtorek", "Tuesday"),
+    ("weekdayWed", "Środa", "Wednesday"),
+    ("weekdayThu", "Czwartek", "Thursday"),
+    ("weekdayFri", "Piątek", "Friday"),
+    ("weekdaySat", "Sobota", "Saturday"),
+    ("weekdaySun", "Niedziela", "Sunday"),
+    ("workingHoursDayOff", "Dzień wolny", "Day off"),
+    ("workingHoursFromLabel", "od", "from"),
+    ("workingHoursToLabel", "do", "to"),
+    ("workingHoursAddIntervalButton", "+ dodaj przedział", "+ add interval"),
+    ("workingHoursRemoveIntervalLabel", "Usuń przedział", "Remove interval"),
+    (
+        "workingHoursValidationHint",
+        "Godzina końca musi być późniejsza niż początku, a przedziały w tym samym dniu nie mogą się nakładać.",
+        "End time must be after start time, and intervals on the same day can't overlap.",
+    ),
+    ("workingHoursSaveButton", "Zapisz grafik", "Save schedule"),
+    ("workingHoursSaving", "Zapisywanie…", "Saving…"),
+    (
+        "workingHoursSaveError",
+        "Nie udało się zapisać grafiku. Sprawdź godziny i spróbuj ponownie.",
+        "Couldn't save your schedule. Check the hours and try again.",
+    ),
+    ("workingHoursExceptionsTitle", "Dni specjalne", "Special days"),
+    (
+        "workingHoursExceptionsHint",
+        "Wyjątki od standardowego grafiku na konkretny dzień — dzień wolny albo inne godziny.",
+        "Overrides to your normal schedule for a specific date — a day off or different hours.",
+    ),
+    ("workingHoursNoExceptions", "Nie zaplanowano żadnych dni specjalnych.", "No special days planned."),
+    ("workingHoursExceptionDayOffLabel", "Dzień wolny", "Day off"),
+    ("workingHoursReasonLabel", "Powód", "Reason"),
+    ("workingHoursDeleteExceptionLabel", "Usuń", "Delete"),
+    (
+        "workingHoursExceptionDeleteError",
+        "Nie udało się usunąć dnia specjalnego. Spróbuj ponownie.",
+        "Couldn't delete the special day. Please try again.",
+    ),
+    ("workingHoursAddExceptionTitle", "Dodaj dzień specjalny", "Add a special day"),
+    ("workingHoursExceptionDateLabel", "Data", "Date"),
+    ("workingHoursExceptionDayOffOption", "Dzień wolny", "Day off"),
+    ("workingHoursExceptionCustomHoursOption", "Inne godziny", "Different hours"),
+    ("workingHoursExceptionReasonPlaceholder", "Powód (opcjonalnie)", "Reason (optional)"),
+    ("workingHoursAddExceptionButton", "Dodaj", "Add"),
+    ("workingHoursSavingException", "Zapisywanie…", "Saving…"),
+    (
+        "workingHoursExceptionSaveError",
+        "Nie udało się zapisać dnia specjalnego. Sprawdź godziny i spróbuj ponownie.",
+        "Couldn't save the special day. Check the hours and try again.",
+    ),
 ]
 
 

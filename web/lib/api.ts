@@ -229,6 +229,43 @@ export interface ServiceOffer {
   description: string | null;
 }
 
+// "Мои рабочие часы" — a master's own weekly template + per-date overrides.
+// Both tables (WorkingHours/WorkingHoursException) already backed
+// app/slot_engine.py's availability computation; this segment is the first
+// time a master can edit either one himself from the cabinet rather than
+// only via a seed script. weekday: 0=Monday..6=Sunday, matches Python's
+// date.weekday() on the backend. Times are "HH:MM:SS" (no date, no tz —
+// wall-clock local business hours, same as the backend's `time` columns).
+export interface WorkingHoursSlot {
+  weekday: number;
+  start_time: string;
+  end_time: string;
+}
+
+export interface WorkingHoursException {
+  id: string;
+  date: string; // "YYYY-MM-DD"
+  is_available: boolean;
+  start_time: string | null;
+  end_time: string | null;
+  reason: string | null;
+}
+
+export interface WorkingHours {
+  slots: WorkingHoursSlot[];
+  exceptions: WorkingHoursException[];
+}
+
+// PUT body for one exception — day off (is_available=false, no hours) or
+// custom hours that date (is_available=true, start_time/end_time required).
+// Upsert by date: posting again for an already-overridden date replaces it.
+export interface WorkingHoursExceptionUpsert {
+  is_available: boolean;
+  start_time?: string | null;
+  end_time?: string | null;
+  reason?: string | null;
+}
+
 export const api = {
   // lang (Этап 3) resolves Service.name server-side — see app/main.py's
   // _resolve_service_name. Not needed by getAvailability: slot times carry
@@ -307,6 +344,22 @@ export const api = {
       body: JSON.stringify({ estimated_minutes: estimatedMinutes }),
     }),
   finishBusy: () => request<ProviderBusy>("/api/providers/me/busy/finish", { method: "POST" }),
+
+  // "Мои рабочие часы" — see app/main.py's working-hours section.
+  getMyWorkingHours: () => request<WorkingHours>("/api/providers/me/working-hours"),
+  // Replace semantics, matching the backend: pass the FULL desired weekly
+  // template, not a delta — anything not listed here is gone.
+  updateMyWorkingHours: (slots: WorkingHoursSlot[]) =>
+    request<WorkingHours>("/api/providers/me/working-hours", { method: "PUT", body: JSON.stringify({ slots }) }),
+  // Upsert by date — posting again for an already-overridden date replaces
+  // it (see WorkingHoursExceptionUpsert in app/schemas.py).
+  upsertWorkingHoursException: (date: string, payload: WorkingHoursExceptionUpsert) =>
+    request<WorkingHoursException>(`/api/providers/me/working-hours/exceptions/${date}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+  deleteWorkingHoursException: (date: string) =>
+    request<{ ok: true }>(`/api/providers/me/working-hours/exceptions/${date}`, { method: "DELETE" }),
 
   // Admin panel — session cookie set by adminLogin(), same require_admin
   // gate as the pre-existing X-Admin-Secret scripts (app/main.py).
