@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, ApiError, type Booking, type BookingStatus, type ProviderSettings, type ServiceToggle } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  type Booking,
+  type BookingStatus,
+  type ProviderSettings,
+  type ServiceOffer,
+  type ServiceToggle,
+} from "@/lib/api";
 import { formatDayLabel, formatTime } from "@/lib/format";
 import { useLocale } from "@/lib/LocaleContext";
 import { useLocationSharing, type LocationSharingStatus } from "@/lib/useLocationSharing";
@@ -154,18 +162,16 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
     }
   }, [settings, t]);
 
-  const handleToggleService = useCallback(
-    async (serviceId: string) => {
+  // Shared by the toggle checkbox and the price/description fields below —
+  // PUT /api/providers/me/services is replace-semantics (see api.ts), so
+  // every save resends the FULL set of currently-offered services with
+  // their own price/description, not just the one field that changed.
+  const saveServiceOffers = useCallback(
+    async (offers: ServiceOffer[]) => {
       setServicesError(null);
       setSavingServices(true);
-      const nextOffered = new Set(serviceToggles.filter((s) => s.is_offered).map((s) => s.service_id));
-      if (nextOffered.has(serviceId)) {
-        nextOffered.delete(serviceId);
-      } else {
-        nextOffered.add(serviceId);
-      }
       try {
-        const updated = await api.updateMyServices([...nextOffered], locale);
+        const updated = await api.updateMyServices(offers, locale);
         setServiceToggles(updated);
       } catch {
         setServicesError(t.servicesSaveError);
@@ -173,7 +179,84 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
         setSavingServices(false);
       }
     },
-    [serviceToggles, locale, t],
+    [locale, t],
+  );
+
+  const handleToggleService = useCallback(
+    (serviceId: string) => {
+      const nextOffered = new Set(serviceToggles.filter((s) => s.is_offered).map((s) => s.service_id));
+      if (nextOffered.has(serviceId)) {
+        nextOffered.delete(serviceId);
+      } else {
+        nextOffered.add(serviceId);
+      }
+      const offers = serviceToggles
+        .filter((s) => nextOffered.has(s.service_id))
+        .map((s) => ({ service_id: s.service_id, price_min: s.price_min, price_max: s.price_max, description: s.description }));
+      void saveServiceOffers(offers);
+    },
+    [serviceToggles, saveServiceOffers],
+  );
+
+  // One entry point for editing a single offered service's own price/
+  // description — carries every other offered service through unchanged
+  // and applies `patch` to just `serviceId`, matching the replace-semantics
+  // PUT above. Only ever called for a service that's currently offered
+  // (the fields aren't rendered otherwise), so it's always in the array.
+  const applyServiceFieldEdit = useCallback(
+    (serviceId: string, patch: Partial<Pick<ServiceToggle, "price_min" | "price_max" | "description">>) => {
+      const offers = serviceToggles
+        .filter((s) => s.is_offered)
+        .map((s) => ({
+          service_id: s.service_id,
+          price_min: s.price_min,
+          price_max: s.price_max,
+          description: s.description,
+          ...(s.service_id === serviceId ? patch : {}),
+        }));
+      void saveServiceOffers(offers);
+    },
+    [serviceToggles, saveServiceOffers],
+  );
+
+  // Uncontrolled fields (key'd by the saved value, same convention as
+  // handleFeeBlur above) — save once on blur, not per keystroke.
+  const handleServicePriceMinBlur = useCallback(
+    (serviceId: string, raw: string) => {
+      const current = serviceToggles.find((s) => s.service_id === serviceId);
+      if (!current) return;
+      const trimmed = raw.trim();
+      const parsed = trimmed === "" ? null : Number(trimmed);
+      const nextValue = parsed !== null && Number.isNaN(parsed) ? null : parsed;
+      if (nextValue === current.price_min) return;
+      applyServiceFieldEdit(serviceId, { price_min: nextValue });
+    },
+    [serviceToggles, applyServiceFieldEdit],
+  );
+
+  const handleServicePriceMaxBlur = useCallback(
+    (serviceId: string, raw: string) => {
+      const current = serviceToggles.find((s) => s.service_id === serviceId);
+      if (!current) return;
+      const trimmed = raw.trim();
+      const parsed = trimmed === "" ? null : Number(trimmed);
+      const nextValue = parsed !== null && Number.isNaN(parsed) ? null : parsed;
+      if (nextValue === current.price_max) return;
+      applyServiceFieldEdit(serviceId, { price_max: nextValue });
+    },
+    [serviceToggles, applyServiceFieldEdit],
+  );
+
+  const handleServiceDescriptionBlur = useCallback(
+    (serviceId: string, raw: string) => {
+      const current = serviceToggles.find((s) => s.service_id === serviceId);
+      if (!current) return;
+      const trimmed = raw.trim();
+      const nextValue = trimmed === "" ? null : trimmed;
+      if (nextValue === current.description) return;
+      applyServiceFieldEdit(serviceId, { description: nextValue });
+    },
+    [serviceToggles, applyServiceFieldEdit],
   );
 
   // "Занят сейчас" — a general override independent of any specific
@@ -431,7 +514,7 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
         ) : (
           <ul className="flex flex-col gap-2">
             {serviceToggles.map((svc) => (
-              <li key={svc.service_id}>
+              <li key={svc.service_id} className="rounded-lg border border-neutral-200 p-3">
                 <label className="flex items-start gap-3">
                   <input
                     type="checkbox"
@@ -445,6 +528,47 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
                     <span className="block text-sm text-neutral-500">{t.durationMinutes(svc.duration_minutes)}</span>
                   </span>
                 </label>
+
+                {svc.is_offered && (
+                  <div className="mt-3 flex flex-col gap-2 pl-7">
+                    <div className="flex gap-2">
+                      <input
+                        key={`${svc.service_id}-min-${svc.price_min ?? "empty"}`}
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        inputMode="decimal"
+                        defaultValue={svc.price_min ?? ""}
+                        placeholder={t.servicePriceMinPlaceholder}
+                        disabled={savingServices}
+                        onBlur={(e) => handleServicePriceMinBlur(svc.service_id, e.target.value)}
+                        className="w-28 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm"
+                      />
+                      <input
+                        key={`${svc.service_id}-max-${svc.price_max ?? "empty"}`}
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        inputMode="decimal"
+                        defaultValue={svc.price_max ?? ""}
+                        placeholder={t.servicePriceMaxPlaceholder}
+                        disabled={savingServices}
+                        onBlur={(e) => handleServicePriceMaxBlur(svc.service_id, e.target.value)}
+                        className="w-28 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm"
+                      />
+                    </div>
+                    <input
+                      key={`${svc.service_id}-desc-${svc.description ?? "empty"}`}
+                      type="text"
+                      maxLength={2000}
+                      defaultValue={svc.description ?? ""}
+                      placeholder={t.serviceDescriptionPlaceholder}
+                      disabled={savingServices}
+                      onBlur={(e) => handleServiceDescriptionBlur(svc.service_id, e.target.value)}
+                      className="w-full rounded-lg border border-neutral-300 px-3 py-1.5 text-sm"
+                    />
+                  </div>
+                )}
               </li>
             ))}
           </ul>

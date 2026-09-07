@@ -13,8 +13,10 @@ for (const status of ["pending", "confirmed"] as const) {
 
     await page.goto("/");
 
-    // single seeded service -> BookingFlow auto-selects it, no "pick a
-    // service" screen to click through first
+    // home page opens on the master picker now; a single provider offering
+    // a single service means everything past that click auto-skips, same
+    // as the old flat flow used to for a single seeded service.
+    await page.getByRole("button", { name: t.chooseMasterButton }).click();
     await expect(page.getByRole("heading", { name: SERVICE.name })).toBeVisible();
 
     const slotLabel = formatTime(SLOT_A.start_at, "pl");

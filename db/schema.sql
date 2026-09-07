@@ -68,6 +68,11 @@ CREATE TABLE provider (
     -- provider_busy_range for how it blocks slots. NULL = not busy.
     busy_started_at         timestamptz,
     busy_estimated_minutes  int CHECK (busy_estimated_minutes IS NULL OR busy_estimated_minutes > 0),
+    -- Foundation for the planned reviews system (rating+text+photos, not
+    -- built yet) — set by hand from the admin panel for now. NULL = no
+    -- rating, sorts after every rated master on the public picker screen.
+    rating                  numeric(2,1) CHECK (rating IS NULL OR (rating >= 0 AND rating <= 5)),
+    rating_count            int NOT NULL DEFAULT 0 CHECK (rating_count >= 0),
     created_at             timestamptz NOT NULL DEFAULT now()
 );
 
@@ -81,6 +86,9 @@ CREATE TABLE service (
     tenant_id         uuid NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
     name              text NOT NULL,
     duration_minutes  int NOT NULL CHECK (duration_minutes > 0),
+    -- Reference range only — a client now sees the offering master's OWN
+    -- price (provider_service.price_min/max below); these are the seeded
+    -- starting point / cabinet prefill, not what's actually shown to book.
     price_min         numeric(10,2),
     price_max         numeric(10,2),
     is_active         boolean NOT NULL DEFAULT true,
@@ -92,6 +100,9 @@ CREATE TABLE service (
     name_pl           text,
     name_ru           text,
     name_uk           text,
+    -- en (this segment) — ru/uk are turned off (SUPPORTED_LANGS in
+    -- app/translations.py) but kept, unused, rather than dropped.
+    name_en           text,
     created_at        timestamptz NOT NULL DEFAULT now()
 );
 
@@ -107,6 +118,11 @@ CREATE TABLE provider_service (
     provider_id  uuid NOT NULL REFERENCES provider(id) ON DELETE CASCADE,
     service_id   uuid NOT NULL REFERENCES service(id) ON DELETE CASCADE,
     is_active    boolean NOT NULL DEFAULT true,
+    -- This master's own approximate price + note for this service — see
+    -- ProviderService in app/models.py for why per-provider, not per-service.
+    price_min    numeric(10,2),
+    price_max    numeric(10,2),
+    description  text,
     PRIMARY KEY (provider_id, service_id)
 );
 
@@ -247,7 +263,13 @@ CREATE TABLE translation_entry (
     id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     namespace   text NOT NULL,
     key         text NOT NULL,
-    lang        text NOT NULL CHECK (lang IN ('pl', 'ru', 'uk')),
+    -- Deliberately WIDER than SUPPORTED_LANGS in app/translations.py (which
+    -- is 'pl'/'en' only, ru/uk turned off there) — this is just a garbage-
+    -- value backstop, not the "is this lang currently offered" gate. Kept
+    -- listing 'ru'/'uk' too so this ALTER doesn't have to validate (and
+    -- risk failing on) prod's existing approved ru/uk rows when this ships;
+    -- narrowing it later is a separate, non-urgent cleanup.
+    lang        text NOT NULL CHECK (lang IN ('pl', 'ru', 'uk', 'en')),
     text        text NOT NULL,
     status      text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'reviewed', 'approved')),
     updated_at  timestamptz NOT NULL DEFAULT now(),

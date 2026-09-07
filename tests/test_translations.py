@@ -138,7 +138,7 @@ async def test_approve_of_unknown_entry_is_404_and_does_not_refresh_anything_els
 async def test_namespace_and_lang_scope_what_is_returned(client: AsyncClient):
     for namespace, key, lang, text in [
         ("ui", "loading", "pl", "Ładowanie…"),
-        ("ui", "loading", "ru", "Загрузка…"),
+        ("ui", "loading", "en", "Loading…"),
         ("ui", "submitting", "pl", "Wysyłanie…"),
     ]:
         await client.put(
@@ -151,7 +151,7 @@ async def test_namespace_and_lang_scope_what_is_returned(client: AsyncClient):
         json={
             "entries": [
                 {"namespace": "ui", "key": "loading", "lang": "pl"},
-                {"namespace": "ui", "key": "loading", "lang": "ru"},
+                {"namespace": "ui", "key": "loading", "lang": "en"},
                 {"namespace": "ui", "key": "submitting", "lang": "pl"},
             ]
         },
@@ -162,11 +162,15 @@ async def test_namespace_and_lang_scope_what_is_returned(client: AsyncClient):
         "loading": "Ładowanie…",
         "submitting": "Wysyłanie…",
     }
-    assert (await client.get("/api/translations", params={"lang": "ru"})).json() == {"loading": "Загрузка…"}
+    assert (await client.get("/api/translations", params={"lang": "en"})).json() == {"loading": "Loading…"}
 
 
 async def test_unsupported_lang_falls_back_to_default_pl(client: AsyncClient):
-    resp = await client.get("/api/translations", params={"lang": "de"})
+    # "ru" used to be supported and is a realistic case now — a stale
+    # bookmark/cookie from before ru/uk were turned off (see SUPPORTED_LANGS
+    # in app/translations.py) must fall back cleanly, same as any other
+    # unsupported value.
+    resp = await client.get("/api/translations", params={"lang": "ru"})
     assert resp.status_code == 200
     # Doesn't error — just resolves to the default (pl) namespace, which is
     # legitimately empty here since nothing was seeded.
@@ -220,7 +224,8 @@ async def test_list_translations_filters_by_status(client: AsyncClient):
 
 
 # ----------------------------------------------------------------------------
-# Lang-aware service names (Service.name_pl/name_ru/name_uk)
+# Lang-aware service names (Service.name_pl/name_en — see also name_ru/
+# name_uk, kept but unused now that ru/uk are turned off)
 # ----------------------------------------------------------------------------
 
 
@@ -228,9 +233,8 @@ async def test_services_endpoint_resolves_name_by_requested_lang(client: AsyncCl
     svc = Service(
         tenant_id=tenant.id,
         name="Сборка мебели",
-        name_ru="Сборка мебели",
         name_pl="Montaż mebli",
-        name_uk="Збирання меблів",
+        name_en="Furniture assembly",
         duration_minutes=90,
     )
     db_session.add(svc)
@@ -240,27 +244,20 @@ async def test_services_endpoint_resolves_name_by_requested_lang(client: AsyncCl
     assert resp.status_code == 200
     assert resp.json()[0]["name"] == "Montaż mebli"
 
-    resp = await client.get("/api/services", params={"lang": "uk"})
-    assert resp.json()[0]["name"] == "Збирання меблів"
+    resp = await client.get("/api/services", params={"lang": "en"})
+    assert resp.json()[0]["name"] == "Furniture assembly"
 
 
-async def test_services_endpoint_falls_back_to_ru_then_name_when_a_locale_is_missing(
+async def test_services_endpoint_falls_back_to_name_when_a_locale_is_missing(
     client: AsyncClient, db_session: AsyncSession, tenant: Tenant
 ):
-    # No name_pl/name_uk set at all — a service seeded before this feature
+    # No name_pl/name_en set at all — a service seeded before this feature
     # existed, or one whose translation just hasn't been filled in yet.
-    svc = Service(tenant_id=tenant.id, name="Сборка мебели", name_ru="Сборка мебели", duration_minutes=90)
+    svc = Service(tenant_id=tenant.id, name="Сантехника", duration_minutes=60)
     db_session.add(svc)
     await db_session.commit()
 
-    resp = await client.get("/api/services", params={"lang": "pl"})
-    assert resp.json()[0]["name"] == "Сборка мебели"  # falls back to name_ru
-
-    # And with name_ru itself unset too — falls all the way back to `name`.
-    svc2 = Service(tenant_id=tenant.id, name="Сантехника", duration_minutes=60)
-    db_session.add(svc2)
-    await db_session.commit()
-    resp = await client.get("/api/services", params={"lang": "uk"})
+    resp = await client.get("/api/services", params={"lang": "en"})
     names = {row["name"] for row in resp.json()}
     assert "Сантехника" in names
 

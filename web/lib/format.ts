@@ -29,6 +29,14 @@ export function formatTime(iso: string, locale: LocaleCode): string {
   );
 }
 
+export function businessHour(iso: string): number {
+  // Hour-of-day in Europe/Warsaw, for bucketing slots into Утро/День/Вечер
+  // (SlotPicker.tsx) — same "business-local time" rule as dateKey below.
+  // % 24: some Intl implementations format midnight as "24" rather than "00".
+  const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hour12: false, timeZone: TZ }).format(new Date(iso)));
+  return hour % 24;
+}
+
 export function dateKey(iso: string): string {
   // YYYY-MM-DD in business-local time, used to group slots by day — a
   // fixed en-CA formatting trick for the ISO shape, unrelated to the

@@ -12,6 +12,7 @@ test("a 409 on submit surfaces the taken-slot message and lets the visitor pick 
   );
 
   await page.goto("/");
+  await page.getByRole("button", { name: t.chooseMasterButton }).click();
 
   const labelA = formatTime(SLOT_A.start_at, "pl");
   const labelB = formatTime(SLOT_B.start_at, "pl");

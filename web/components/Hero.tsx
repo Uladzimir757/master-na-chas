@@ -26,7 +26,7 @@ export default function Hero({ title, subtitle }: Props) {
       />
       <div className="relative z-10 px-4 pb-6 sm:px-6 sm:pb-10">
         <h1 className="max-w-md text-2xl font-extrabold tracking-[-0.01em] text-bg sm:text-4xl">{title}</h1>
-        {subtitle && <p className="mt-2 max-w-md text-sm text-bg/90 sm:text-base">{subtitle}</p>}
+        {subtitle && <p className="mt-2 max-w-md text-sm text-bg sm:text-base">{subtitle}</p>}
       </div>
     </section>
   );

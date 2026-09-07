@@ -290,6 +290,79 @@ test("a failed services save shows an error message", async ({ page }) => {
 });
 
 // ----------------------------------------------------------------------------
+// Per-service price/description ("цены... должны устанавливаться мастером +
+// возможность добавления описания к услуге") — same PUT as the checklist
+// above, just with price_min/price_max/description carried along.
+// ----------------------------------------------------------------------------
+
+test("price and description fields are hidden for a service that's turned off", async ({ page }) => {
+  await mockAuthMe(page, { loggedIn: true });
+  await mockMyServices(page, [serviceToggle({ is_offered: false })]);
+  await mockProviderSettings(page);
+  await mockMyBookings(page, []);
+
+  await page.goto("/cabinet/");
+
+  await expect(page.getByPlaceholder(t.servicePriceMinPlaceholder)).not.toBeVisible();
+  await expect(page.getByPlaceholder(t.servicePriceMaxPlaceholder)).not.toBeVisible();
+  await expect(page.getByPlaceholder(t.serviceDescriptionPlaceholder)).not.toBeVisible();
+});
+
+test("setting a service's price range saves it on blur", async ({ page }) => {
+  await mockAuthMe(page, { loggedIn: true });
+  await mockMyServices(page, [serviceToggle({ price_min: null, price_max: null })]);
+  await mockProviderSettings(page);
+  await mockMyBookings(page, []);
+
+  await page.goto("/cabinet/");
+  const minInput = page.getByPlaceholder(t.servicePriceMinPlaceholder);
+  await minInput.fill("80");
+  await minInput.blur();
+  // the input remounts (key includes the saved price) once the PUT resolves
+  await expect(page.getByPlaceholder(t.servicePriceMinPlaceholder)).toHaveValue("80");
+
+  const maxInput = page.getByPlaceholder(t.servicePriceMaxPlaceholder);
+  await maxInput.fill("120");
+  await maxInput.blur();
+  await expect(page.getByPlaceholder(t.servicePriceMaxPlaceholder)).toHaveValue("120");
+
+  await expect(page.getByText(t.servicesSaveError)).not.toBeVisible();
+});
+
+test("setting a service's description saves it on blur", async ({ page }) => {
+  await mockAuthMe(page, { loggedIn: true });
+  await mockMyServices(page, [serviceToggle({ description: null })]);
+  await mockProviderSettings(page);
+  await mockMyBookings(page, []);
+
+  await page.goto("/cabinet/");
+  const descInput = page.getByPlaceholder(t.serviceDescriptionPlaceholder);
+  await descInput.fill("Со своим инструментом");
+  await descInput.blur();
+
+  await expect(page.getByPlaceholder(t.serviceDescriptionPlaceholder)).toHaveValue("Со своим инструментом");
+  await expect(page.getByText(t.servicesSaveError)).not.toBeVisible();
+});
+
+test("toggling a service off then on again keeps its previously-set price and description", async ({ page }) => {
+  await mockAuthMe(page, { loggedIn: true });
+  await mockMyServices(page, [serviceToggle({ price_min: 80, price_max: 120, description: "Со своим инструментом" })]);
+  await mockProviderSettings(page);
+  await mockMyBookings(page, []);
+
+  await page.goto("/cabinet/");
+  const checkbox = page.getByRole("checkbox", { name: SERVICE.name });
+
+  await checkbox.click(); // off
+  await expect(page.getByPlaceholder(t.servicePriceMinPlaceholder)).not.toBeVisible();
+
+  await checkbox.click(); // on again
+  await expect(page.getByPlaceholder(t.servicePriceMinPlaceholder)).toHaveValue("80");
+  await expect(page.getByPlaceholder(t.servicePriceMaxPlaceholder)).toHaveValue("120");
+  await expect(page.getByPlaceholder(t.serviceDescriptionPlaceholder)).toHaveValue("Со своим инструментом");
+});
+
+// ----------------------------------------------------------------------------
 // Call-out fee (part of PATCH /api/providers/me/settings)
 // ----------------------------------------------------------------------------
 

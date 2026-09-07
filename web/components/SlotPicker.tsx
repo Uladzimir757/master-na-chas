@@ -27,6 +27,16 @@ interface Props {
   providers: Provider[];
   showChangeService: boolean;
   onChangeService: () => void;
+  // Master-first flow (this segment): once a specific master has already
+  // been picked (components/MasterPicker.tsx), availability is scoped to
+  // just him — a client never sees another master's slots mixed in here.
+  // Undefined keeps the old combined-across-providers behavior (unused by
+  // the current home page, kept in case something else still wants it).
+  providerId?: string;
+  // This master's own note about the service, if he set one (see
+  // ProviderService.description in app/models.py) — undefined/null shows
+  // nothing.
+  description?: string | null;
 }
 
 /** Everything here belongs to one chosen service. The parent mounts this
@@ -35,7 +45,7 @@ interface Props {
  * service changes: initial state already is empty. The only state resets
  * left in this file are inside event handlers (book-again, after a 409),
  * which is an ordinary setState call, not a synchronised effect. */
-export default function SlotPicker({ service, providers, showChangeService, onChangeService }: Props) {
+export default function SlotPicker({ service, providers, showChangeService, onChangeService, providerId, description }: Props) {
   const { locale, t } = useLocale();
 
   const [slots, setSlots] = useState<Slot[] | null>(null);
@@ -55,6 +65,7 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
       const today = new Date();
       const res = await api.getAvailability({
         service_id: service.id,
+        provider_id: providerId,
         date_from: toDateParam(today),
         date_to: toDateParam(addDays(today, DAYS_AHEAD)),
       });
@@ -69,7 +80,7 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
     } catch {
       setSlotsError(t.slotsLoadError);
     }
-  }, [service.id, t]);
+  }, [service.id, providerId, t]);
 
   useEffect(() => {
     (async () => {
@@ -189,7 +200,7 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
         </button>
       )}
       <h1 className="mb-1 text-xl font-extrabold tracking-[-0.01em]">{service.name}</h1>
-      <p className="mb-4 text-sm text-ink/60">
+      <p className="mb-1 text-sm text-ink/60">
         {t.durationMinutes(service.duration_minutes)}
         {service.price_min != null || service.price_max != null ? (
           <>
@@ -198,6 +209,8 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
           </>
         ) : null}
       </p>
+      {description && <p className="mb-4 text-sm text-ink/70">{description}</p>}
+      {!description && <div className="mb-4" />}
 
       {slotsError && <Centered>{slotsError}</Centered>}
 
@@ -237,7 +250,7 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
                   onClick={() => setSelectedSlot(s)}
                 >
                   <div className="font-mono font-medium">{formatTime(s.start_at, locale)}</div>
-                  <div className="truncate text-xs opacity-70">{providerName(s.provider_id)}</div>
+                  {providers.length > 1 && <div className="truncate text-xs opacity-70">{providerName(s.provider_id)}</div>}
                 </button>
               );
             })}

@@ -12,6 +12,7 @@ test("shows the call-out fee once a slot with that provider is picked", async ({
   await mockAvailability(page, [SLOT_A]);
 
   await page.goto("/");
+  await page.getByRole("button", { name: t.chooseMasterButton }).click();
   const slotLabel = formatTime(SLOT_A.start_at, "pl");
   await page.getByRole("button", { name: new RegExp(slotLabel) }).click();
 
@@ -23,6 +24,7 @@ test("shows no call-out fee line when the provider has none set", async ({ page 
   await mockAvailability(page, [SLOT_A]);
 
   await page.goto("/");
+  await page.getByRole("button", { name: t.chooseMasterButton }).click();
   const slotLabel = formatTime(SLOT_A.start_at, "pl");
   await page.getByRole("button", { name: new RegExp(slotLabel) }).click();
 

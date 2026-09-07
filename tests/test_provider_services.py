@@ -62,11 +62,15 @@ async def test_put_my_services_turns_a_service_on(
     logged_in_client: AsyncClient, provider: Provider, service: Service, db_session: AsyncSession
 ):
     # deliberately no provider_service fixture — provider offers nothing yet
-    resp = await logged_in_client.put("/api/providers/me/services", json={"service_ids": [str(service.id)]})
+    resp = await logged_in_client.put(
+        "/api/providers/me/services",
+        json={"services": [{"service_id": str(service.id), "price_min": 100, "price_max": 200}]},
+    )
 
     assert resp.status_code == 200, resp.text
-    body = {row["service_id"]: row["is_offered"] for row in resp.json()}
-    assert body[str(service.id)] is True
+    body = {row["service_id"]: row for row in resp.json()}
+    assert body[str(service.id)]["is_offered"] is True
+    assert body[str(service.id)]["price_min"] == 100
 
     link = (
         await db_session.execute(
@@ -76,6 +80,7 @@ async def test_put_my_services_turns_a_service_on(
         )
     ).scalar_one()
     assert link.is_active is True
+    assert float(link.price_min) == 100
 
 
 async def test_put_my_services_turns_a_service_off_without_deleting_the_row(
@@ -83,7 +88,7 @@ async def test_put_my_services_turns_a_service_off_without_deleting_the_row(
 ):
     # provider_service fixture already links provider->service (active).
     # PUT with an empty set turns it off.
-    resp = await logged_in_client.put("/api/providers/me/services", json={"service_ids": []})
+    resp = await logged_in_client.put("/api/providers/me/services", json={"services": []})
 
     assert resp.status_code == 200, resp.text
     body = {row["service_id"]: row["is_offered"] for row in resp.json()}
@@ -99,6 +104,43 @@ async def test_put_my_services_turns_a_service_off_without_deleting_the_row(
         )
     ).scalar_one()
     assert link.is_active is False
+
+
+async def test_put_my_services_keeps_price_and_description_after_toggling_off_and_back_on(
+    logged_in_client: AsyncClient, provider: Provider, service: Service, db_session: AsyncSession
+):
+    on = await logged_in_client.put(
+        "/api/providers/me/services",
+        json={
+            "services": [
+                {"service_id": str(service.id), "price_min": 150, "price_max": 300, "description": "Аккуратно и быстро"}
+            ]
+        },
+    )
+    assert on.status_code == 200, on.text
+
+    off = await logged_in_client.put("/api/providers/me/services", json={"services": []})
+    assert off.status_code == 200, off.text
+    off_row = {row["service_id"]: row for row in off.json()}[str(service.id)]
+    # not offered, but the price/description he set are still shown (kept on
+    # the row, not cleared) — see ProviderService's docstring
+    assert off_row["is_offered"] is False
+    assert off_row["price_min"] == 150
+    assert off_row["description"] == "Аккуратно и быстро"
+
+
+async def test_get_my_services_falls_back_to_service_reference_price_when_unset(
+    logged_in_client: AsyncClient, service: Service, db_session: AsyncSession
+):
+    service.price_min = 50
+    service.price_max = 90
+    db_session.add(service)
+    await db_session.commit()
+
+    resp = await logged_in_client.get("/api/providers/me/services")
+    row = {r["service_id"]: r for r in resp.json()}[str(service.id)]
+    assert row["price_min"] == 50
+    assert row["price_max"] == 90
 
 
 async def test_put_my_services_is_scoped_to_the_caller_own_provider(
@@ -117,7 +159,7 @@ async def test_put_my_services_is_scoped_to_the_caller_own_provider(
     await db_session.commit()
 
     # caller (provider) turns his own link off — other_provider's must be untouched
-    resp = await logged_in_client.put("/api/providers/me/services", json={"service_ids": []})
+    resp = await logged_in_client.put("/api/providers/me/services", json={"services": []})
     assert resp.status_code == 200, resp.text
 
     other_link = (
@@ -134,12 +176,49 @@ async def test_put_my_services_silently_ignores_unknown_ids(logged_in_client: As
     import uuid
 
     resp = await logged_in_client.put(
-        "/api/providers/me/services", json={"service_ids": [str(service.id), str(uuid.uuid4())]}
+        "/api/providers/me/services",
+        json={"services": [{"service_id": str(service.id)}, {"service_id": str(uuid.uuid4())}]},
     )
 
     assert resp.status_code == 200, resp.text
     ids = {row["service_id"] for row in resp.json()}
     assert ids == {str(service.id)}
+
+
+# ----------------------------------------------------------------------------
+# GET /api/providers/{provider_id}/services (public)
+# ----------------------------------------------------------------------------
+
+
+async def test_public_provider_services_lists_only_what_that_provider_actively_offers(
+    client: AsyncClient, provider: Provider, service: Service, other_service: Service, db_session: AsyncSession
+):
+    db_session.add(ProviderService(provider_id=provider.id, service_id=service.id, is_active=True, price_min=120))
+    db_session.add(ProviderService(provider_id=provider.id, service_id=other_service.id, is_active=False))
+    await db_session.commit()
+
+    resp = await client.get(f"/api/providers/{provider.id}/services")
+    assert resp.status_code == 200, resp.text
+    ids = {row["id"] for row in resp.json()}
+    assert ids == {str(service.id)}
+    assert resp.json()[0]["price_min"] == 120
+
+
+async def test_public_provider_services_404s_for_unknown_provider(client: AsyncClient):
+    import uuid
+
+    resp = await client.get(f"/api/providers/{uuid.uuid4()}/services")
+    assert resp.status_code == 404
+
+
+async def test_getting_own_services_still_works_alongside_the_public_provider_services_route(
+    logged_in_client: AsyncClient, provider_service: None
+):
+    # regression guard for the route-ordering bug this segment hit: a
+    # {provider_id}: uuid route registered before the fixed "me" path would
+    # otherwise swallow this request and 422 trying to parse "me" as a UUID.
+    resp = await logged_in_client.get("/api/providers/me/services")
+    assert resp.status_code == 200, resp.text
 
 
 # ----------------------------------------------------------------------------

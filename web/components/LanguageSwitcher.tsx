@@ -3,7 +3,7 @@
 import { useLocale } from "@/lib/LocaleContext";
 import { SUPPORTED_LOCALES } from "@/lib/locale";
 
-const LABELS: Record<string, string> = { pl: "PL", ru: "RU", uk: "UK" };
+const LABELS: Record<string, string> = { pl: "PL", en: "EN" };
 
 export default function LanguageSwitcher() {
   const { locale, setLocale } = useLocale();

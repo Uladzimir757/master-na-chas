@@ -16,6 +16,7 @@ test("shows the master's live location once a slot with that provider is picked"
   await mockAvailability(page, [SLOT_A]);
 
   await page.goto("/");
+  await page.getByRole("button", { name: t.chooseMasterButton }).click();
   const slotLabel = formatTime(SLOT_A.start_at, "pl");
   await page.getByRole("button", { name: new RegExp(slotLabel) }).click();
 
@@ -29,6 +30,7 @@ test("shows nothing extra when the provider has no location set", async ({ page 
   await mockAvailability(page, [SLOT_A]);
 
   await page.goto("/");
+  await page.getByRole("button", { name: t.chooseMasterButton }).click();
   const slotLabel = formatTime(SLOT_A.start_at, "pl");
   await page.getByRole("button", { name: new RegExp(slotLabel) }).click();
 

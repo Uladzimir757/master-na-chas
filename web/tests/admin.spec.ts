@@ -1,5 +1,13 @@
 import { expect, test } from "./fixtures";
-import { adminMaster, mockAdminLogin, mockAdminLogout, mockAdminMasters, mockAdminMe, mockTelegramLink } from "./mocks";
+import {
+  adminMaster,
+  mockAdminLogin,
+  mockAdminLogout,
+  mockAdminMasters,
+  mockAdminMe,
+  mockTelegramLink,
+  mockUpdateMasterRating,
+} from "./mocks";
 
 // /admin — the superadmin panel (app/admin/page.tsx). Separate session flag
 // from the master cabinet (/cabinet); see app/main.py's require_admin.
@@ -99,6 +107,36 @@ test("getting a Telegram link for an unlinked master shows an openable link", as
     "href",
     "https://t.me/test_bot?start=mock-token",
   );
+});
+
+// Manual rating stand-in (PATCH /admin/masters/{id}) — see
+// Provider.rating's docstring in app/models.py and AdminPanel.tsx.
+test("setting a master's rating saves it on blur", async ({ page }) => {
+  await mockAdminMe(page, { isAdmin: true });
+  const master = adminMaster({ rating: null, rating_count: 0 });
+  await mockAdminMasters(page, [master]);
+  await mockUpdateMasterRating(page, master);
+
+  await page.goto("/admin/");
+  const ratingInput = page.getByLabel(`Рейтинг — ${master.name}`);
+  await ratingInput.fill("4.5");
+  await ratingInput.blur();
+
+  await expect(page.getByLabel(`Рейтинг — ${master.name}`)).toHaveValue("4.5");
+});
+
+test("a failed rating save shows an error message", async ({ page }) => {
+  await mockAdminMe(page, { isAdmin: true });
+  const master = adminMaster({ rating: null, rating_count: 0 });
+  await mockAdminMasters(page, [master]);
+  await mockUpdateMasterRating(page, master, { status: 500 });
+
+  await page.goto("/admin/");
+  const ratingInput = page.getByLabel(`Рейтинг — ${master.name}`);
+  await ratingInput.fill("4.5");
+  await ratingInput.blur();
+
+  await expect(page.getByText("Не удалось сохранить оценку")).toBeVisible();
 });
 
 test("logging out returns to the login form", async ({ page }) => {

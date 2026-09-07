@@ -63,6 +63,7 @@ from app.models import (
 from app.notifications import send_sms, send_telegram_message, send_web_push
 from app.schemas import (
     AdminLoginRequest,
+    AdminMasterUpdate,
     AvailabilityQuery,
     BookingCreate,
     BookingOut,
@@ -76,6 +77,7 @@ from app.schemas import (
     ProviderLocationOut,
     ProviderLocationUpdate,
     ProviderOut,
+    ProviderServiceOut,
     ProviderServicesUpdate,
     ProviderSettingsOut,
     ProviderSettingsUpdate,
@@ -188,11 +190,12 @@ def _resolve_lang(lang: str) -> str:
 
 
 def _resolve_service_name(service: Service, lang: str) -> str:
-    """requested lang -> ru (today's most complete/original language) -> the
-    internal canonical `name` field. See Service.name_pl/_ru/_uk docstring
-    in app/models.py."""
-    per_lang = {"pl": service.name_pl, "ru": service.name_ru, "uk": service.name_uk}
-    return per_lang.get(lang) or service.name_ru or service.name
+    """requested lang (pl/en — see SUPPORTED_LANGS) -> the internal
+    canonical `name` field (Russian text, historically — see
+    Service.name_pl/_ru/_uk/_en's docstring in app/models.py) as the last
+    resort, e.g. for a service missing a name in the requested lang."""
+    per_lang = {"pl": service.name_pl, "en": service.name_en}
+    return per_lang.get(lang) or service.name
 
 
 @app.get("/api/services", response_model=list[ServiceOut])
@@ -234,13 +237,22 @@ async def _resolve_provider_location(db: AsyncSession, provider: Provider, now: 
 
 @app.get("/api/providers", response_model=list[ProviderOut])
 async def list_providers(db: AsyncSession = Depends(get_db)) -> list[ProviderOut]:
-    stmt = select(Provider).where(Provider.is_active.is_(True)).order_by(Provider.name)
+    """Sorted by rating (best first, unrated last — nulls_last, not a 0)
+    for the master-picker screen; name as the tiebreaker so unrated masters
+    still list in a stable order rather than shuffling on every request."""
+    stmt = (
+        select(Provider)
+        .where(Provider.is_active.is_(True))
+        .order_by(Provider.rating.desc().nulls_last(), Provider.name)
+    )
     providers = (await db.execute(stmt)).scalars().all()
     now = datetime.now(timezone.utc)
     return [
         ProviderOut(
             id=p.id,
             name=p.name,
+            rating=p.rating,
+            rating_count=p.rating_count,
             call_out_fee=p.call_out_fee,
             location=await _resolve_provider_location(db, p, now),
         )
@@ -662,29 +674,33 @@ async def get_my_services(
         .scalars()
         .all()
     )
-    offered_ids = {
-        row.service_id
+    # Every link this provider has ever had for a service (not just active
+    # ones) — a previously-set price/description should still prefill the
+    # form even for a service currently toggled off, see ProviderService's
+    # docstring in app/models.py.
+    links_by_service = {
+        row.service_id: row
         for row in (
-            await db.execute(
-                select(ProviderService).where(
-                    ProviderService.provider_id == provider.id, ProviderService.is_active.is_(True)
-                )
-            )
+            await db.execute(select(ProviderService).where(ProviderService.provider_id == provider.id))
         )
         .scalars()
         .all()
     }
-    return [
-        ServiceToggleOut(
-            service_id=s.id,
-            name=_resolve_service_name(s, lang),
-            duration_minutes=s.duration_minutes,
-            price_min=s.price_min,
-            price_max=s.price_max,
-            is_offered=s.id in offered_ids,
+    result = []
+    for s in services:
+        link = links_by_service.get(s.id)
+        result.append(
+            ServiceToggleOut(
+                service_id=s.id,
+                name=_resolve_service_name(s, lang),
+                duration_minutes=s.duration_minutes,
+                price_min=link.price_min if link and link.price_min is not None else s.price_min,
+                price_max=link.price_max if link and link.price_max is not None else s.price_max,
+                description=link.description if link else None,
+                is_offered=bool(link and link.is_active),
+            )
         )
-        for s in services
-    ]
+    return result
 
 
 @app.put("/api/providers/me/services", response_model=list[ServiceToggleOut])
@@ -694,12 +710,13 @@ async def update_my_services(
     master_user_id: str = Depends(require_master_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> list[ServiceToggleOut]:
-    """Replace semantics: payload.service_ids is the FULL set this provider
-    now offers — anything active-but-not-listed gets turned off. Silently
-    ignores ids that don't name an active tenant service (typo-safe rather
-    than a hard 404 on a bulk checklist save); the response reflects exactly
-    what was actually applied, so the client always ends up rendering truth,
-    not what it optimistically posted."""
+    """Replace semantics: payload.services is the FULL set this provider now
+    offers, each with his own price/description — anything active-but-not-
+    listed gets turned off. Silently ignores entries that don't name an
+    active tenant service (typo-safe rather than a hard 404 on a bulk
+    checklist save); the response reflects exactly what was actually
+    applied, so the client always ends up rendering truth, not what it
+    optimistically posted."""
     provider = await _get_own_provider(master_user_id, db)
 
     valid_service_ids = {
@@ -708,7 +725,7 @@ async def update_my_services(
             await db.execute(select(Service.id).where(Service.is_active.is_(True)))
         ).all()
     }
-    desired_ids = set(payload.service_ids) & valid_service_ids
+    desired_items = {item.service_id: item for item in payload.services if item.service_id in valid_service_ids}
 
     existing_links = {
         row.service_id: row
@@ -719,19 +736,78 @@ async def update_my_services(
         .all()
     }
 
-    for service_id in desired_ids:
+    for service_id, item in desired_items.items():
         link = existing_links.get(service_id)
         if link is None:
-            db.add(ProviderService(provider_id=provider.id, service_id=service_id, is_active=True))
-        elif not link.is_active:
+            db.add(
+                ProviderService(
+                    provider_id=provider.id,
+                    service_id=service_id,
+                    is_active=True,
+                    price_min=item.price_min,
+                    price_max=item.price_max,
+                    description=item.description,
+                )
+            )
+        else:
             link.is_active = True
+            link.price_min = item.price_min
+            link.price_max = item.price_max
+            link.description = item.description
 
     for service_id, link in existing_links.items():
-        if service_id not in desired_ids and link.is_active:
+        if service_id not in desired_items and link.is_active:
             link.is_active = False
 
     await db.commit()
     return await get_my_services(lang=lang, master_user_id=master_user_id, db=db)
+
+
+@app.get("/api/providers/{provider_id}/services", response_model=list[ProviderServiceOut])
+async def list_provider_services(
+    provider_id: uuid.UUID,
+    lang: str = Query(default=DEFAULT_LANG),
+    db: AsyncSession = Depends(get_db),
+) -> list[ProviderServiceOut]:
+    """Public — one master's own offered services with his own price/
+    description, for the booking flow once a master has been picked on the
+    new master-first home page (see web/components/MasterPicker.tsx). Same
+    price fallback as get_my_services above: the master's own
+    ProviderService.price_min/max if he set one, else Service.price_min/max
+    as the reference default.
+
+    Registered AFTER /api/providers/me/services on purpose — FastAPI matches
+    routes in registration order, and a {provider_id}: uuid path param
+    placed before the fixed "me" path would otherwise swallow every request
+    to it, trying (and failing, 422) to parse the literal "me" as a UUID."""
+    lang = _resolve_lang(lang)
+    provider = await db.get(Provider, provider_id)
+    if provider is None or not provider.is_active:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Provider not found")
+
+    rows = (
+        await db.execute(
+            select(Service, ProviderService)
+            .join(ProviderService, ProviderService.service_id == Service.id)
+            .where(
+                ProviderService.provider_id == provider_id,
+                ProviderService.is_active.is_(True),
+                Service.is_active.is_(True),
+            )
+            .order_by(Service.name)
+        )
+    ).all()
+    return [
+        ProviderServiceOut(
+            id=service.id,
+            name=_resolve_service_name(service, lang),
+            duration_minutes=service.duration_minutes,
+            price_min=link.price_min if link.price_min is not None else service.price_min,
+            price_max=link.price_max if link.price_max is not None else service.price_max,
+            description=link.description,
+        )
+        for service, link in rows
+    ]
 
 
 # ============================================================================
@@ -784,9 +860,45 @@ async def list_masters(db: AsyncSession = Depends(get_db)) -> list[MasterOut]:
             travel_buffer_minutes=provider.travel_buffer_minutes,
             is_active=provider.is_active,
             telegram_linked=master_user.telegram_chat_id is not None,
+            rating=provider.rating,
+            rating_count=provider.rating_count,
         )
         for master_user, provider in rows
     ]
+
+
+@app.patch("/admin/masters/{master_user_id}", response_model=MasterOut, dependencies=[Depends(require_admin)])
+async def update_master_rating(
+    master_user_id: uuid.UUID,
+    payload: AdminMasterUpdate,
+    db: AsyncSession = Depends(get_db),
+) -> MasterOut:
+    """Manual stand-in for the not-yet-built reviews system — see
+    Provider.rating's docstring in app/models.py. Only rating/rating_count
+    are editable here for now (not travel_buffer_minutes/is_active — those
+    stay a future extension of this same endpoint, not requested yet)."""
+    master_user = await db.get(MasterUser, master_user_id)
+    if master_user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Master not found")
+    provider = await db.get(Provider, master_user.provider_id)
+    if provider is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Master not found")
+
+    provider.rating = payload.rating
+    provider.rating_count = payload.rating_count
+    await db.commit()
+
+    return MasterOut(
+        master_user_id=master_user.id,
+        provider_id=provider.id,
+        name=provider.name,
+        email=master_user.email,
+        travel_buffer_minutes=provider.travel_buffer_minutes,
+        is_active=provider.is_active,
+        telegram_linked=master_user.telegram_chat_id is not None,
+        rating=provider.rating,
+        rating_count=provider.rating_count,
+    )
 
 
 @app.post("/admin/masters", dependencies=[Depends(require_admin)])

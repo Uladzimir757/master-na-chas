@@ -112,6 +112,16 @@ class Provider(Base):
     busy_started_at: Mapped[datetime | None] = mapped_column(TZDateTime)
     busy_estimated_minutes: Mapped[int | None] = mapped_column(Integer)
 
+    # Foundation for the planned reviews system (docs/ai-and-reviews.md —
+    # rating + text + photos, verified via a completed booking + SMS link):
+    # that collection flow isn't built yet, so for now these are set by hand
+    # from the admin panel (PATCH /admin/masters/{id}) — a manual stand-in,
+    # not a fake average. NULL = no rating yet, sorts last on the public
+    # master-picker screen (see app/main.py's list_providers), never 0 (0
+    # would misleadingly outrank "no rating" below it).
+    rating: Mapped[Decimal | None] = mapped_column(Numeric(2, 1))
+    rating_count: Mapped[int] = mapped_column(Integer, default=0)
+
     working_hours: Mapped[list["WorkingHours"]] = relationship(back_populates="provider")
     master_user: Mapped["MasterUser | None"] = relationship(back_populates="provider", uselist=False)
 
@@ -123,8 +133,13 @@ class Service(Base):
     tenant_id: Mapped[uuid.UUID] = _uuid_col(fk="tenant.id")
     name: Mapped[str] = mapped_column(String)
     duration_minutes: Mapped[int] = mapped_column(CheckConstraint("duration_minutes > 0"))
-    # schema.sql has had these since Этап 1; only wiring them into the ORM
-    # now that the booking page actually needs to show a price.
+    # A *reference* range, not what a client is actually shown any more —
+    # since the real service catalog (this segment), the price a client
+    # sees comes from ProviderService.price_min/price_max, set by whichever
+    # master offers the service (docs: "мастер сам устанавливает цену").
+    # These stay as the suggested starting point the cabinet prefills when a
+    # master first ticks a service on (see app/main.py's get_my_services),
+    # and as the fallback shown here if a master hasn't set his own yet.
     price_min: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     price_max: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     is_active: Mapped[bool] = mapped_column(default=True)
@@ -139,6 +154,10 @@ class Service(Base):
     name_pl: Mapped[str | None] = mapped_column(String)
     name_ru: Mapped[str | None] = mapped_column(String)
     name_uk: Mapped[str | None] = mapped_column(String)
+    # en (this segment) — ru/uk are turned off (see SUPPORTED_LANGS in
+    # app/translations.py) but their columns/data stay, unused, rather than
+    # being dropped.
+    name_en: Mapped[str | None] = mapped_column(String)
 
 
 class ProviderService(Base):
@@ -151,13 +170,28 @@ class ProviderService(Base):
     delete-and-recreate — see docs/decisions.md discussion. Every read that
     decides whether a provider can actually be booked for a service MUST
     filter on is_active — see app/slot_engine.py's list_providers_for_service
-    and get_availability, and app/main.py's create_booking."""
+    and get_availability, and app/main.py's create_booking.
+
+    price_min/price_max/description (real service catalog segment): the
+    master's OWN approximate price and free-text note for this service —
+    "цены приблизительные и должны устанавливаться мастером". Deliberately
+    per (provider, service), not on Service itself: two masters offering the
+    same service can charge differently, same reasoning as
+    Provider.call_out_fee living per-provider rather than per-service. Left
+    NULL when the master hasn't set his own price yet — see app/main.py's
+    get_my_services for the fallback-to-Service.price_min/max prefill, and
+    same fallback on the public per-provider services listing. price/
+    description survive a toggle-off (is_active=False) so re-enabling a
+    service later restores what was there before, instead of losing it."""
 
     __tablename__ = "provider_service"
 
     provider_id: Mapped[uuid.UUID] = _uuid_col(primary_key=True, fk="provider.id")
     service_id: Mapped[uuid.UUID] = _uuid_col(primary_key=True, fk="service.id")
     is_active: Mapped[bool] = mapped_column(default=True)
+    price_min: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    price_max: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    description: Mapped[str | None] = mapped_column(Text)
 
 
 class WorkingHours(Base):

@@ -11,11 +11,16 @@ import { buildTranslations } from "../lib/i18n";
 // this route for every test automatically using this exact fixture, so
 // specs can keep asserting against `t.xxx` (imported from here, not from
 // lib/i18n.ts directly — there's no static dictionary there any more).
-// Content matches the real ru seed data (scripts/seed_translations.py) —
-// unrelated to whichever `lang` a test's page actually resolves to; the
-// mock ignores the query param and always serves this one map, which is
+// Arbitrary Russian test copy, kept only because it's easy for a human
+// skimming a spec to tell apart from surrounding code — the real backend
+// only ever seeds pl/en now (SUPPORTED_LANGS, scripts/seed_translations.py).
+// Unrelated to whichever `lang` a test's page actually resolves to; the mock
+// ignores the query param and always serves this one map, which is
 // deliberately fine since a spec never asserts on which *language* is
-// showing, only that some fixed, known text is.
+// showing, only that some fixed, known text is. The language SWITCH itself
+// (lib/locale.ts, components/LanguageSwitcher.tsx) is a separate, much
+// smaller surface with no server round-trip to fake, so it isn't covered by
+// this fixture at all.
 export const TRANSLATIONS_FIXTURE: Record<string, string> = {
   loading: "Загрузка…",
   catalogLoadError: "Не удалось загрузить услуги. Проверьте связь и обновите страницу.",
@@ -114,6 +119,17 @@ export const TRANSLATIONS_FIXTURE: Record<string, string> = {
   changePasswordTooShortError: "Новый пароль должен быть не короче 8 символов.",
   changePasswordWrongCurrentError: "Неверный текущий пароль.",
   changePasswordGenericError: "Не удалось сменить пароль. Попробуйте ещё раз.",
+  pickMasterTitle: "Выберите мастера",
+  masterListLoadError: "Не удалось загрузить список мастеров.",
+  ratingValue: "★ {rating} ({count})",
+  noRatingYet: "Пока нет оценок",
+  chooseMasterButton: "Выбрать",
+  backToMasters: "← выбрать другого мастера",
+  masterServicesLoadError: "Не удалось загрузить услуги этого мастера.",
+  noServicesOffered: "Этот мастер пока не выбрал ни одной услуги.",
+  servicePriceMinPlaceholder: "Цена от",
+  servicePriceMaxPlaceholder: "Цена до",
+  serviceDescriptionPlaceholder: "Описание услуги (необязательно)",
 };
 
 export const t = buildTranslations(TRANSLATIONS_FIXTURE);
@@ -144,9 +160,41 @@ export interface ProviderLocationFixture {
 export const PROVIDER = {
   id: "22222222-2222-2222-2222-222222222222",
   name: "Владимир",
+  // Manual stand-in for the not-yet-built reviews system — see
+  // Provider.rating's docstring in app/models.py. Non-null by default so
+  // most specs render MasterPicker's normal (rated) row; a spec testing the
+  // "no rating yet" state passes rating: null explicitly.
+  rating: 4.8 as number | null,
+  rating_count: 12,
   call_out_fee: null as number | null,
   location: null as ProviderLocationFixture | null,
 };
+
+// This provider's own price/description for a service, as returned by GET
+// /api/providers/{id}/services (master-picker flow, components/
+// BookingFlow.tsx) — used once a master has been chosen. Defaults to
+// SERVICE's own numbers with no note, so most specs never need to think
+// about the master/service distinction.
+export interface ProviderServiceOfferingFixture {
+  id: string;
+  name: string;
+  duration_minutes: number;
+  price_min: number | null;
+  price_max: number | null;
+  description: string | null;
+}
+
+export function providerServiceOffering(overrides: Partial<ProviderServiceOfferingFixture> = {}): ProviderServiceOfferingFixture {
+  return {
+    id: SERVICE.id,
+    name: SERVICE.name,
+    duration_minutes: SERVICE.duration_minutes,
+    price_min: SERVICE.price_min,
+    price_max: SERVICE.price_max,
+    description: null,
+    ...overrides,
+  };
+}
 
 function makeSlot(isoStartUtc: string, durationMinutes = SERVICE.duration_minutes) {
   const start = new Date(isoStartUtc);
@@ -161,11 +209,31 @@ function makeSlot(isoStartUtc: string, durationMinutes = SERVICE.duration_minute
 export const SLOT_A = makeSlot("2027-06-07T07:00:00Z");
 export const SLOT_B = makeSlot("2027-06-07T09:00:00Z");
 
-export async function mockCatalog(page: Page, opts?: { servicesStatus?: number; providers?: (typeof PROVIDER)[] }) {
+export async function mockCatalog(
+  page: Page,
+  opts?: {
+    servicesStatus?: number;
+    // GET /api/providers failure — the home page's very first fetch now
+    // (MasterPicker), surfaced as t.masterListLoadError. Distinct from
+    // servicesStatus above, which no component reads any more.
+    providersStatus?: number;
+    providers?: (typeof PROVIDER)[];
+    // Per-provider offerings for GET /api/providers/{id}/services, keyed by
+    // provider id. A provider with no entry here defaults to a single
+    // offering matching SERVICE — same shape the old flat /api/services
+    // list used to hand every spec, so BookingFlow auto-skips straight to
+    // the slot calendar the instant that master is chosen (providerServices
+    // .length === 1), just like before the master-picker step existed.
+    providerServices?: Record<string, ProviderServiceOfferingFixture[]>;
+    providerServicesStatus?: number;
+  },
+) {
   // "**" at the end, not just "**/api/services": listServices() now appends
   // ?lang= (Этап 3, lib/api.ts) — a query string after the path fails to
   // match a pattern with no trailing wildcard, same reason mockAvailability
-  // below already needs one.
+  // below already needs one. (This route is vestigial — no component calls
+  // api.listServices() any more since the master-first flow shipped — but
+  // harmless to keep mocked for any spec that still imports it.)
   await page.route("**/api/services**", (route) =>
     route.fulfill({
       status: opts?.servicesStatus ?? 200,
@@ -173,9 +241,31 @@ export async function mockCatalog(page: Page, opts?: { servicesStatus?: number; 
       body: JSON.stringify(opts?.servicesStatus ? { detail: "boom" } : [SERVICE]),
     }),
   );
-  await page.route("**/api/providers", (route) =>
-    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(opts?.providers ?? [PROVIDER]) }),
-  );
+  const providers = opts?.providers ?? [PROVIDER];
+  await page.route("**/api/providers", (route) => {
+    if (opts?.providersStatus && opts.providersStatus !== 200) {
+      return route.fulfill({
+        status: opts.providersStatus,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "boom" }),
+      });
+    }
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(providers) });
+  });
+  await page.route("**/api/providers/*/services**", (route) => {
+    if (opts?.providerServicesStatus && opts.providerServicesStatus !== 200) {
+      return route.fulfill({
+        status: opts.providerServicesStatus,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "boom" }),
+      });
+    }
+    const segments = new URL(route.request().url()).pathname.split("/");
+    const providerId = segments[segments.length - 2]; // .../providers/{id}/services
+    const offerings =
+      opts?.providerServices?.[providerId] ?? (providers.some((p) => p.id === providerId) ? [providerServiceOffering()] : []);
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(offerings) });
+  });
 }
 
 export async function mockAvailability(page: Page, slotsOrErrorStatus: Array<typeof SLOT_A> | number) {
@@ -416,8 +506,11 @@ interface ServiceToggleFixture {
   service_id: string;
   name: string;
   duration_minutes: number;
+  // This provider's own price/description if he's set one, else SERVICE's
+  // reference range — see ServiceToggleOut's docstring in app/schemas.py.
   price_min: number | null;
   price_max: number | null;
+  description: string | null;
   is_offered: boolean;
 }
 
@@ -428,14 +521,18 @@ export function serviceToggle(overrides: Partial<ServiceToggleFixture> = {}): Se
     duration_minutes: SERVICE.duration_minutes,
     price_min: SERVICE.price_min,
     price_max: SERVICE.price_max,
+    description: null,
     is_offered: true,
     ...overrides,
   };
 }
 
 /** GET /api/providers/me/services (checklist) and PUT (save). PUT applies
- * replace semantics like the real backend: is_offered flips to true for
- * every id in the posted service_ids, false for every other row. */
+ * replace semantics like the real backend: the posted `services` array
+ * (each {service_id, price_min, price_max, description}) becomes is_offered
+ * true with those values; every other row flips to is_offered false but
+ * KEEPS its previously-stored price/description, same as the real
+ * ProviderService row (app/main.py's update_my_services). */
 export async function mockMyServices(page: Page, initial: ServiceToggleFixture[], opts?: { putStatus?: number }) {
   let current = initial;
   // Trailing "**": both getMyServices and updateMyServices now append
@@ -453,8 +550,15 @@ export async function mockMyServices(page: Page, initial: ServiceToggleFixture[]
       });
     }
     const payload = JSON.parse(route.request().postData() ?? "{}");
-    const desired = new Set<string>(payload.service_ids ?? []);
-    current = current.map((s) => ({ ...s, is_offered: desired.has(s.service_id) }));
+    const desiredEntries: Array<{ service_id: string; price_min: number | null; price_max: number | null; description: string | null }> =
+      payload.services ?? [];
+    const desired = new Map(desiredEntries.map((s) => [s.service_id, s]));
+    current = current.map((s) => {
+      const offer = desired.get(s.service_id);
+      return offer
+        ? { ...s, is_offered: true, price_min: offer.price_min, price_max: offer.price_max, description: offer.description }
+        : { ...s, is_offered: false };
+    });
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(current) });
   });
 }
@@ -497,6 +601,8 @@ interface AdminMasterFixture {
   travel_buffer_minutes: number;
   is_active: boolean;
   telegram_linked: boolean;
+  rating: number | null;
+  rating_count: number;
 }
 
 export function adminMaster(overrides: Partial<AdminMasterFixture> = {}): AdminMasterFixture {
@@ -508,8 +614,27 @@ export function adminMaster(overrides: Partial<AdminMasterFixture> = {}): AdminM
     travel_buffer_minutes: 30,
     is_active: true,
     telegram_linked: false,
+    rating: PROVIDER.rating,
+    rating_count: PROVIDER.rating_count,
     ...overrides,
   };
+}
+
+/** PATCH /admin/masters/{id} — the manual rating stand-in (see
+ * Provider.rating's docstring in app/models.py). Updates the in-memory
+ * fixture the GET /admin/masters route in mockAdminMasters would have
+ * served, mirroring the real endpoint's response shape. */
+export async function mockUpdateMasterRating(page: Page, current: AdminMasterFixture, opts?: { status?: number }) {
+  const status = opts?.status ?? 200;
+  await page.route(`**/admin/masters/${current.master_user_id}`, (route) => {
+    if (route.request().method() !== "PATCH") return route.fallback();
+    if (status !== 200) {
+      return route.fulfill({ status, contentType: "application/json", body: JSON.stringify({ detail: "boom" }) });
+    }
+    const payload = JSON.parse(route.request().postData() ?? "{}");
+    const updated = { ...current, rating: payload.rating, rating_count: payload.rating_count };
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(updated) });
+  });
 }
 
 /** GET /admin/me — whether the admin session cookie (if any) is still

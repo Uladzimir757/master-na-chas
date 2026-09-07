@@ -108,6 +108,14 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [linkByMaster, setLinkByMaster] = useState<Record<string, string>>({});
   const [linkError, setLinkError] = useState<string | null>(null);
 
+  // Manual stand-in for the not-yet-built reviews system (Provider.rating's
+  // docstring in app/models.py) — until real client reviews feed this, the
+  // superadmin sets it by hand here. Both fields save together (PATCH
+  // /admin/masters/{id} always sends the full rating+rating_count pair), so
+  // editing one blurs-and-sends the other's current value unchanged.
+  const [savingRatingFor, setSavingRatingFor] = useState<string | null>(null);
+  const [ratingError, setRatingError] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     try {
       setMasters(await api.listMasters());
@@ -133,6 +141,40 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     }
   }, []);
 
+  const handleRatingBlur = useCallback(async (master: AdminMaster, raw: string) => {
+    const trimmed = raw.trim();
+    const parsed = trimmed === "" ? null : Number(trimmed);
+    const nextRating = parsed !== null && Number.isNaN(parsed) ? null : parsed;
+    if (nextRating === master.rating) return;
+    setRatingError(null);
+    setSavingRatingFor(master.master_user_id);
+    try {
+      const updated = await api.updateMasterRating(master.master_user_id, nextRating, master.rating_count);
+      setMasters((prev) => prev?.map((m) => (m.master_user_id === updated.master_user_id ? updated : m)) ?? prev);
+    } catch {
+      setRatingError("Не удалось сохранить оценку — попробуйте ещё раз");
+    } finally {
+      setSavingRatingFor(null);
+    }
+  }, []);
+
+  const handleRatingCountBlur = useCallback(async (master: AdminMaster, raw: string) => {
+    const trimmed = raw.trim();
+    const parsed = trimmed === "" ? 0 : Math.trunc(Number(trimmed));
+    const nextCount = Number.isNaN(parsed) ? master.rating_count : Math.max(0, parsed);
+    if (nextCount === master.rating_count) return;
+    setRatingError(null);
+    setSavingRatingFor(master.master_user_id);
+    try {
+      const updated = await api.updateMasterRating(master.master_user_id, master.rating, nextCount);
+      setMasters((prev) => prev?.map((m) => (m.master_user_id === updated.master_user_id ? updated : m)) ?? prev);
+    } catch {
+      setRatingError("Не удалось сохранить оценку — попробуйте ещё раз");
+    } finally {
+      setSavingRatingFor(null);
+    }
+  }, []);
+
   return (
     <div className="flex w-full max-w-3xl flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -155,6 +197,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   <th className="py-2 pr-3 font-normal">Имя</th>
                   <th className="py-2 pr-3 font-normal">Email</th>
                   <th className="py-2 pr-3 font-normal">Буфер выезда</th>
+                  <th className="py-2 pr-3 font-normal">Рейтинг</th>
                   <th className="py-2 pr-3 font-normal">Telegram</th>
                   <th className="py-2 font-normal">&nbsp;</th>
                 </tr>
@@ -165,6 +208,35 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                     <td className="py-2 pr-3">{m.name}</td>
                     <td className="py-2 pr-3">{m.email}</td>
                     <td className="py-2 pr-3">{m.travel_buffer_minutes} мин</td>
+                    <td className="py-2 pr-3">
+                      <div className="flex items-center gap-1">
+                        <input
+                          key={`${m.master_user_id}-rating-${m.rating ?? "empty"}`}
+                          type="number"
+                          min={0}
+                          max={5}
+                          step="0.1"
+                          aria-label={`Рейтинг — ${m.name}`}
+                          defaultValue={m.rating ?? ""}
+                          placeholder="—"
+                          disabled={savingRatingFor === m.master_user_id}
+                          onBlur={(e) => handleRatingBlur(m, e.target.value)}
+                          className="w-16 rounded-md border border-line bg-bg px-2 py-1 text-ink"
+                        />
+                        <span className="text-ink/40">/</span>
+                        <input
+                          key={`${m.master_user_id}-count-${m.rating_count}`}
+                          type="number"
+                          min={0}
+                          step="1"
+                          aria-label={`Число оценок — ${m.name}`}
+                          defaultValue={m.rating_count}
+                          disabled={savingRatingFor === m.master_user_id}
+                          onBlur={(e) => handleRatingCountBlur(m, e.target.value)}
+                          className="w-16 rounded-md border border-line bg-bg px-2 py-1 text-ink"
+                        />
+                      </div>
+                    </td>
                     <td className="py-2 pr-3">{m.telegram_linked ? "привязан" : "не привязан"}</td>
                     <td className="py-2">
                       {!m.telegram_linked &&
@@ -194,6 +266,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           </div>
         )}
         {linkError && <p className="mt-2 text-sm text-danger">{linkError}</p>}
+        {ratingError && <p className="mt-2 text-sm text-danger">{ratingError}</p>}
       </Card>
 
       <CreateMasterForm onCreated={load} />

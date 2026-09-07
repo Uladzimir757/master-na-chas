@@ -20,9 +20,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import TranslationEntry
 
-# The user's real audience (docs/ai-and-reviews.md §1) — English can be added
-# later if/when it's actually needed, not speculatively now.
-SUPPORTED_LANGS: tuple[str, ...] = ("pl", "ru", "uk")
+# pl (the real Trójmiasto audience) + en, per explicit request. ru/uk were
+# the original launch languages but are now deliberately turned OFF here —
+# not removed from the DB (existing approved rows are simply unreachable:
+# app/main.py's _resolve_lang maps anything outside this tuple to
+# DEFAULT_LANG, so a request for lang=ru/uk now silently serves pl instead,
+# same as any other unsupported/typo'd lang always has).
+SUPPORTED_LANGS: tuple[str, ...] = ("pl", "en")
 DEFAULT_LANG = "pl"
 
 

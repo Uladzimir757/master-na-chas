@@ -91,10 +91,27 @@ export interface ProviderLocation {
 export interface Provider {
   id: string;
   name: string;
+  // Manual stand-in for the not-yet-built reviews system (set from the
+  // admin panel) — null means no rating yet. Drives the sort order of
+  // components/MasterPicker.tsx (best first, unrated last).
+  rating: number | null;
+  rating_count: number;
   // Flat "выезд" fee, own line shown once a slot with this provider is
   // picked (see components/SlotPicker.tsx) — null/0 means nothing shown.
   call_out_fee: number | null;
   location: ProviderLocation | null;
+}
+
+// One service a specific master offers, with HIS OWN price/description —
+// GET /api/providers/{id}/services, used once a master has been picked on
+// the home page (components/MasterPicker.tsx -> components/BookingFlow.tsx).
+export interface ProviderServiceOffering {
+  id: string;
+  name: string;
+  duration_minutes: number;
+  price_min: number | null;
+  price_max: number | null;
+  description: string | null;
 }
 
 export interface Slot {
@@ -172,6 +189,8 @@ export interface AdminMaster {
   travel_buffer_minutes: number;
   is_active: boolean;
   telegram_linked: boolean;
+  rating: number | null;
+  rating_count: number;
 }
 
 export interface CreateMasterPayload {
@@ -191,9 +210,23 @@ export interface ServiceToggle {
   service_id: string;
   name: string;
   duration_minutes: number;
+  // This provider's own price/description if he's set one, else Service's
+  // reference range as a prefill suggestion — see ServiceToggleOut's
+  // docstring in app/schemas.py.
   price_min: number | null;
   price_max: number | null;
+  description: string | null;
   is_offered: boolean;
+}
+
+// PUT body for one entry — "цены приблизительные и должны устанавливаться
+// мастером": price is optional (a master can turn a service on without
+// pricing it yet), same for the free-text description.
+export interface ServiceOffer {
+  service_id: string;
+  price_min: number | null;
+  price_max: number | null;
+  description: string | null;
 }
 
 export const api = {
@@ -201,9 +234,19 @@ export const api = {
   // _resolve_service_name. Not needed by getAvailability: slot times carry
   // no translatable text.
   listServices: (lang: string) => request<Service[]>(`/api/services?lang=${encodeURIComponent(lang)}`),
+  // Sorted by rating server-side (see app/main.py's list_providers) — the
+  // master-picker screen renders this order as-is, no client-side re-sort.
   listProviders: () => request<Provider[]>("/api/providers"),
-  getAvailability: (params: { service_id: string; date_from: string; date_to: string }) =>
-    request<Slot[]>(`/api/availability?${new URLSearchParams(params).toString()}`),
+  // One master's own offered services, for the booking flow once a master
+  // has been picked (components/MasterPicker.tsx).
+  listProviderServices: (providerId: string, lang: string) =>
+    request<ProviderServiceOffering[]>(`/api/providers/${providerId}/services?lang=${encodeURIComponent(lang)}`),
+  getAvailability: (params: { service_id: string; provider_id?: string; date_from: string; date_to: string }) =>
+    request<Slot[]>(
+      `/api/availability?${new URLSearchParams(
+        Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined)) as Record<string, string>,
+      ).toString()}`,
+    ),
   createBooking: (payload: BookingCreate) =>
     request<Booking>("/api/bookings", { method: "POST", body: JSON.stringify(payload) }),
   // Этап 3 — approved UI strings for one lang, see lib/LocaleContext.tsx.
@@ -232,12 +275,13 @@ export const api = {
   updateMySettings: (payload: UpdateProviderSettingsPayload) =>
     request<ProviderSettings>("/api/providers/me/settings", { method: "PATCH", body: JSON.stringify(payload) }),
   getMyServices: (lang: string) => request<ServiceToggle[]>(`/api/providers/me/services?lang=${encodeURIComponent(lang)}`),
-  // Replace semantics, matching the backend: pass the FULL set of service
-  // ids this provider now offers, not a delta.
-  updateMyServices: (serviceIds: string[], lang: string) =>
+  // Replace semantics, matching the backend: pass the FULL set of services
+  // this provider now offers (each with his own price/description), not a
+  // delta — anything not listed here gets turned off.
+  updateMyServices: (services: ServiceOffer[], lang: string) =>
     request<ServiceToggle[]>(`/api/providers/me/services?lang=${encodeURIComponent(lang)}`, {
       method: "PUT",
-      body: JSON.stringify({ service_ids: serviceIds }),
+      body: JSON.stringify({ services }),
     }),
   listMyBookings: (statusFilter?: BookingStatus) =>
     request<Booking[]>(`/api/bookings${statusFilter ? `?status=${statusFilter}` : ""}`),
@@ -278,4 +322,12 @@ export const api = {
     }),
   createTelegramLink: (masterUserId: string) =>
     request<TelegramLink>(`/admin/masters/${masterUserId}/telegram-link`, { method: "POST" }),
+  // Manual stand-in for the not-yet-built reviews system — see
+  // Provider.rating's docstring in app/models.py. null clears it back to
+  // "no rating", same always-send-the-full-value shape as everywhere else.
+  updateMasterRating: (masterUserId: string, rating: number | null, ratingCount: number) =>
+    request<AdminMaster>(`/admin/masters/${masterUserId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ rating, rating_count: ratingCount }),
+    }),
 };

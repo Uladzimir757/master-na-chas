@@ -174,3 +174,49 @@ async def test_list_masters_shows_telegram_linked(client: AsyncClient, master_us
 async def test_list_masters_requires_admin(client: AsyncClient):
     resp = await client.get("/admin/masters")
     assert resp.status_code == 403
+
+
+async def test_admin_can_set_master_rating(client: AsyncClient, master_user: MasterUser, db_session):
+    headers = {"x-admin-secret": TEST_SECRET}
+    resp = await client.patch(
+        f"/admin/masters/{master_user.id}", json={"rating": 4.8, "rating_count": 12}, headers=headers
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["rating"] == 4.8
+    assert resp.json()["rating_count"] == 12
+
+    listing = await client.get("/admin/masters", headers=headers)
+    row = next(r for r in listing.json() if r["master_user_id"] == str(master_user.id))
+    assert row["rating"] == 4.8
+
+
+async def test_admin_set_master_rating_rejects_out_of_range_values(client: AsyncClient, master_user: MasterUser):
+    resp = await client.patch(
+        f"/admin/masters/{master_user.id}",
+        json={"rating": 5.5, "rating_count": 1},
+        headers={"x-admin-secret": TEST_SECRET},
+    )
+    assert resp.status_code == 422
+
+
+async def test_admin_can_clear_master_rating_back_to_null(client: AsyncClient, master_user: MasterUser, db_session):
+    headers = {"x-admin-secret": TEST_SECRET}
+    await client.patch(f"/admin/masters/{master_user.id}", json={"rating": 4.5, "rating_count": 3}, headers=headers)
+
+    resp = await client.patch(f"/admin/masters/{master_user.id}", json={"rating": None, "rating_count": 0}, headers=headers)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["rating"] is None
+
+
+async def test_admin_set_master_rating_requires_admin(client: AsyncClient, master_user: MasterUser):
+    resp = await client.patch(f"/admin/masters/{master_user.id}", json={"rating": 4.0, "rating_count": 1})
+    assert resp.status_code == 403
+
+
+async def test_admin_set_master_rating_404s_for_unknown_master(client: AsyncClient):
+    import uuid
+
+    resp = await client.patch(
+        f"/admin/masters/{uuid.uuid4()}", json={"rating": 4.0, "rating_count": 1}, headers={"x-admin-secret": TEST_SECRET}
+    )
+    assert resp.status_code == 404

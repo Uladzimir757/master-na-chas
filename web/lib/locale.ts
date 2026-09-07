@@ -12,10 +12,15 @@
  * during the static build (see the `typeof window` guards below).
  */
 
-export const SUPPORTED_LOCALES = ["pl", "ru", "uk"] as const;
+// ru/uk were the original launch languages, now turned off by explicit
+// request (matches SUPPORTED_LANGS in the backend's app/translations.py) —
+// a stored "ru"/"uk" cookie or ?lang= from before this change just falls
+// through isSupported() below to the pl default, same as any other
+// unsupported value always has.
+export const SUPPORTED_LOCALES = ["pl", "en"] as const;
 export type LocaleCode = (typeof SUPPORTED_LOCALES)[number];
 
-// pl, not ru: the business is in Gdynia, Poland — see docs/ai-and-reviews.md
+// pl, not en: the business is in Gdynia, Poland — see docs/ai-and-reviews.md
 // §1 ("твоя реальная аудитория").
 export const DEFAULT_LOCALE: LocaleCode = "pl";
 
@@ -23,8 +28,7 @@ export const DEFAULT_LOCALE: LocaleCode = "pl";
 // codes are the app's own vocabulary, not something Intl understands directly.
 const INTL_TAGS: Record<LocaleCode, string> = {
   pl: "pl-PL",
-  ru: "ru-RU",
-  uk: "uk-UA",
+  en: "en-US",
 };
 
 export function toIntlTag(locale: LocaleCode): string {

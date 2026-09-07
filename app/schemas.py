@@ -105,6 +105,19 @@ class MasterOut(BaseModel):
     travel_buffer_minutes: int
     is_active: bool
     telegram_linked: bool
+    rating: float | None = None
+    rating_count: int = 0
+
+
+class AdminMasterUpdate(BaseModel):
+    """PATCH /admin/masters/{master_user_id} body — currently just the
+    manual rating stand-in (see Provider.rating's docstring in
+    app/models.py). Always-send-the-full-value shape: null explicitly clears
+    a previously-set rating back to "no rating", same convention as
+    ProviderSettingsUpdate.call_out_fee."""
+
+    rating: float | None = Field(default=None, ge=0, le=5)
+    rating_count: int = Field(default=0, ge=0)
 
 
 class TelegramLinkOut(BaseModel):
@@ -148,13 +161,16 @@ class ProviderLocationOut(BaseModel):
 
 
 class ProviderOut(BaseModel):
-    """Public — just enough for the booking page to show which master a
-    slot belongs to, and (once a client has picked a slot) what that
-    provider's own call-out fee is. No phone/email (docs/decisions.md: no
-    client accounts, no reason to expose that here)."""
+    """Public — just enough for the master-picker screen and booking page:
+    which master a slot belongs to, his rating (if any — see Provider.rating
+    in app/models.py), and (once a client has picked a slot) his own
+    call-out fee. No phone/email (docs/decisions.md: no client accounts, no
+    reason to expose that here)."""
 
     id: uuid.UUID
     name: str
+    rating: float | None = None
+    rating_count: int = 0
     call_out_fee: float | None = None
     location: ProviderLocationOut | None = None
 
@@ -226,22 +242,55 @@ class BusyEstimateUpdate(BaseModel):
 
 class ServiceToggleOut(BaseModel):
     """One row of 'which services do I currently offer' for the cabinet's
-    services checklist — GET/PUT /api/providers/me/services."""
+    services checklist — GET/PUT /api/providers/me/services. price_min/
+    price_max/description are THIS provider's own values
+    (ProviderService.price_min/max/description) when he has set them,
+    falling back to Service's reference range when he hasn't yet — see
+    app/main.py's get_my_services. is_offered=false rows can still carry a
+    previously-set price/description (kept, not cleared, on toggle-off)."""
 
     service_id: uuid.UUID
     name: str
     duration_minutes: int
     price_min: float | None = None
     price_max: float | None = None
+    description: str | None = None
     is_offered: bool
+
+
+class ProviderServiceUpdateItem(BaseModel):
+    """One entry of the PUT /api/providers/me/services payload — a service
+    this provider now offers, with his own approximate price (optional —
+    "цены приблизительные") and an optional free-text description."""
+
+    service_id: uuid.UUID
+    price_min: float | None = None
+    price_max: float | None = None
+    description: str | None = Field(default=None, max_length=2000)
 
 
 class ProviderServicesUpdate(BaseModel):
     """PUT body for /api/providers/me/services — the full desired set of
-    service ids this provider offers (replace semantics: anything not
-    listed here gets turned off, nothing is inferred as "unchanged")."""
+    services this provider offers, each with his own price/description
+    (replace semantics: any service not listed here gets turned off —
+    nothing is inferred as "unchanged" — same as the previous service_ids
+    shape, just carrying price/description alongside each id now)."""
 
-    service_ids: list[uuid.UUID]
+    services: list[ProviderServiceUpdateItem]
+
+
+class ProviderServiceOut(BaseModel):
+    """Public — one service a specific master offers, for the booking flow
+    once a master has been picked (GET /api/providers/{id}/services). Same
+    price/description-with-fallback shape as ServiceToggleOut, just without
+    is_offered (every row here is, by definition, offered)."""
+
+    id: uuid.UUID
+    name: str
+    duration_minutes: int
+    price_min: float | None = None
+    price_max: float | None = None
+    description: str | None = None
 
 
 class AvailabilityQuery(BaseModel):

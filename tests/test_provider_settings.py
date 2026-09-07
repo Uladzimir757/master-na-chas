@@ -119,3 +119,24 @@ async def test_public_providers_list_includes_call_out_fee(client: AsyncClient, 
     assert resp.status_code == 200, resp.text
     row = next(p for p in resp.json() if p["id"] == str(provider.id))
     assert row["call_out_fee"] == 60
+
+
+async def test_public_providers_list_is_sorted_by_rating_best_first_unrated_last(
+    client: AsyncClient, provider: Provider, db_session, tenant
+):
+    import uuid
+
+    from app.models import Provider as ProviderModel
+
+    rated_low = ProviderModel(id=uuid.uuid4(), tenant_id=tenant.id, name="Низкий рейтинг", rating=3.5)
+    rated_high = ProviderModel(id=uuid.uuid4(), tenant_id=tenant.id, name="Высокий рейтинг", rating=4.9)
+    db_session.add_all([rated_low, rated_high])
+    # `provider` (the conftest fixture) stays unrated (rating=None by default)
+    await db_session.commit()
+
+    resp = await client.get("/api/providers")
+    assert resp.status_code == 200, resp.text
+    ids_in_order = [p["id"] for p in resp.json()]
+
+    assert ids_in_order.index(str(rated_high.id)) < ids_in_order.index(str(rated_low.id))
+    assert ids_in_order.index(str(rated_low.id)) < ids_in_order.index(str(provider.id))

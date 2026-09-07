@@ -126,6 +126,24 @@ export interface Translations {
   changePasswordTooShortError: string;
   changePasswordWrongCurrentError: string;
   changePasswordGenericError: string;
+
+  // Master picker — the home page now opens on a list of masters (sorted
+  // by rating) instead of jumping straight into the calendar, see
+  // components/MasterPicker.tsx.
+  pickMasterTitle: string;
+  masterListLoadError: string;
+  ratingValue: (rating: number, count: number) => string;
+  noRatingYet: string;
+  chooseMasterButton: string;
+  backToMasters: string;
+  masterServicesLoadError: string;
+  noServicesOffered: string;
+
+  // Per-service price/description, set by the master —
+  // components/CabinetDashboard.tsx's services checklist.
+  servicePriceMinPlaceholder: string;
+  servicePriceMaxPlaceholder: string;
+  serviceDescriptionPlaceholder: string;
 }
 
 export function buildTranslations(map: TranslationMap): Translations {
@@ -233,5 +251,18 @@ export function buildTranslations(map: TranslationMap): Translations {
     changePasswordTooShortError: pick(map, "changePasswordTooShortError"),
     changePasswordWrongCurrentError: pick(map, "changePasswordWrongCurrentError"),
     changePasswordGenericError: pick(map, "changePasswordGenericError"),
+
+    pickMasterTitle: pick(map, "pickMasterTitle"),
+    masterListLoadError: pick(map, "masterListLoadError"),
+    ratingValue: (rating, count) => interpolate(pick(map, "ratingValue"), { rating, count }),
+    noRatingYet: pick(map, "noRatingYet"),
+    chooseMasterButton: pick(map, "chooseMasterButton"),
+    backToMasters: pick(map, "backToMasters"),
+    masterServicesLoadError: pick(map, "masterServicesLoadError"),
+    noServicesOffered: pick(map, "noServicesOffered"),
+
+    servicePriceMinPlaceholder: pick(map, "servicePriceMinPlaceholder"),
+    servicePriceMaxPlaceholder: pick(map, "servicePriceMaxPlaceholder"),
+    serviceDescriptionPlaceholder: pick(map, "serviceDescriptionPlaceholder"),
   };
 }
