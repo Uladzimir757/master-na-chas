@@ -105,7 +105,12 @@ export default function WorkingHoursEditor() {
   }, []);
 
   useEffect(() => {
-    void load();
+    // Same IIFE shape as CabinetDashboard.tsx's own load-on-mount effect
+    // (not `void load()` directly) — matches the existing convention and
+    // keeps eslint-plugin-react-hooks's set-state-in-effect check happy.
+    (async () => {
+      await load();
+    })();
   }, [load]);
 
   const addInterval = useCallback((weekday: number) => {

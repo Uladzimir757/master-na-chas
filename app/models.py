@@ -215,6 +215,13 @@ class WorkingHoursException(Base):
     is_available: Mapped[bool]
     start_time: Mapped[time | None]
     end_time: Mapped[time | None]
+    # Free-text note the master can attach (e.g. "отпуск", "болезнь") — this
+    # column has been in db/schema.sql since the table was first created,
+    # but was missing here (models.py's own docstring: "mirrors
+    # db/schema.sql exactly" — this one drifted). Confirmed present on the
+    # live Neon table already (`reason text NULL`), so no migration is
+    # needed, only this mapping.
+    reason: Mapped[str | None] = mapped_column(Text)
 
 
 class Client(Base):
