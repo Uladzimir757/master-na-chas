@@ -22,7 +22,20 @@ test("an empty weekly template shows every weekday as a day off", async ({ page 
 
   await page.goto("/cabinet/");
 
-  await expect(page.getByText(t.workingHoursDayOff)).toHaveCount(7);
+  // Scoped to the weekly-template <ul> specifically (getByText's default
+  // match is case-insensitive substring, so an unscoped page-wide query
+  // also picks up the exception-mode "Выходной" toggle button below and
+  // the lower-cased "...дату — выходной или другие часы." hint text in
+  // the Особые дни section — both unrelated to this grid). Scoping by
+  // the section heading first, same convention as the add-exception
+  // <form> lookups below, rather than relying on this being the page's
+  // first <ul> (true today, but fragile if a section above ever grows one).
+  const weeklyTemplateList = page
+    .locator("section")
+    .filter({ hasText: t.workingHoursTitle })
+    .locator("ul")
+    .first();
+  await expect(weeklyTemplateList.getByText(t.workingHoursDayOff, { exact: true })).toHaveCount(7);
 });
 
 test("an existing weekly template shows its saved intervals, not a day-off label", async ({ page }) => {
@@ -36,7 +49,13 @@ test("an existing weekly template shows its saved intervals, not a day-off label
   await expect(mondayItem.locator('input[type="time"]').nth(0)).toHaveValue("09:00");
   await expect(mondayItem.locator('input[type="time"]').nth(1)).toHaveValue("18:00");
   // Only Monday has an interval — every other weekday is still a day off.
-  await expect(page.getByText(t.workingHoursDayOff)).toHaveCount(6);
+  // Scoped to the weekly-template <ul> — see comment in the previous test.
+  const weeklyTemplateList = page
+    .locator("section")
+    .filter({ hasText: t.workingHoursTitle })
+    .locator("ul")
+    .first();
+  await expect(weeklyTemplateList.getByText(t.workingHoursDayOff, { exact: true })).toHaveCount(6);
 });
 
 test("adding an interval clears the day-off label immediately, and saving persists it", async ({ page }) => {
