@@ -67,6 +67,24 @@ async def test_no_working_hours_means_no_slots(db_session: AsyncSession, provide
     assert slots == []
 
 
+async def test_already_started_slot_today_is_excluded(db_session: AsyncSession, provider: Provider, service: Service, provider_service: None):
+    # Real bug found live (2026-09-15): a client booked today's 09:00 slot
+    # at 19:25 and the site accepted it — see the "found live" comment next
+    # to `now = datetime.now(timezone.utc)` in _slots_for_one_provider.
+    # Deliberately NOT NEXT_MONDAY like every other test in this file: the
+    # whole point is "today", so a slot's start time can actually already be
+    # in the past relative to `now`. Warsaw-local (BUSINESS_TZ) "today", not
+    # date.today() — those can disagree by a day right around midnight UTC.
+    today = datetime.now(BUSINESS_TZ).date()
+    await _add_working_hours(db_session, provider, today.weekday(), time(0, 0), time(23, 45))
+
+    slots = await get_availability(db_session, service, today, today, provider=provider)
+
+    # 00:00 today has unconditionally already started by the time this test
+    # runs (any hour past midnight Warsaw time) — it must never be offered.
+    assert not any(s.start_at.astimezone(BUSINESS_TZ).time() == time(0, 0) for s in slots)
+
+
 async def test_existing_booking_blocks_its_own_time(db_session: AsyncSession, provider: Provider, service: Service, provider_service: None):
     await _add_working_hours(db_session, provider, NEXT_MONDAY.weekday(), time(9, 0), time(18, 0))
     await _add_booking(db_session, provider, service, time(12, 0), time(13, 0), BookingStatus.confirmed)

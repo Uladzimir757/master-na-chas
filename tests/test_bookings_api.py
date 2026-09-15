@@ -64,6 +64,25 @@ async def test_create_booking_conflict_is_enforced_by_db_constraint(
     assert len(listed.json()) == 1
 
 
+async def test_create_booking_rejects_a_slot_that_has_already_started(client: AsyncClient, bookable_provider, service):
+    # Real bug found live (2026-09-15): the API accepted a booking for a
+    # slot that had already started — see the "found live" comment next to
+    # this check in app/main.py's create_booking. A hardcoded past date
+    # keeps this test independent of whatever "now" happens to be when it
+    # runs, unlike every NEXT_MONDAY-relative payload elsewhere in this file.
+    past = datetime(2020, 1, 1, 9, 0, tzinfo=BUSINESS_TZ)
+    payload = {
+        "service_id": str(service.id),
+        "provider_id": str(bookable_provider.id),
+        "start_at": past.isoformat(),
+        "client_name": "Клиент",
+    }
+
+    resp = await client.post("/api/bookings", json=payload)
+
+    assert resp.status_code == 409, resp.text
+
+
 async def test_rate_limit_allows_five_then_blocks_the_sixth(client: AsyncClient, bookable_provider, service):
     # 5 distinct, non-overlapping slots so all 5 succeed on their own merits —
     # the 6th must be blocked by the rate limiter itself (before even

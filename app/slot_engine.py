@@ -146,6 +146,15 @@ async def _slots_for_one_provider(
     def overlaps_busy(start: datetime, end: datetime) -> bool:
         return any(start < busy_end and end > busy_start for busy_start, busy_end in busy_ranges)
 
+    # A slot that has already started is not "available" no matter what the
+    # working-hours template says — found live (2026-09-15): a client booked
+    # today's 09:00 slot at 19:25 and the site accepted it, because nothing
+    # anywhere in this function (or in create_booking's re-check) ever
+    # compared a candidate slot against the current time. Computed once per
+    # call, not per-slot, so a single request has one consistent notion of
+    # "now" even if generating a long date range takes a moment.
+    now = datetime.now(timezone.utc)
+
     slots: list[SlotOut] = []
     current_day = date_from
     while current_day <= date_to:
@@ -164,7 +173,7 @@ async def _slots_for_one_provider(
             window_end_dt = datetime.combine(current_day, window_end, tzinfo=BUSINESS_TZ)
             while cursor + duration <= window_end_dt:
                 slot_end = cursor + duration
-                if not overlaps_busy(cursor, slot_end):
+                if cursor >= now and not overlaps_busy(cursor, slot_end):
                     slots.append(SlotOut(provider_id=provider.id, start_at=cursor, end_at=slot_end))
                 cursor += step
 

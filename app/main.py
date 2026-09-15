@@ -345,6 +345,18 @@ async def create_booking(request: Request, payload: BookingCreate, db: AsyncSess
 
     end_at = payload.start_at + timedelta(minutes=service.duration_minutes)
 
+    # Real bug found live (2026-09-15): a client booked today's 09:00 slot
+    # at 19:25 and it went through — nothing anywhere in the booking path
+    # ever compared the requested time to "now". app/slot_engine.py's
+    # _slots_for_one_provider now excludes already-started slots from
+    # GET /api/availability itself (the root fix — the client only ever
+    # renders what that endpoint returns), but this endpoint re-checks
+    # independently for the same reason as the two checks below: a client
+    # can hold a slot list fetched earlier (page left open, cached response)
+    # and POST from it long after the slot has elapsed.
+    if payload.start_at < datetime.now(timezone.utc):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Slot is in the past")
+
     # Same defense-in-depth as the provider_offers_service check above: a
     # client could have this slot cached/queued from before the master
     # pressed "начать" (app/slot_engine.py's provider_busy_range) — without
