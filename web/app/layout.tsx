@@ -37,6 +37,15 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "ZR",
   },
+  // Next.js's appleWebApp.capable only emits the modern unprefixed
+  // "mobile-web-app-capable" tag — Safari didn't honor that one until
+  // iOS 17.4 (WebKit release notes). Without the legacy Apple-prefixed
+  // tag too, "Dodaj do ekranu głównego" on an older iPhone opens the site
+  // back in Safari chrome (address bar and all) instead of standalone,
+  // silently defeating the whole point of installing it.
+  other: {
+    "apple-mobile-web-app-capable": "yes",
+  },
 };
 
 export const viewport: Viewport = {
