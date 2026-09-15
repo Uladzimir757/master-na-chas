@@ -182,6 +182,9 @@ export interface Translations {
   workingHoursAddExceptionButton: string;
   workingHoursSavingException: string;
   workingHoursExceptionSaveError: string;
+
+  installAppButton: string;
+  installAppIosHint: string;
 }
 
 export function buildTranslations(map: TranslationMap): Translations {
@@ -345,5 +348,8 @@ export function buildTranslations(map: TranslationMap): Translations {
     workingHoursAddExceptionButton: pick(map, "workingHoursAddExceptionButton"),
     workingHoursSavingException: pick(map, "workingHoursSavingException"),
     workingHoursExceptionSaveError: pick(map, "workingHoursExceptionSaveError"),
+
+    installAppButton: pick(map, "installAppButton"),
+    installAppIosHint: pick(map, "installAppIosHint"),
   };
 }

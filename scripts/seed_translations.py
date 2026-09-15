@@ -307,6 +307,12 @@ ENTRIES: list[tuple[str, str, str]] = [
         "Nie udało się zapisać dnia specjalnego. Sprawdź godziny i spróbuj ponownie.",
         "Couldn't save the special day. Check the hours and try again.",
     ),
+    ("installAppButton", "Zainstaluj aplikację", "Install app"),
+    (
+        "installAppIosHint",
+        "Aby zainstalować: dotknij Udostępnij, a potem „Dodaj do ekranu głównego”",
+        'To install: tap Share, then "Add to Home Screen"',
+    ),
 ]
 
 
