@@ -266,6 +266,44 @@ export interface WorkingHoursExceptionUpsert {
   reason?: string | null;
 }
 
+// Букси-style master calendar — visual day/week/month view over the
+// master's own bookings plus manual time blocks (see ProviderBlock in
+// app/models.py). A block is NOT a booking: no service/client, just a time
+// range the master carved out of his own calendar.
+export interface CalendarBlock {
+  id: string;
+  start_at: string;
+  end_at: string;
+  reason: string | null;
+}
+
+export interface CalendarData {
+  bookings: Booking[];
+  blocks: CalendarBlock[];
+}
+
+// POST /api/providers/me/bookings — the master adding an appointment
+// himself (phone call, walk-in), as opposed to BookingCreate above (a
+// client booking himself, public). No provider_id (always the logged-in
+// master's own) — see ManualBookingCreate in app/schemas.py for exactly how
+// this is more permissive than the public flow (past times allowed,
+// duration_minutes overridable, no catalog/busy-toggle checks).
+export interface ManualBookingPayload {
+  service_id: string;
+  start_at: string;
+  duration_minutes?: number;
+  client_name: string;
+  client_phone?: string;
+  notes?: string;
+  status?: BookingStatus;
+}
+
+export interface BlockPayload {
+  start_at: string;
+  end_at: string;
+  reason?: string | null;
+}
+
 export const api = {
   // lang (Этап 3) resolves Service.name server-side — see app/main.py's
   // _resolve_service_name. Not needed by getAvailability: slot times carry
@@ -360,6 +398,25 @@ export const api = {
     }),
   deleteWorkingHoursException: (date: string) =>
     request<{ ok: true }>(`/api/providers/me/working-hours/exceptions/${date}`, { method: "DELETE" }),
+
+  // Букси-style calendar — see CalendarData's docstring above.
+  getMyCalendar: (dateFrom: string, dateTo: string) =>
+    request<CalendarData>(`/api/providers/me/calendar?date_from=${dateFrom}&date_to=${dateTo}`),
+  createManualBooking: (payload: ManualBookingPayload) =>
+    request<Booking>("/api/providers/me/bookings", { method: "POST", body: JSON.stringify(payload) }),
+  // Drag-and-drop move/resize — both ends given explicitly, see
+  // BookingRescheduleUpdate's docstring in app/schemas.py.
+  rescheduleBooking: (bookingId: string, startAt: string, endAt: string) =>
+    request<Booking>(`/api/bookings/${bookingId}/reschedule`, {
+      method: "PATCH",
+      body: JSON.stringify({ start_at: startAt, end_at: endAt }),
+    }),
+  createBlock: (payload: BlockPayload) =>
+    request<CalendarBlock>("/api/providers/me/blocks", { method: "POST", body: JSON.stringify(payload) }),
+  updateBlock: (blockId: string, payload: BlockPayload) =>
+    request<CalendarBlock>(`/api/providers/me/blocks/${blockId}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  deleteBlock: (blockId: string) =>
+    request<{ ok: true }>(`/api/providers/me/blocks/${blockId}`, { method: "DELETE" }),
 
   // Admin panel — session cookie set by adminLogin(), same require_admin
   // gate as the pre-existing X-Admin-Secret scripts (app/main.py).

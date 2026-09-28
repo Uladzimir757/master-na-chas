@@ -5,6 +5,12 @@ Routes:
   POST  /api/bookings
   GET   /api/bookings                        (logged-in master only — own bookings)
   PATCH /api/bookings/{id}/status             (logged-in master only — own bookings)
+  POST  /api/providers/me/bookings            (logged-in master only — manual/walk-in booking, Букси-calendar)
+  PATCH /api/bookings/{id}/reschedule         (logged-in master only — move/resize, drag-and-drop)
+  GET   /api/providers/me/calendar            (logged-in master only — bookings+blocks for a date range)
+  POST  /api/providers/me/blocks              (logged-in master only — block time on the calendar)
+  PATCH /api/providers/me/blocks/{id}         (logged-in master only — move/resize a block)
+  DELETE /api/providers/me/blocks/{id}        (logged-in master only)
   GET   /api/providers/me                     (logged-in master only)
   PATCH /api/providers/me/settings            (logged-in master only)
   GET   /api/providers/me/services            (logged-in master only)
@@ -42,7 +48,7 @@ import logging
 import secrets
 import uuid
 from contextlib import asynccontextmanager
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -60,6 +66,7 @@ from app.models import (
     BookingStatus,
     MasterUser,
     Provider,
+    ProviderBlock,
     ProviderService,
     Service,
     TelegramLinkToken,
@@ -75,12 +82,18 @@ from app.schemas import (
     AvailabilityQuery,
     BookingCreate,
     BookingOut,
+    BookingRescheduleUpdate,
     BookingStatusUpdate,
     BusyEstimateUpdate,
+    CalendarOut,
     ChangePasswordRequest,
     CreateMasterRequest,
     LoginRequest,
+    ManualBookingCreate,
     MasterOut,
+    ProviderBlockCreate,
+    ProviderBlockOut,
+    ProviderBlockUpdate,
     ProviderBusyOut,
     ProviderLocationOut,
     ProviderLocationUpdate,
@@ -109,6 +122,7 @@ from app.slot_engine import (
     SlotOut,
     get_availability,
     is_within_working_hours,
+    overlaps_any_provider_block,
     overlaps_provider_busy_range,
     provider_busy_range,
     provider_offers_service,
@@ -475,6 +489,86 @@ async def update_booking_status(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Booking not found")
     booking.status = payload.status
     await db.commit()
+    await db.refresh(booking)
+    return booking
+
+
+@app.post("/api/providers/me/bookings", response_model=BookingOut, status_code=status.HTTP_201_CREATED)
+async def create_manual_booking(
+    payload: ManualBookingCreate,
+    db: AsyncSession = Depends(get_db),
+    master_user_id: str = Depends(require_master_user_id),
+) -> Booking:
+    """The master adding an appointment himself from the calendar — see
+    ManualBookingCreate's docstring for exactly how this differs from the
+    public POST /api/bookings (no past-time/is_active/busy-toggle checks:
+    this is the master's own record of his own calendar). Still guarded
+    against landing on top of an existing booking (the same EXCLUDE
+    constraint + 409 translation as create_booking) or his own declared
+    block (overlaps_any_provider_block)."""
+    provider = await _get_own_provider(master_user_id, db)
+    service = await db.get(Service, payload.service_id)
+    if service is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Service not found")
+
+    duration = payload.duration_minutes if payload.duration_minutes is not None else service.duration_minutes
+    end_at = payload.start_at + timedelta(minutes=duration)
+
+    if await overlaps_any_provider_block(db, provider.id, payload.start_at, end_at):
+        raise HTTPException(status.HTTP_409_CONFLICT, "You have blocked this time on your calendar")
+
+    booking = Booking(
+        id=uuid.uuid4(),
+        tenant_id=service.tenant_id,
+        provider_id=provider.id,
+        service_id=service.id,
+        client_name=payload.client_name,
+        client_phone=payload.client_phone,
+        start_at=payload.start_at,
+        end_at=end_at,
+        notes=payload.notes,
+        status=payload.status,
+    )
+    db.add(booking)
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        if "exclusion constraint" in str(exc.orig).lower():
+            raise HTTPException(status.HTTP_409_CONFLICT, "You already have a booking during this time") from exc
+        raise
+    await db.refresh(booking)
+    return booking
+
+
+@app.patch("/api/bookings/{booking_id}/reschedule", response_model=BookingOut)
+async def reschedule_booking(
+    booking_id: uuid.UUID,
+    payload: BookingRescheduleUpdate,
+    db: AsyncSession = Depends(get_db),
+    master_user_id: str = Depends(require_master_user_id),
+) -> Booking:
+    """Move or resize an existing booking on the calendar (drag-and-drop) —
+    same ownership check as update_booking_status (404, not 403, for
+    someone else's booking, so a guessed id doesn't even confirm it
+    exists), same overlap guards as create_manual_booking."""
+    provider = await _get_own_provider(master_user_id, db)
+    booking = await db.get(Booking, booking_id)
+    if booking is None or booking.provider_id != provider.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Booking not found")
+
+    if await overlaps_any_provider_block(db, provider.id, payload.start_at, payload.end_at):
+        raise HTTPException(status.HTTP_409_CONFLICT, "You have blocked this time on your calendar")
+
+    booking.start_at = payload.start_at
+    booking.end_at = payload.end_at
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        if "exclusion constraint" in str(exc.orig).lower():
+            raise HTTPException(status.HTTP_409_CONFLICT, "You already have a booking during this time") from exc
+        raise
     await db.refresh(booking)
     return booking
 
@@ -919,6 +1013,147 @@ async def delete_working_hours_exception(
     await db.commit()
     if result.rowcount == 0:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No exception for that date")
+    return {"ok": True}
+
+
+# ============================================================================
+# Master calendar (Букси-style) — visual day/week/month calendar over the
+# master's own bookings plus manual time blocks. See ProviderBlock's
+# docstring in app/models.py and CalendarOut's in app/schemas.py.
+# ============================================================================
+
+MAX_CALENDAR_RANGE_DAYS = 60  # same cap as /api/availability, same reason
+
+
+@app.get("/api/providers/me/calendar", response_model=CalendarOut)
+async def get_my_calendar(
+    date_from: date,
+    date_to: date,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> CalendarOut:
+    if date_to < date_from:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "date_to must be >= date_from")
+    if (date_to - date_from).days > MAX_CALENDAR_RANGE_DAYS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"range too large, max {MAX_CALENDAR_RANGE_DAYS} days")
+
+    provider = await _get_own_provider(master_user_id, db)
+    range_start = datetime.combine(date_from, time.min, tzinfo=BUSINESS_TZ)
+    range_end = datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=BUSINESS_TZ)
+
+    bookings = (
+        (
+            await db.execute(
+                select(Booking).where(
+                    Booking.provider_id == provider.id,
+                    Booking.status != BookingStatus.cancelled,
+                    Booking.start_at < range_end,
+                    Booking.end_at > range_start,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    blocks = (
+        (
+            await db.execute(
+                select(ProviderBlock).where(
+                    ProviderBlock.provider_id == provider.id,
+                    ProviderBlock.start_at < range_end,
+                    ProviderBlock.end_at > range_start,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return CalendarOut(
+        bookings=[BookingOut.model_validate(b) for b in bookings],
+        blocks=[ProviderBlockOut.model_validate(b) for b in blocks],
+    )
+
+
+@app.post("/api/providers/me/blocks", response_model=ProviderBlockOut, status_code=status.HTTP_201_CREATED)
+async def create_provider_block(
+    payload: ProviderBlockCreate,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> ProviderBlock:
+    provider = await _get_own_provider(master_user_id, db)
+
+    overlapping_booking = (
+        await db.execute(
+            select(Booking).where(
+                Booking.provider_id == provider.id,
+                Booking.status != BookingStatus.cancelled,
+                Booking.start_at < payload.end_at,
+                Booking.end_at > payload.start_at,
+            )
+        )
+    ).scalar_one_or_none()
+    if overlapping_booking is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "You already have a booking during this time")
+
+    block = ProviderBlock(
+        id=uuid.uuid4(),
+        provider_id=provider.id,
+        start_at=payload.start_at,
+        end_at=payload.end_at,
+        reason=payload.reason,
+    )
+    db.add(block)
+    await db.commit()
+    await db.refresh(block)
+    return block
+
+
+@app.patch("/api/providers/me/blocks/{block_id}", response_model=ProviderBlockOut)
+async def update_provider_block(
+    block_id: uuid.UUID,
+    payload: ProviderBlockUpdate,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> ProviderBlock:
+    """Move or resize an existing block (drag-and-drop) — same 404-not-403
+    ownership check as every other .../me/* mutation in this file."""
+    provider = await _get_own_provider(master_user_id, db)
+    block = await db.get(ProviderBlock, block_id)
+    if block is None or block.provider_id != provider.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Block not found")
+
+    overlapping_booking = (
+        await db.execute(
+            select(Booking).where(
+                Booking.provider_id == provider.id,
+                Booking.status != BookingStatus.cancelled,
+                Booking.start_at < payload.end_at,
+                Booking.end_at > payload.start_at,
+            )
+        )
+    ).scalar_one_or_none()
+    if overlapping_booking is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "You already have a booking during this time")
+
+    block.start_at = payload.start_at
+    block.end_at = payload.end_at
+    block.reason = payload.reason
+    await db.commit()
+    await db.refresh(block)
+    return block
+
+
+@app.delete("/api/providers/me/blocks/{block_id}")
+async def delete_provider_block(
+    block_id: uuid.UUID,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    provider = await _get_own_provider(master_user_id, db)
+    result = await db.execute(delete(ProviderBlock).where(ProviderBlock.id == block_id, ProviderBlock.provider_id == provider.id))
+    await db.commit()
+    if result.rowcount == 0:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Block not found")
     return {"ok": True}
 
 

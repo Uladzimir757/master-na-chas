@@ -156,6 +156,35 @@ CREATE TABLE working_hours_exception (
 );
 
 -- ----------------------------------------------------------------------------
+-- provider_block — a manual time-off block the master carves out directly in
+-- his calendar ("заблокировать время прямо в календаре", Букси-style): a
+-- doctor's appointment, an errand, anything that isn't a booking but should
+-- still stop new slots landing there. NOT the same thing as
+-- working_hours_exception (that overrides an ENTIRE day — day off, or
+-- different hours for the whole day) or provider.busy_started_at (real-time
+-- only, "занят сейчас", no future scheduling, no sub-day granularity) — this
+-- is an arbitrary start/end range, anywhere inside an otherwise-normal
+-- working day, that the master sets ahead of time from the calendar UI.
+--
+-- No EXCLUDE constraint here (unlike booking below): two blocks overlapping
+-- each other is harmless (still just "no availability"), so there's nothing
+-- to guard against at the DB level the way double-booking a provider needs
+-- guarding. Overlap against active bookings is checked at the application
+-- layer instead (app/main.py's create_provider_block/update_provider_block)
+-- since that's a cross-table check Postgres EXCLUDE can't express directly.
+-- ----------------------------------------------------------------------------
+CREATE TABLE provider_block (
+    id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    provider_id  uuid NOT NULL REFERENCES provider(id) ON DELETE CASCADE,
+    start_at     timestamptz NOT NULL,
+    end_at       timestamptz NOT NULL CHECK (end_at > start_at),
+    reason       text,
+    created_at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_provider_block_provider_time ON provider_block (provider_id, start_at);
+
+-- ----------------------------------------------------------------------------
 -- client — optional. Bookings work fine as pure guest bookings
 -- (client_name/client_phone on the booking row); this table exists for
 -- repeat-client history once that matters (e.g. Garage System's vehicle

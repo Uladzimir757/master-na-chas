@@ -4,19 +4,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   api,
   ApiError,
-  type Booking,
-  type BookingStatus,
   type ProviderSettings,
   type ServiceOffer,
   type ServiceToggle,
 } from "@/lib/api";
-import { formatDayLabel, formatTime } from "@/lib/format";
+import { formatTime } from "@/lib/format";
 import { useLocale } from "@/lib/LocaleContext";
 import { useLocationSharing, type LocationSharingStatus } from "@/lib/useLocationSharing";
 import type { Translations } from "@/lib/i18n";
 import { Card, Centered } from "@/components/ui";
 import { PasswordInput } from "@/components/PasswordInput";
 import WorkingHoursEditor from "@/components/WorkingHoursEditor";
+import MasterCalendar from "@/components/MasterCalendar";
 
 function locationStatusText(status: LocationSharingStatus, t: Translations): string | null {
   switch (status) {
@@ -41,7 +40,6 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [settings, setSettings] = useState<ProviderSettings | null>(null);
-  const [bookings, setBookings] = useState<Booking[]>([]);
   // Doubles as the "which services exist" catalog for the bookings list's
   // serviceName() lookup below — GET /api/providers/me/services already
   // returns every active tenant service (each tagged with is_offered for
@@ -54,9 +52,6 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
 
   const [savingServices, setSavingServices] = useState(false);
   const [servicesError, setServicesError] = useState<string | null>(null);
-
-  const [actioningId, setActioningId] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
 
   const [savingBusy, setSavingBusy] = useState(false);
   const [busyError, setBusyError] = useState<string | null>(null);
@@ -76,9 +71,8 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
   // ever asks for a specific provider_id (see app/main.py's _get_own_provider).
   const loadAll = useCallback(async () => {
     try {
-      const [s, b, svc] = await Promise.all([api.getMySettings(), api.listMyBookings(), api.getMyServices(locale)]);
+      const [s, svc] = await Promise.all([api.getMySettings(), api.getMyServices(locale)]);
       setSettings(s);
-      setBookings(b);
       setServiceToggles(svc);
       setLoaded(true);
     } catch {
@@ -353,19 +347,6 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
     [currentPassword, newPassword, confirmNewPassword, t],
   );
 
-  const handleStatusChange = useCallback(async (bookingId: string, status: BookingStatus) => {
-    setActionError(null);
-    setActioningId(bookingId);
-    try {
-      const updated = await api.updateBookingStatus(bookingId, status);
-      setBookings((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
-    } catch {
-      setActionError(t.bookingActionError);
-    } finally {
-      setActioningId(null);
-    }
-  }, [t]);
-
   // Этап 4 — only ever watches/sends GPS while settings.share_location is
   // on (see lib/useLocationSharing.ts's own docstring for why this is
   // foreground-only). Called unconditionally (Rules of Hooks) even before
@@ -383,8 +364,6 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
   if (!loaded || !settings) {
     return <Centered>{t.cabinetLoading}</Centered>;
   }
-
-  const serviceName = (id: string) => serviceToggles.find((s) => s.service_id === id)?.name ?? "";
 
   return (
     <Card>
@@ -580,53 +559,7 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-medium text-neutral-500">{t.bookingsTitle}</h2>
-        {actionError && <p className="mb-2 text-sm text-red-600">{actionError}</p>}
-        {bookings.length === 0 ? (
-          <p className="text-sm text-neutral-500">{t.noBookings}</p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {bookings.map((b) => (
-              <li key={b.id} className="rounded-lg border border-neutral-200 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="font-medium">{serviceName(b.service_id)}</div>
-                    <div className="text-sm text-neutral-500">
-                      {formatDayLabel(b.start_at, locale, t)}, {formatTime(b.start_at, locale)}
-                    </div>
-                    <div className="text-sm text-neutral-500">
-                      {b.client_name}
-                      {b.client_phone ? ` · ${b.client_phone}` : ""}
-                    </div>
-                  </div>
-                  <span className="whitespace-nowrap rounded-full bg-neutral-100 px-2.5 py-1 text-xs text-neutral-600">
-                    {t.bookingStatusLabel[b.status] ?? b.status}
-                  </span>
-                </div>
-                {(b.status === "pending" || b.status === "confirmed") && (
-                  <div className="mt-2 flex gap-2">
-                    {b.status === "pending" && (
-                      <button
-                        disabled={actioningId === b.id}
-                        onClick={() => handleStatusChange(b.id, "confirmed")}
-                        className="rounded-lg bg-neutral-900 px-3 py-1.5 text-sm text-white disabled:opacity-40"
-                      >
-                        {t.confirmBookingButton}
-                      </button>
-                    )}
-                    <button
-                      disabled={actioningId === b.id}
-                      onClick={() => handleStatusChange(b.id, "cancelled")}
-                      className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm disabled:opacity-40"
-                    >
-                      {t.cancelBookingButton}
-                    </button>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+        <MasterCalendar />
       </section>
 
       <section className="mt-6 border-t border-neutral-200 pt-5">

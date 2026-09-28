@@ -10,6 +10,23 @@ from pydantic import BaseModel, EmailStr, Field, field_validator, model_validato
 from app.models import BookingStatus
 
 
+def _require_tz_aware(v: datetime) -> datetime:
+    # Every timestamptz-bound field in this file (booking/block start_at and
+    # end_at) goes through this — a naive value is ambiguous (client's local
+    # time? server's? UTC?) and asyncpg rejects it outright once it reaches
+    # the DB anyway; catching it here gives a clear 422 instead of an opaque
+    # 500. Factored out once BookingCreate's original inline check needed to
+    # be repeated for ManualBookingCreate/BookingRescheduleUpdate/
+    # ProviderBlockCreate/ProviderBlockUpdate rather than copy-pasted five
+    # times.
+    if v.tzinfo is None:
+        raise ValueError(
+            "must include a timezone offset (e.g. '2026-09-08T09:00:00+02:00' or '...Z'), "
+            "not a naive datetime"
+        )
+    return v
+
+
 class BookingCreate(BaseModel):
     service_id: uuid.UUID
     start_at: datetime
@@ -22,17 +39,7 @@ class BookingCreate(BaseModel):
     @field_validator("start_at")
     @classmethod
     def start_at_must_be_tz_aware(cls, v: datetime) -> datetime:
-        # booking.start_at is timestamptz (see models.TZDateTime) — a naive
-        # value here is ambiguous (client's local time? server's? UTC?) and
-        # asyncpg will reject it outright once it reaches the DB anyway.
-        # Reject it explicitly at the API boundary with a clear message
-        # instead of letting it surface as an opaque 500 from asyncpg.
-        if v.tzinfo is None:
-            raise ValueError(
-                "start_at must include a timezone offset (e.g. '2026-09-08T09:00:00+02:00' "
-                "or '...Z'), not a naive datetime"
-            )
-        return v
+        return _require_tz_aware(v)
 
 
 class BookingOut(BaseModel):
@@ -51,6 +58,66 @@ class BookingOut(BaseModel):
 
 class BookingStatusUpdate(BaseModel):
     status: BookingStatus
+
+
+class ManualBookingCreate(BaseModel):
+    """POST /api/providers/me/bookings body — the master adding an
+    appointment himself from the calendar (a phone call, a walk-in, a job he
+    already agreed on outside the app), as opposed to POST /api/bookings
+    (a client booking himself, public, rate-limited, past-time and
+    busy-toggle guarded). Deliberately more permissive than that endpoint,
+    on the theory that this is the master's own record of his own calendar,
+    not a public write:
+      - no past-time check — recording a walk-in from earlier today (or
+        backfilling an off-app job) is a legitimate use, not a bug;
+      - no provider_offers_service / Service.is_active check — a master
+        might log a one-off job outside his usual configured catalog;
+      - no overlaps_provider_busy_range check — "занят сейчас" is a
+        real-time state about right now, not a reason to refuse scheduling
+        something for next week.
+    What's still enforced (see app/main.py's create_manual_booking): the
+    service must exist at all, end_at is computed from duration_minutes
+    (service's own, or this override) and must land after start_at, the
+    booking.EXCLUDE constraint still refuses two overlapping bookings for
+    the same provider (same 409 path as the public endpoint), and a
+    provider_block still refuses landing a booking on top of the master's
+    own declared block (he can resize/delete the block first if he really
+    means to override it)."""
+
+    service_id: uuid.UUID
+    start_at: datetime
+    duration_minutes: int | None = Field(default=None, gt=0)
+    client_name: str = Field(min_length=1, max_length=200)
+    client_phone: str | None = None
+    notes: str | None = None
+    status: BookingStatus = BookingStatus.confirmed
+
+    @field_validator("start_at")
+    @classmethod
+    def start_at_must_be_tz_aware(cls, v: datetime) -> datetime:
+        return _require_tz_aware(v)
+
+
+class BookingRescheduleUpdate(BaseModel):
+    """PATCH /api/bookings/{id}/reschedule body — moving/resizing an existing
+    booking on the calendar (drag-and-drop). Both ends are given explicitly
+    rather than "new start_at, keep the old duration" so a resize (dragging
+    just one edge) and a move (dragging the whole block) are the same
+    request shape on the frontend."""
+
+    start_at: datetime
+    end_at: datetime
+
+    @field_validator("start_at", "end_at")
+    @classmethod
+    def must_be_tz_aware(cls, v: datetime) -> datetime:
+        return _require_tz_aware(v)
+
+    @model_validator(mode="after")
+    def _end_after_start(self) -> "BookingRescheduleUpdate":
+        if self.end_at <= self.start_at:
+            raise ValueError("end_at must be after start_at")
+        return self
 
 
 class LoginRequest(BaseModel):
@@ -397,6 +464,55 @@ class WorkingHoursOut(BaseModel):
 
     slots: list[WorkingHoursSlot]
     exceptions: list[WorkingHoursExceptionOut]
+
+
+# ============================================================================
+# Master calendar (Букси-style) — visual day/week/month view over the
+# master's own bookings plus manual time blocks (ProviderBlock). See
+# app/models.py's ProviderBlock docstring for how a block differs from
+# WorkingHoursException and busy_started_at.
+# ============================================================================
+
+
+class ProviderBlockOut(BaseModel):
+    id: uuid.UUID
+    start_at: datetime
+    end_at: datetime
+    reason: str | None
+
+    class Config:
+        from_attributes = True
+
+
+class ProviderBlockCreate(BaseModel):
+    start_at: datetime
+    end_at: datetime
+    reason: str | None = Field(default=None, max_length=200)
+
+    @field_validator("start_at", "end_at")
+    @classmethod
+    def must_be_tz_aware(cls, v: datetime) -> datetime:
+        return _require_tz_aware(v)
+
+    @model_validator(mode="after")
+    def _end_after_start(self) -> "ProviderBlockCreate":
+        if self.end_at <= self.start_at:
+            raise ValueError("end_at must be after start_at")
+        return self
+
+
+class ProviderBlockUpdate(ProviderBlockCreate):
+    """Same shape as creation — a block is moved/resized (drag-and-drop) by
+    posting its new start_at/end_at, same as BookingRescheduleUpdate."""
+
+
+class CalendarOut(BaseModel):
+    """GET /api/providers/me/calendar response — everything the calendar UI
+    needs for one date range in a single round trip, so switching
+    day/week/month or paging to another week is one request, not two."""
+
+    bookings: list[BookingOut]
+    blocks: list[ProviderBlockOut]
 
 
 # ============================================================================

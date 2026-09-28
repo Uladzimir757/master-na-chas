@@ -18,6 +18,7 @@ from app.models import (
     Booking,
     BookingStatus,
     Provider,
+    ProviderBlock,
     ProviderService,
     Service,
     WorkingHours,
@@ -143,6 +144,25 @@ async def _slots_for_one_provider(
     if manual_busy is not None:
         busy_ranges.append(manual_busy)
 
+    blocks = (
+        (
+            await db.execute(
+                select(ProviderBlock).where(
+                    ProviderBlock.provider_id == provider.id,
+                    ProviderBlock.start_at < datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=BUSINESS_TZ),
+                    ProviderBlock.end_at > datetime.combine(date_from, time.min, tzinfo=BUSINESS_TZ),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    # No travel_buffer_minutes around a block — that buffer exists to cover
+    # drive time around an actual job, which doesn't apply to "мастер
+    # заблокировал время" (a doctor's appointment, an errand): exact overlap
+    # is what matters here.
+    busy_ranges.extend((b.start_at, b.end_at) for b in blocks)
+
     def overlaps_busy(start: datetime, end: datetime) -> bool:
         return any(start < busy_end and end > busy_start for busy_start, busy_end in busy_ranges)
 
@@ -180,6 +200,32 @@ async def _slots_for_one_provider(
         current_day += timedelta(days=1)
 
     return slots
+
+
+async def overlaps_any_provider_block(
+    db: AsyncSession, provider_id: uuid.UUID, start: datetime, end: datetime, *, exclude_block_id: uuid.UUID | None = None
+) -> bool:
+    """True iff [start, end) overlaps one of this provider's own manual
+    calendar blocks (ProviderBlock) — the same defense-in-depth shape as
+    overlaps_provider_busy_range, but for a *scheduled* block rather than a
+    real-time "занят сейчас" state. Used by app/main.py wherever the master
+    himself is placing something on his calendar (a manual booking, a
+    reschedule/drag-and-drop, or a new/updated block) so he can't
+    accidentally land two things on top of each other — a client-facing
+    booking already can't land on a block either, since
+    _slots_for_one_provider stops offering that time at all.
+
+    exclude_block_id lets update_provider_block check "does this new range
+    overlap any *other* block of mine" without the block being edited
+    trivially overlapping itself."""
+    stmt = select(ProviderBlock).where(
+        ProviderBlock.provider_id == provider_id,
+        ProviderBlock.start_at < end,
+        ProviderBlock.end_at > start,
+    )
+    if exclude_block_id is not None:
+        stmt = stmt.where(ProviderBlock.id != exclude_block_id)
+    return (await db.execute(stmt)).scalar_one_or_none() is not None
 
 
 async def is_within_working_hours(db: AsyncSession, provider_id: uuid.UUID, at: datetime) -> bool:

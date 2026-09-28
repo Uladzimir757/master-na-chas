@@ -185,6 +185,50 @@ export interface Translations {
 
   installAppButton: string;
   installAppIosHint: string;
+
+  // Master calendar (Booksy-style day/week/month grid) — components/MasterCalendar.tsx.
+  calendarTitle: string;
+  calendarViewDay: string;
+  calendarViewWeek: string;
+  calendarViewMonth: string;
+  calendarPrevLabel: string;
+  calendarNextLabel: string;
+  calendarTodayButton: string;
+  calendarMoreEvents: (n: number) => string;
+  calendarLoadError: string;
+  calendarChooseActionTitle: string;
+  calendarAddBookingButton: string;
+  calendarBlockTimeButton: string;
+  calendarCloseButton: string;
+  calendarNewBookingTitle: string;
+  calendarServiceLabel: string;
+  calendarTimeLabel: string;
+  calendarEndTimeLabel: string;
+  calendarDurationLabel: string;
+  calendarClientNameLabel: string;
+  calendarClientNamePlaceholder: string;
+  calendarClientPhoneLabel: string;
+  calendarClientPhonePlaceholder: string;
+  calendarNotesLabel: string;
+  calendarNotesPlaceholder: string;
+  calendarCreatingBooking: string;
+  calendarCreateBookingButton: string;
+  calendarCreateBookingError: string;
+  calendarConflictError: string;
+  calendarNewBlockTitle: string;
+  calendarBlockReasonLabel: string;
+  calendarBlockReasonPlaceholder: string;
+  calendarCreatingBlock: string;
+  calendarCreateBlockButton: string;
+  calendarCreateBlockError: string;
+  calendarDeleteBlockError: string;
+  calendarEditTimeButton: string;
+  calendarBlockDetailsTitle: string;
+  calendarDeletingBlock: string;
+  calendarDeleteBlockButton: string;
+  calendarRescheduleError: string;
+  calendarSavingTime: string;
+  calendarSaveTimeButton: string;
 }
 
 export function buildTranslations(map: TranslationMap): Translations {
@@ -351,5 +395,48 @@ export function buildTranslations(map: TranslationMap): Translations {
 
     installAppButton: pick(map, "installAppButton"),
     installAppIosHint: pick(map, "installAppIosHint"),
+
+    calendarTitle: pick(map, "calendarTitle"),
+    calendarViewDay: pick(map, "calendarViewDay"),
+    calendarViewWeek: pick(map, "calendarViewWeek"),
+    calendarViewMonth: pick(map, "calendarViewMonth"),
+    calendarPrevLabel: pick(map, "calendarPrevLabel"),
+    calendarNextLabel: pick(map, "calendarNextLabel"),
+    calendarTodayButton: pick(map, "calendarTodayButton"),
+    calendarMoreEvents: (n) => interpolate(pick(map, "calendarMoreEvents"), { n }),
+    calendarLoadError: pick(map, "calendarLoadError"),
+    calendarChooseActionTitle: pick(map, "calendarChooseActionTitle"),
+    calendarAddBookingButton: pick(map, "calendarAddBookingButton"),
+    calendarBlockTimeButton: pick(map, "calendarBlockTimeButton"),
+    calendarCloseButton: pick(map, "calendarCloseButton"),
+    calendarNewBookingTitle: pick(map, "calendarNewBookingTitle"),
+    calendarServiceLabel: pick(map, "calendarServiceLabel"),
+    calendarTimeLabel: pick(map, "calendarTimeLabel"),
+    calendarEndTimeLabel: pick(map, "calendarEndTimeLabel"),
+    calendarDurationLabel: pick(map, "calendarDurationLabel"),
+    calendarClientNameLabel: pick(map, "calendarClientNameLabel"),
+    calendarClientNamePlaceholder: pick(map, "calendarClientNamePlaceholder"),
+    calendarClientPhoneLabel: pick(map, "calendarClientPhoneLabel"),
+    calendarClientPhonePlaceholder: pick(map, "calendarClientPhonePlaceholder"),
+    calendarNotesLabel: pick(map, "calendarNotesLabel"),
+    calendarNotesPlaceholder: pick(map, "calendarNotesPlaceholder"),
+    calendarCreatingBooking: pick(map, "calendarCreatingBooking"),
+    calendarCreateBookingButton: pick(map, "calendarCreateBookingButton"),
+    calendarCreateBookingError: pick(map, "calendarCreateBookingError"),
+    calendarConflictError: pick(map, "calendarConflictError"),
+    calendarNewBlockTitle: pick(map, "calendarNewBlockTitle"),
+    calendarBlockReasonLabel: pick(map, "calendarBlockReasonLabel"),
+    calendarBlockReasonPlaceholder: pick(map, "calendarBlockReasonPlaceholder"),
+    calendarCreatingBlock: pick(map, "calendarCreatingBlock"),
+    calendarCreateBlockButton: pick(map, "calendarCreateBlockButton"),
+    calendarCreateBlockError: pick(map, "calendarCreateBlockError"),
+    calendarDeleteBlockError: pick(map, "calendarDeleteBlockError"),
+    calendarEditTimeButton: pick(map, "calendarEditTimeButton"),
+    calendarBlockDetailsTitle: pick(map, "calendarBlockDetailsTitle"),
+    calendarDeletingBlock: pick(map, "calendarDeletingBlock"),
+    calendarDeleteBlockButton: pick(map, "calendarDeleteBlockButton"),
+    calendarRescheduleError: pick(map, "calendarRescheduleError"),
+    calendarSavingTime: pick(map, "calendarSavingTime"),
+    calendarSaveTimeButton: pick(map, "calendarSaveTimeButton"),
   };
 }

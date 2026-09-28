@@ -224,6 +224,27 @@ class WorkingHoursException(Base):
     reason: Mapped[str | None] = mapped_column(Text)
 
 
+class ProviderBlock(Base):
+    """A manual time-off block the master carves out directly in his
+    calendar (Букси-style "заблокировать время") — see the matching comment
+    in db/schema.sql for how this differs from WorkingHoursException (whole
+    day) and Provider.busy_started_at (real-time only, no future
+    scheduling). app/slot_engine.py treats an active block exactly like an
+    existing booking when computing public availability, and app/main.py
+    checks it as a 409 guard on both manual-booking creation and rescheduling
+    (a master shouldn't accidentally double-book himself over his own
+    block) — but does NOT check it for provider_busy_range-style real-time
+    "занят сейчас" purposes, since those are unrelated concepts."""
+
+    __tablename__ = "provider_block"
+
+    id: Mapped[uuid.UUID] = _uuid_col(primary_key=True)
+    provider_id: Mapped[uuid.UUID] = _uuid_col(fk="provider.id")
+    start_at: Mapped[datetime] = mapped_column(TZDateTime)
+    end_at: Mapped[datetime] = mapped_column(TZDateTime)
+    reason: Mapped[str | None] = mapped_column(Text)
+
+
 class Client(Base):
     __tablename__ = "client"
 
