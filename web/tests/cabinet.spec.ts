@@ -5,7 +5,7 @@ import {
   mockBookingStatusUpdate,
   mockLogin,
   mockLogout,
-  mockMyBookings,
+  mockMyCalendar,
   mockMyServices,
   mockProviderSettings,
   mockUpdateMyLocation,
@@ -32,7 +32,7 @@ test("a returning master with a valid session skips straight to the dashboard", 
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page);
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
 
@@ -72,7 +72,7 @@ test("successful login loads the dashboard with settings and bookings", async ({
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page, { requiresConfirmation: true });
   const booking = cabinetBooking();
-  await mockMyBookings(page, [booking]);
+  await mockMyCalendar(page, { bookings: [booking] });
 
   await page.goto("/cabinet/");
   await page.getByPlaceholder(t.emailPlaceholder).fill("master@example.com");
@@ -82,26 +82,29 @@ test("successful login loads the dashboard with settings and bookings", async ({
   await expect(page.getByRole("heading", { name: t.cabinetTitle(PROVIDER.name) })).toBeVisible();
   await expect(page.getByRole("checkbox", { name: t.requiresConfirmationLabel })).toBeChecked();
   await expect(page.getByRole("checkbox", { name: SERVICE.name })).toBeChecked();
+  // the booking shows up as an event chip on the calendar's default Day view
   await expect(page.getByText(booking.client_name, { exact: false })).toBeVisible();
+  await page.getByText(booking.client_name, { exact: false }).click();
   await expect(page.getByText(t.bookingStatusLabel.pending)).toBeVisible();
 });
 
-test("no bookings shows the empty-state message instead of a blank list", async ({ page }) => {
+test("an empty calendar loads cleanly, with no stray booking chips", async ({ page }) => {
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page);
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
 
-  await expect(page.getByText(t.noBookings)).toBeVisible();
+  await expect(page.getByText(t.calendarTitle)).toBeVisible();
+  await expect(page.getByText(t.calendarLoadError)).not.toBeVisible();
 });
 
 test("toggling the confirmation setting saves the new value", async ({ page }) => {
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page, { requiresConfirmation: true });
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
   const checkbox = page.getByRole("checkbox", { name: t.requiresConfirmationLabel });
@@ -117,7 +120,7 @@ test("a failed settings save shows an error message", async ({ page }) => {
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page, { requiresConfirmation: true, patchStatus: 500 });
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
   await page.getByRole("checkbox", { name: t.requiresConfirmationLabel }).click();
@@ -133,7 +136,7 @@ test("toggling share_location saves the new value", async ({ page }) => {
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page, { shareLocation: false });
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
   const checkbox = page.getByRole("checkbox", { name: t.shareLocationLabel });
@@ -155,7 +158,7 @@ test("granting geolocation permission after enabling share_location shows the ac
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page, { shareLocation: false });
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
   await mockUpdateMyLocation(page);
 
   await page.goto("/cabinet/");
@@ -169,12 +172,21 @@ test("confirming a pending booking updates its status", async ({ page }) => {
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page);
   const booking = cabinetBooking({ status: "pending" });
-  await mockMyBookings(page, [booking]);
-  await mockBookingStatusUpdate(page, () => ({ status: 200, body: cabinetBooking({ status: "confirmed" }) }));
+  const calendar = await mockMyCalendar(page, { bookings: [booking] });
+  await mockBookingStatusUpdate(page, (id, status) => {
+    const idx = calendar.bookings.findIndex((b) => b.id === id);
+    if (idx !== -1) calendar.bookings[idx] = { ...calendar.bookings[idx], status: status as typeof booking.status };
+    return { status: 200, body: calendar.bookings[idx] };
+  });
 
   await page.goto("/cabinet/");
+  await page.getByText(booking.client_name, { exact: false }).click();
   await page.getByRole("button", { name: t.confirmBookingButton }).click();
 
+  // confirming closes the details panel and reloads the calendar — reopen
+  // the (now-updated) event to see the new status
+  await expect(page.getByRole("button", { name: t.confirmBookingButton })).not.toBeVisible();
+  await page.getByText(booking.client_name, { exact: false }).click();
   await expect(page.getByText(t.bookingStatusLabel.confirmed)).toBeVisible();
   // confirmed bookings can still be cancelled, but not confirmed again
   await expect(page.getByRole("button", { name: t.confirmBookingButton })).not.toBeVisible();
@@ -186,12 +198,19 @@ test("cancelling a booking updates its status and removes the action buttons", a
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page);
   const booking = cabinetBooking({ status: "pending" });
-  await mockMyBookings(page, [booking]);
-  await mockBookingStatusUpdate(page, () => ({ status: 200, body: cabinetBooking({ status: "cancelled" }) }));
+  const calendar = await mockMyCalendar(page, { bookings: [booking] });
+  await mockBookingStatusUpdate(page, (id, status) => {
+    const idx = calendar.bookings.findIndex((b) => b.id === id);
+    if (idx !== -1) calendar.bookings[idx] = { ...calendar.bookings[idx], status: status as typeof booking.status };
+    return { status: 200, body: calendar.bookings[idx] };
+  });
 
   await page.goto("/cabinet/");
+  await page.getByText(booking.client_name, { exact: false }).click();
   await page.getByRole("button", { name: t.cancelBookingButton }).click();
 
+  await expect(page.getByRole("button", { name: t.cancelBookingButton })).not.toBeVisible();
+  await page.getByText(booking.client_name, { exact: false }).click();
   await expect(page.getByText(t.bookingStatusLabel.cancelled)).toBeVisible();
   await expect(page.getByRole("button", { name: t.confirmBookingButton })).not.toBeVisible();
   await expect(page.getByRole("button", { name: t.cancelBookingButton })).not.toBeVisible();
@@ -202,10 +221,11 @@ test("a failed booking status update shows an error message", async ({ page }) =
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page);
   const booking = cabinetBooking({ status: "pending" });
-  await mockMyBookings(page, [booking]);
+  await mockMyCalendar(page, { bookings: [booking] });
   await mockBookingStatusUpdate(page, () => ({ status: 403, body: { detail: "not your booking" } }));
 
   await page.goto("/cabinet/");
+  await page.getByText(booking.client_name, { exact: false }).click();
   await page.getByRole("button", { name: t.confirmBookingButton }).click();
 
   await expect(page.getByText(t.bookingActionError)).toBeVisible();
@@ -217,7 +237,7 @@ test("logging out returns to the login form", async ({ page }) => {
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page);
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
   await mockLogout(page);
 
   await page.goto("/cabinet/");
@@ -236,7 +256,7 @@ test("no active services shows the empty-state message instead of a blank checkl
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, []);
   await mockProviderSettings(page);
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
 
@@ -247,7 +267,7 @@ test("turning a service on saves it", async ({ page }) => {
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle({ is_offered: false })]);
   await mockProviderSettings(page);
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
   const checkbox = page.getByRole("checkbox", { name: SERVICE.name });
@@ -263,7 +283,7 @@ test("turning a service off saves it, independently of the confirmation checkbox
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle({ is_offered: true })]);
   await mockProviderSettings(page, { requiresConfirmation: true });
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
   const serviceCheckbox = page.getByRole("checkbox", { name: SERVICE.name });
@@ -281,7 +301,7 @@ test("a failed services save shows an error message", async ({ page }) => {
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle({ is_offered: false })], { putStatus: 500 });
   await mockProviderSettings(page);
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
   await page.getByRole("checkbox", { name: SERVICE.name }).click();
@@ -299,7 +319,7 @@ test("price and description fields are hidden for a service that's turned off", 
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle({ is_offered: false })]);
   await mockProviderSettings(page);
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
 
@@ -312,7 +332,7 @@ test("setting a service's price range saves it on blur", async ({ page }) => {
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle({ price_min: null, price_max: null })]);
   await mockProviderSettings(page);
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
   const minInput = page.getByPlaceholder(t.servicePriceMinPlaceholder);
@@ -333,7 +353,7 @@ test("setting a service's description saves it on blur", async ({ page }) => {
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle({ description: null })]);
   await mockProviderSettings(page);
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
   const descInput = page.getByPlaceholder(t.serviceDescriptionPlaceholder);
@@ -348,7 +368,7 @@ test("toggling a service off then on again keeps its previously-set price and de
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle({ price_min: 80, price_max: 120, description: "Со своим инструментом" })]);
   await mockProviderSettings(page);
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
   const checkbox = page.getByRole("checkbox", { name: SERVICE.name });
@@ -370,7 +390,7 @@ test("setting a call-out fee saves it on blur", async ({ page }) => {
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page, { callOutFee: null });
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
   const feeInput = page.getByPlaceholder(t.callOutFeePlaceholder);
@@ -387,7 +407,7 @@ test("clearing the call-out fee saves null", async ({ page }) => {
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page, { callOutFee: 80 });
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
   const feeInput = page.getByPlaceholder(t.callOutFeePlaceholder);
@@ -403,7 +423,7 @@ test("a failed call-out fee save shows an error message", async ({ page }) => {
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page, { callOutFee: null, patchStatus: 500 });
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
   const feeInput = page.getByPlaceholder(t.callOutFeePlaceholder);

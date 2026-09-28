@@ -2,7 +2,7 @@ import { expect, test } from "./fixtures";
 import {
   mockAuthMe,
   mockChangePassword,
-  mockMyBookings,
+  mockMyCalendar,
   mockMyServices,
   mockProviderSettings,
   serviceToggle,
@@ -23,7 +23,7 @@ test("changing password with matching, long-enough fields shows a success messag
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page);
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
   await mockChangePassword(page);
 
   await page.goto("/cabinet/");
@@ -41,7 +41,7 @@ test("a mismatched confirmation shows a validation error without calling the API
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page);
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
   // No mockChangePassword here on purpose — client-side validation must
   // catch this before any request to /auth/change-password goes out. An
   // unmocked call would fail to connect and surface as the generic error,
@@ -62,7 +62,7 @@ test("a new password shorter than 8 characters shows a validation error without 
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page);
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
   // No mockChangePassword here either — same reasoning as the mismatch
   // test above.
 
@@ -80,7 +80,7 @@ test("a wrong current password shows the specific error and keeps the fields fil
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page);
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
   await mockChangePassword(page, { status: 401 });
 
   await page.goto("/cabinet/");
@@ -97,7 +97,7 @@ test("a server error shows the generic error, not the wrong-current-password one
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page);
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
   await mockChangePassword(page, { status: 500 });
 
   await page.goto("/cabinet/");

@@ -29,7 +29,7 @@ import {
   type CalendarBlock,
   type ServiceToggle,
 } from "@/lib/api";
-import { addDays, businessHourMinute, dateKey, formatTime, toDateParam, warsawIso } from "@/lib/format";
+import { addDays, businessHourMinute, dateKey, toDateParam, warsawIso } from "@/lib/format";
 import { useLocale } from "@/lib/LocaleContext";
 import type { Translations } from "@/lib/i18n";
 import type { LocaleCode } from "@/lib/locale";

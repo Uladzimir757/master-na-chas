@@ -77,8 +77,11 @@ async def test_create_manual_booking_uses_service_duration_by_default(
     )
     assert resp.status_code == 201, resp.text
     body = resp.json()
-    # `service` fixture is duration_minutes=60 (tests/conftest.py)
-    assert body["start_at"].startswith(_dt(9).isoformat()[:16])
+    # `service` fixture is duration_minutes=60 (tests/conftest.py). Compare
+    # as aware datetimes, not raw strings — the API normalizes to UTC on
+    # output (e.g. "...07:00:00Z" for a 09:00 Warsaw start), so a string
+    # prefix match against the Warsaw-offset input would wrongly fail.
+    assert datetime.fromisoformat(body["start_at"]) == _dt(9)
     assert datetime.fromisoformat(body["end_at"]) - datetime.fromisoformat(body["start_at"]) == timedelta(minutes=60)
     # Manual entries default to confirmed — the master is the one adding it,
     # there's no "confirm your own booking" step.

@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { mockAuthMe, mockMyBookings, mockMyServices, mockProviderSettings, mockWorkingHours, serviceToggle, t } from "./mocks";
+import { mockAuthMe, mockMyCalendar, mockMyServices, mockProviderSettings, mockWorkingHours, serviceToggle, t } from "./mocks";
 
 // "Мои рабочие часы" (components/WorkingHoursEditor.tsx) — weekly template
 // (multiple intervals per weekday) + per-date exceptions (day off / custom
@@ -13,7 +13,7 @@ async function setupCabinet(page: Parameters<typeof mockAuthMe>[0]) {
   await mockAuthMe(page, { loggedIn: true });
   await mockProviderSettings(page);
   await mockMyServices(page, [serviceToggle()]);
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 }
 
 test("an empty weekly template shows every weekday as a day off", async ({ page }) => {

@@ -2,7 +2,7 @@ import { formatTime } from "../lib/format";
 import { expect, test } from "./fixtures";
 import {
   mockAuthMe,
-  mockMyBookings,
+  mockMyCalendar,
   mockMyServices,
   mockProviderSettings,
   serviceToggle,
@@ -23,7 +23,7 @@ test("not busy shows the start button, not the busy status", async ({ page }) =>
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page);
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
 
@@ -35,7 +35,7 @@ test("pressing start shows the busy status and the finish button", async ({ page
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page);
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
   await page.getByRole("button", { name: t.startBusyButton }).click();
@@ -54,7 +54,7 @@ test("busy with an estimate already set shows the until time instead of the open
     busyEstimatedMinutes: BUSY_ESTIMATE_MINUTES,
     busyUntil: BUSY_UNTIL,
   });
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
 
@@ -66,7 +66,7 @@ test("setting an estimate while busy saves it and shows the computed until time"
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page, { busyStartedAt: BUSY_START });
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
   await expect(page.getByText(t.busyOpenEndedNote)).toBeVisible();
@@ -87,7 +87,7 @@ test("clearing the estimate returns to the open-ended note", async ({ page }) =>
     busyEstimatedMinutes: BUSY_ESTIMATE_MINUTES,
     busyUntil: BUSY_UNTIL,
   });
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
   const estimateInput = page.getByPlaceholder(t.busyEstimatePlaceholder);
@@ -107,7 +107,7 @@ test("pressing finish clears the busy state and shows the start button again", a
     busyEstimatedMinutes: BUSY_ESTIMATE_MINUTES,
     busyUntil: BUSY_UNTIL,
   });
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
   await page.getByRole("button", { name: t.finishBusyButton }).click();
@@ -120,7 +120,7 @@ test("a failed start shows an error message", async ({ page }) => {
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page, { busyActionStatus: 500 });
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
   await page.getByRole("button", { name: t.startBusyButton }).click();
@@ -134,7 +134,7 @@ test("a failed finish shows an error message and keeps the busy state", async ({
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page, { busyStartedAt: BUSY_START, busyActionStatus: 500 });
-  await mockMyBookings(page, []);
+  await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
   await page.getByRole("button", { name: t.finishBusyButton }).click();

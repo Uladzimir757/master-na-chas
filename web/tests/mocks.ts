@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { buildTranslations } from "../lib/i18n";
+import { toDateParam, warsawIso } from "../lib/format";
 
 /** Shared fixture data + route-mocking helpers for the E2E suite. Every
  * spec mocks the backend by request *path* (page.route's "**" glob matches
@@ -350,9 +351,9 @@ export async function mockCreateBooking(
 // /api/bookings/{id}/status, which is why each gets its own route below
 // rather than reusing mockCatalog/mockCreateBooking.
 
-type CabinetBookingStatus = "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
+export type CabinetBookingStatus = "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
 
-interface CabinetBookingFixture {
+export interface CabinetBookingFixture {
   id: string;
   provider_id: string;
   service_id: string;
@@ -367,6 +368,15 @@ export function cabinetBooking(overrides: Partial<CabinetBookingFixture> = {}): 
   return { ..._cabinetBookingDefaults(), ...overrides };
 }
 
+/** "Today" (Europe/Warsaw) at a given wall-clock hour, as a tz-aware ISO
+ * string — components/MasterCalendar.tsx (see mockMyCalendar below) defaults
+ * to Day view anchored on `new Date()`, so a fixture booking/block meant to
+ * actually render on that default view needs a start_at that falls within
+ * *today*, not a fixed date like SLOT_A's 2027-06-07. */
+export function todayAt(hour: number, minute = 0): string {
+  return warsawIso(toDateParam(new Date()), hour, minute);
+}
+
 function _cabinetBookingDefaults(): CabinetBookingFixture {
   return {
     id: "44444444-4444-4444-4444-444444444444",
@@ -374,8 +384,8 @@ function _cabinetBookingDefaults(): CabinetBookingFixture {
     service_id: SERVICE.id,
     client_name: "Иван",
     client_phone: "+48123456789",
-    start_at: SLOT_A.start_at,
-    end_at: SLOT_A.end_at,
+    start_at: todayAt(9),
+    end_at: todayAt(10),
     status: "pending",
   };
 }
@@ -697,12 +707,33 @@ export async function mockMyServices(page: Page, initial: ServiceToggleFixture[]
   });
 }
 
-/** GET /api/bookings — the master's own bookings list. */
+/** GET /api/bookings — the master's own bookings list. Superseded by
+ * mockMyCalendar below (components/MasterCalendar.tsx calls GET
+ * /api/providers/me/calendar instead), kept only in case something else
+ * still needs it. */
 export async function mockMyBookings(page: Page, bookings: unknown[]) {
   await page.route("**/api/bookings", (route) => {
     if (route.request().method() !== "GET") return route.fallback();
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(bookings) });
   });
+}
+
+/** GET /api/providers/me/calendar — the master calendar's combined
+ * bookings+blocks read (components/MasterCalendar.tsx). See the comment on
+ * mockMyBookings above for why this exists alongside it. */
+export async function mockMyCalendar(
+  page: Page,
+  initial: { bookings?: CabinetBookingFixture[]; blocks?: unknown[] },
+) {
+  const current: { bookings: CabinetBookingFixture[]; blocks: unknown[] } = {
+    bookings: initial.bookings ?? [],
+    blocks: initial.blocks ?? [],
+  };
+  await page.route("**/api/providers/me/calendar**", (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(current) });
+  });
+  return current;
 }
 
 /** PATCH /api/bookings/{id}/status — `respond` gets the booking id and the
