@@ -12,10 +12,12 @@ import { formatTime } from "@/lib/format";
 import { useLocale } from "@/lib/LocaleContext";
 import { useLocationSharing, type LocationSharingStatus } from "@/lib/useLocationSharing";
 import type { Translations } from "@/lib/i18n";
-import { Card, Centered } from "@/components/ui";
+import { Card, Centered, CompactButton, inputClass, Tabs } from "@/components/ui";
 import { PasswordInput } from "@/components/PasswordInput";
 import WorkingHoursEditor from "@/components/WorkingHoursEditor";
 import MasterCalendar from "@/components/MasterCalendar";
+
+type CabinetTab = "calendar" | "services" | "settings" | "password";
 
 function locationStatusText(status: LocationSharingStatus, t: Translations): string | null {
   switch (status) {
@@ -36,6 +38,8 @@ function locationStatusText(status: LocationSharingStatus, t: Translations): str
 
 export default function CabinetDashboard({ onLogout }: { onLogout: () => void }) {
   const { locale, t, ready } = useLocale();
+
+  const [tab, setTab] = useState<CabinetTab>("calendar");
 
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -369,245 +373,250 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
     <Card>
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold">{t.cabinetTitle(settings.name)}</h1>
-        <button onClick={onLogout} className="text-sm text-neutral-500 hover:text-neutral-800">
+        <button onClick={onLogout} className="text-sm text-ink/60 hover:text-ink">
           {t.logoutButton}
         </button>
       </div>
 
-      <section className="mb-6 border-b border-neutral-200 pb-5">
-        <h2 className="mb-2 text-sm font-medium text-neutral-500">{t.busyTitle}</h2>
-        {settings.busy_started_at ? (
-          <div>
-            <p className="font-medium">{t.busyStatusSince(formatTime(settings.busy_started_at, locale))}</p>
-            {settings.busy_until ? (
-              <p className="text-sm text-neutral-500">{t.busyUntilText(formatTime(settings.busy_until, locale))}</p>
-            ) : (
-              <p className="text-sm text-neutral-500">{t.busyOpenEndedNote}</p>
-            )}
+      <Tabs
+        tabs={[
+          { id: "calendar", label: t.calendarTitle },
+          { id: "services", label: t.servicesOfferedTitle },
+          { id: "settings", label: t.settingsTitle },
+          { id: "password", label: t.changePasswordTitle },
+        ]}
+        active={tab}
+        onChange={setTab}
+      />
 
-            <div className="mt-3">
+      {tab === "calendar" && <MasterCalendar />}
+
+      {tab === "services" && (
+        <section>
+          <p className="mb-3 text-sm text-ink/60">{t.servicesOfferedHint}</p>
+          {serviceToggles.length === 0 ? (
+            <p className="text-sm text-ink/60">{t.noActiveServices}</p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {serviceToggles.map((svc) => (
+                <li key={svc.service_id} className="rounded-md border border-line p-3">
+                  <label className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={svc.is_offered}
+                      disabled={savingServices}
+                      onChange={() => handleToggleService(svc.service_id)}
+                      className="mt-1"
+                    />
+                    <span>
+                      <span className="block font-medium">{svc.name}</span>
+                      <span className="block text-sm text-ink/60">{t.durationMinutes(svc.duration_minutes)}</span>
+                    </span>
+                  </label>
+
+                  {svc.is_offered && (
+                    <div className="mt-3 flex flex-col gap-2 pl-7">
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <input
+                          key={`${svc.service_id}-min-${svc.price_min ?? "empty"}`}
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          inputMode="decimal"
+                          defaultValue={svc.price_min ?? ""}
+                          placeholder={t.servicePriceMinPlaceholder}
+                          disabled={savingServices}
+                          onBlur={(e) => handleServicePriceMinBlur(svc.service_id, e.target.value)}
+                          className={`sm:w-32 ${inputClass}`}
+                        />
+                        <input
+                          key={`${svc.service_id}-max-${svc.price_max ?? "empty"}`}
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          inputMode="decimal"
+                          defaultValue={svc.price_max ?? ""}
+                          placeholder={t.servicePriceMaxPlaceholder}
+                          disabled={savingServices}
+                          onBlur={(e) => handleServicePriceMaxBlur(svc.service_id, e.target.value)}
+                          className={`sm:w-32 ${inputClass}`}
+                        />
+                      </div>
+                      <input
+                        key={`${svc.service_id}-desc-${svc.description ?? "empty"}`}
+                        type="text"
+                        maxLength={2000}
+                        defaultValue={svc.description ?? ""}
+                        placeholder={t.serviceDescriptionPlaceholder}
+                        disabled={savingServices}
+                        onBlur={(e) => handleServiceDescriptionBlur(svc.service_id, e.target.value)}
+                        className={inputClass}
+                      />
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {servicesError && <p className="mt-2 text-sm text-danger">{servicesError}</p>}
+        </section>
+      )}
+
+      {tab === "settings" && (
+        <div className="flex flex-col gap-6">
+          <section>
+            <h2 className="mb-2 text-sm font-medium text-ink/60">{t.busyTitle}</h2>
+            {settings.busy_started_at ? (
+              <div>
+                <p className="font-medium">{t.busyStatusSince(formatTime(settings.busy_started_at, locale))}</p>
+                {settings.busy_until ? (
+                  <p className="text-sm text-ink/60">{t.busyUntilText(formatTime(settings.busy_until, locale))}</p>
+                ) : (
+                  <p className="text-sm text-ink/60">{t.busyOpenEndedNote}</p>
+                )}
+
+                <div className="mt-3">
+                  <label className="block">
+                    <span className="block font-medium">{t.busyEstimateLabel}</span>
+                    <span className="mt-1 block text-sm text-ink/60">{t.busyEstimateHint}</span>
+                    <input
+                      key={settings.busy_estimated_minutes ?? "empty"}
+                      ref={busyEstimateInputRef}
+                      type="number"
+                      min={1}
+                      step="1"
+                      inputMode="numeric"
+                      defaultValue={settings.busy_estimated_minutes ?? ""}
+                      placeholder={t.busyEstimatePlaceholder}
+                      disabled={savingBusy}
+                      onBlur={handleBusyEstimateBlur}
+                      className={`mt-2 w-32 ${inputClass}`}
+                    />
+                  </label>
+                </div>
+
+                <CompactButton disabled={savingBusy} onClick={handleFinishBusy} className="mt-3">
+                  {t.finishBusyButton}
+                </CompactButton>
+              </div>
+            ) : (
+              <div>
+                <p className="mb-2 text-sm text-ink/60">{t.busyHint}</p>
+                <CompactButton disabled={savingBusy} onClick={handleStartBusy}>
+                  {t.startBusyButton}
+                </CompactButton>
+              </div>
+            )}
+            {busyError && <p className="mt-2 text-sm text-danger">{busyError}</p>}
+          </section>
+
+          <section className="border-t border-line pt-5">
+            <h2 className="mb-2 text-sm font-medium text-ink/60">{t.settingsTitle}</h2>
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={settings.requires_booking_confirmation}
+                disabled={savingSettings}
+                onChange={handleToggleConfirmation}
+                className="mt-1"
+              />
+              <span>
+                <span className="block font-medium">{t.requiresConfirmationLabel}</span>
+                <span className="block text-sm text-ink/60">{t.requiresConfirmationHint}</span>
+              </span>
+            </label>
+
+            <div className="mt-4">
               <label className="block">
-                <span className="block font-medium">{t.busyEstimateLabel}</span>
-                <span className="mt-1 block text-sm text-neutral-500">{t.busyEstimateHint}</span>
+                <span className="block font-medium">{t.callOutFeeLabel}</span>
+                <span className="mt-1 block text-sm text-ink/60">{t.callOutFeeHint}</span>
                 <input
-                  key={settings.busy_estimated_minutes ?? "empty"}
-                  ref={busyEstimateInputRef}
+                  key={settings.call_out_fee ?? "empty"}
+                  ref={feeInputRef}
                   type="number"
-                  min={1}
-                  step="1"
-                  inputMode="numeric"
-                  defaultValue={settings.busy_estimated_minutes ?? ""}
-                  placeholder={t.busyEstimatePlaceholder}
-                  disabled={savingBusy}
-                  onBlur={handleBusyEstimateBlur}
-                  className="mt-2 w-32 rounded-lg border border-neutral-300 px-3 py-1.5"
+                  min={0}
+                  step="0.01"
+                  inputMode="decimal"
+                  defaultValue={settings.call_out_fee ?? ""}
+                  placeholder={t.callOutFeePlaceholder}
+                  disabled={savingSettings}
+                  onBlur={handleFeeBlur}
+                  className={`mt-2 w-32 ${inputClass}`}
                 />
               </label>
             </div>
 
-            <button
-              disabled={savingBusy}
-              onClick={handleFinishBusy}
-              className="mt-3 rounded-lg bg-neutral-900 px-3 py-1.5 text-sm text-white disabled:opacity-40"
-            >
-              {t.finishBusyButton}
-            </button>
-          </div>
-        ) : (
-          <div>
-            <p className="mb-2 text-sm text-neutral-500">{t.busyHint}</p>
-            <button
-              disabled={savingBusy}
-              onClick={handleStartBusy}
-              className="rounded-lg bg-neutral-900 px-3 py-1.5 text-sm text-white disabled:opacity-40"
-            >
-              {t.startBusyButton}
-            </button>
-          </div>
-        )}
-        {busyError && <p className="mt-2 text-sm text-red-600">{busyError}</p>}
-      </section>
+            <div className="mt-4">
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={settings.share_location}
+                  disabled={savingSettings}
+                  onChange={handleToggleShareLocation}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="block font-medium">{t.shareLocationLabel}</span>
+                  <span className="block text-sm text-ink/60">{t.shareLocationHint}</span>
+                  {settings.share_location && locationStatusText(locationStatus, t) && (
+                    <span className="mt-1 block text-sm text-ink/60">{locationStatusText(locationStatus, t)}</span>
+                  )}
+                </span>
+              </label>
+            </div>
 
-      <section className="mb-6 border-b border-neutral-200 pb-5">
-        <h2 className="mb-2 text-sm font-medium text-neutral-500">{t.settingsTitle}</h2>
-        <label className="flex items-start gap-3">
-          <input
-            type="checkbox"
-            checked={settings.requires_booking_confirmation}
-            disabled={savingSettings}
-            onChange={handleToggleConfirmation}
-            className="mt-1"
-          />
-          <span>
-            <span className="block font-medium">{t.requiresConfirmationLabel}</span>
-            <span className="block text-sm text-neutral-500">{t.requiresConfirmationHint}</span>
-          </span>
-        </label>
+            {settingsError && <p className="mt-2 text-sm text-danger">{settingsError}</p>}
+          </section>
 
-        <div className="mt-4">
-          <label className="block">
-            <span className="block font-medium">{t.callOutFeeLabel}</span>
-            <span className="mt-1 block text-sm text-neutral-500">{t.callOutFeeHint}</span>
-            <input
-              key={settings.call_out_fee ?? "empty"}
-              ref={feeInputRef}
-              type="number"
-              min={0}
-              step="0.01"
-              inputMode="decimal"
-              defaultValue={settings.call_out_fee ?? ""}
-              placeholder={t.callOutFeePlaceholder}
-              disabled={savingSettings}
-              onBlur={handleFeeBlur}
-              className="mt-2 w-32 rounded-lg border border-neutral-300 px-3 py-1.5"
-            />
-          </label>
+          <section className="border-t border-line pt-5">
+            <WorkingHoursEditor />
+          </section>
         </div>
+      )}
 
-        <div className="mt-4">
-          <label className="flex items-start gap-3">
-            <input
-              type="checkbox"
-              checked={settings.share_location}
-              disabled={savingSettings}
-              onChange={handleToggleShareLocation}
-              className="mt-1"
+      {tab === "password" && (
+        <section>
+          <form onSubmit={handleChangePassword} className="flex max-w-xs flex-col gap-3">
+            <PasswordInput
+              value={currentPassword}
+              onChange={setCurrentPassword}
+              required
+              autoComplete="current-password"
+              placeholder={t.currentPasswordPlaceholder}
+              showLabel={t.showPassword}
+              hideLabel={t.hidePassword}
             />
-            <span>
-              <span className="block font-medium">{t.shareLocationLabel}</span>
-              <span className="block text-sm text-neutral-500">{t.shareLocationHint}</span>
-              {settings.share_location && locationStatusText(locationStatus, t) && (
-                <span className="mt-1 block text-sm text-neutral-500">{locationStatusText(locationStatus, t)}</span>
-              )}
-            </span>
-          </label>
-        </div>
-
-        {settingsError && <p className="mt-2 text-sm text-red-600">{settingsError}</p>}
-      </section>
-
-      <WorkingHoursEditor />
-
-      <section className="mb-6 border-b border-neutral-200 pb-5">
-        <h2 className="mb-1 text-sm font-medium text-neutral-500">{t.servicesOfferedTitle}</h2>
-        <p className="mb-3 text-sm text-neutral-500">{t.servicesOfferedHint}</p>
-        {serviceToggles.length === 0 ? (
-          <p className="text-sm text-neutral-500">{t.noActiveServices}</p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {serviceToggles.map((svc) => (
-              <li key={svc.service_id} className="rounded-lg border border-neutral-200 p-3">
-                <label className="flex items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={svc.is_offered}
-                    disabled={savingServices}
-                    onChange={() => handleToggleService(svc.service_id)}
-                    className="mt-1"
-                  />
-                  <span>
-                    <span className="block font-medium">{svc.name}</span>
-                    <span className="block text-sm text-neutral-500">{t.durationMinutes(svc.duration_minutes)}</span>
-                  </span>
-                </label>
-
-                {svc.is_offered && (
-                  <div className="mt-3 flex flex-col gap-2 pl-7">
-                    <div className="flex gap-2">
-                      <input
-                        key={`${svc.service_id}-min-${svc.price_min ?? "empty"}`}
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        inputMode="decimal"
-                        defaultValue={svc.price_min ?? ""}
-                        placeholder={t.servicePriceMinPlaceholder}
-                        disabled={savingServices}
-                        onBlur={(e) => handleServicePriceMinBlur(svc.service_id, e.target.value)}
-                        className="w-28 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm"
-                      />
-                      <input
-                        key={`${svc.service_id}-max-${svc.price_max ?? "empty"}`}
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        inputMode="decimal"
-                        defaultValue={svc.price_max ?? ""}
-                        placeholder={t.servicePriceMaxPlaceholder}
-                        disabled={savingServices}
-                        onBlur={(e) => handleServicePriceMaxBlur(svc.service_id, e.target.value)}
-                        className="w-28 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm"
-                      />
-                    </div>
-                    <input
-                      key={`${svc.service_id}-desc-${svc.description ?? "empty"}`}
-                      type="text"
-                      maxLength={2000}
-                      defaultValue={svc.description ?? ""}
-                      placeholder={t.serviceDescriptionPlaceholder}
-                      disabled={savingServices}
-                      onBlur={(e) => handleServiceDescriptionBlur(svc.service_id, e.target.value)}
-                      className="w-full rounded-lg border border-neutral-300 px-3 py-1.5 text-sm"
-                    />
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-        {servicesError && <p className="mt-2 text-sm text-red-600">{servicesError}</p>}
-      </section>
-
-      <section>
-        <MasterCalendar />
-      </section>
-
-      <section className="mt-6 border-t border-neutral-200 pt-5">
-        <h2 className="mb-2 text-sm font-medium text-neutral-500">{t.changePasswordTitle}</h2>
-        <form onSubmit={handleChangePassword} className="flex max-w-xs flex-col gap-3">
-          <PasswordInput
-            value={currentPassword}
-            onChange={setCurrentPassword}
-            required
-            autoComplete="current-password"
-            placeholder={t.currentPasswordPlaceholder}
-            showLabel={t.showPassword}
-            hideLabel={t.hidePassword}
-          />
-          <PasswordInput
-            value={newPassword}
-            onChange={setNewPassword}
-            required
-            // No minLength here (unlike the login field) — the length
-            // check below is a custom message (changePasswordTooShortError)
-            // rather than the browser's native validation bubble, so it
-            // needs to actually reach handleChangePassword instead of being
-            // intercepted by HTML5 constraint validation first.
-            autoComplete="new-password"
-            placeholder={t.newPasswordPlaceholder}
-            showLabel={t.showPassword}
-            hideLabel={t.hidePassword}
-          />
-          <PasswordInput
-            value={confirmNewPassword}
-            onChange={setConfirmNewPassword}
-            required
-            autoComplete="new-password"
-            placeholder={t.confirmNewPasswordPlaceholder}
-            showLabel={t.showPassword}
-            hideLabel={t.hidePassword}
-          />
-          {changePasswordError && <p className="text-sm text-red-600">{changePasswordError}</p>}
-          {changePasswordSuccess && <p className="text-sm text-green-700">{t.changePasswordSuccess}</p>}
-          <button
-            type="submit"
-            disabled={changingPassword}
-            className="self-start rounded-lg bg-neutral-900 px-3 py-1.5 text-sm text-white disabled:opacity-40"
-          >
-            {changingPassword ? t.changingPassword : t.changePasswordButton}
-          </button>
-        </form>
-      </section>
+            <PasswordInput
+              value={newPassword}
+              onChange={setNewPassword}
+              required
+              // No minLength here (unlike the login field) — the length
+              // check below is a custom message (changePasswordTooShortError)
+              // rather than the browser's native validation bubble, so it
+              // needs to actually reach handleChangePassword instead of being
+              // intercepted by HTML5 constraint validation first.
+              autoComplete="new-password"
+              placeholder={t.newPasswordPlaceholder}
+              showLabel={t.showPassword}
+              hideLabel={t.hidePassword}
+            />
+            <PasswordInput
+              value={confirmNewPassword}
+              onChange={setConfirmNewPassword}
+              required
+              autoComplete="new-password"
+              placeholder={t.confirmNewPasswordPlaceholder}
+              showLabel={t.showPassword}
+              hideLabel={t.hidePassword}
+            />
+            {changePasswordError && <p className="text-sm text-danger">{changePasswordError}</p>}
+            {changePasswordSuccess && <p className="text-sm text-accent-2">{t.changePasswordSuccess}</p>}
+            <CompactButton type="submit" disabled={changingPassword} className="self-start">
+              {changingPassword ? t.changingPassword : t.changePasswordButton}
+            </CompactButton>
+          </form>
+        </section>
+      )}
     </Card>
   );
 }

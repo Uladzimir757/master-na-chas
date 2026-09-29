@@ -5,6 +5,7 @@ import {
   mockMyCalendar,
   mockMyServices,
   mockProviderSettings,
+  openTab,
   serviceToggle,
   t,
 } from "./mocks";
@@ -26,6 +27,7 @@ test("not busy shows the start button, not the busy status", async ({ page }) =>
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
 
   await expect(page.getByRole("button", { name: t.startBusyButton })).toBeVisible();
   await expect(page.getByRole("button", { name: t.finishBusyButton })).not.toBeVisible();
@@ -38,6 +40,7 @@ test("pressing start shows the busy status and the finish button", async ({ page
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
   await page.getByRole("button", { name: t.startBusyButton }).click();
 
   await expect(page.getByRole("button", { name: t.finishBusyButton })).toBeVisible();
@@ -57,6 +60,7 @@ test("busy with an estimate already set shows the until time instead of the open
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
 
   await expect(page.getByText(t.busyUntilText(formatTime(BUSY_UNTIL, "pl")))).toBeVisible();
   await expect(page.getByText(t.busyOpenEndedNote)).not.toBeVisible();
@@ -69,6 +73,7 @@ test("setting an estimate while busy saves it and shows the computed until time"
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
   await expect(page.getByText(t.busyOpenEndedNote)).toBeVisible();
 
   const estimateInput = page.getByPlaceholder(t.busyEstimatePlaceholder);
@@ -90,6 +95,7 @@ test("clearing the estimate returns to the open-ended note", async ({ page }) =>
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
   const estimateInput = page.getByPlaceholder(t.busyEstimatePlaceholder);
   await expect(estimateInput).toHaveValue(String(BUSY_ESTIMATE_MINUTES));
 
@@ -110,6 +116,7 @@ test("pressing finish clears the busy state and shows the start button again", a
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
   await page.getByRole("button", { name: t.finishBusyButton }).click();
 
   await expect(page.getByRole("button", { name: t.startBusyButton })).toBeVisible();
@@ -123,6 +130,7 @@ test("a failed start shows an error message", async ({ page }) => {
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
   await page.getByRole("button", { name: t.startBusyButton }).click();
 
   await expect(page.getByText(t.busyActionError)).toBeVisible();
@@ -137,6 +145,7 @@ test("a failed finish shows an error message and keeps the busy state", async ({
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
   await page.getByRole("button", { name: t.finishBusyButton }).click();
 
   await expect(page.getByText(t.busyActionError)).toBeVisible();

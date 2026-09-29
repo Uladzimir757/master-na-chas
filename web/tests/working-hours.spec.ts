@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { mockAuthMe, mockMyCalendar, mockMyServices, mockProviderSettings, mockWorkingHours, serviceToggle, t } from "./mocks";
+import { mockAuthMe, mockMyCalendar, mockMyServices, mockProviderSettings, mockWorkingHours, openTab, serviceToggle, t } from "./mocks";
 
 // "Мои рабочие часы" (components/WorkingHoursEditor.tsx) — weekly template
 // (multiple intervals per weekday) + per-date exceptions (day off / custom
@@ -21,6 +21,7 @@ test("an empty weekly template shows every weekday as a day off", async ({ page 
   await mockWorkingHours(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
 
   // Scoped to the weekly-template <ul> specifically (getByText's default
   // match is case-insensitive substring, so an unscoped page-wide query
@@ -43,6 +44,7 @@ test("an existing weekly template shows its saved intervals, not a day-off label
   await mockWorkingHours(page, { slots: [{ weekday: 0, start_time: "09:00:00", end_time: "18:00:00" }] });
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
 
   const mondayItem = page.locator("li").filter({ hasText: t.weekdayLabels[0] });
   await expect(mondayItem.getByText(t.workingHoursDayOff)).not.toBeVisible();
@@ -63,6 +65,7 @@ test("adding an interval clears the day-off label immediately, and saving persis
   await mockWorkingHours(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
   const mondayItem = page.locator("li").filter({ hasText: t.weekdayLabels[0] });
 
   await mondayItem.getByRole("button", { name: t.workingHoursAddIntervalButton }).click();
@@ -73,8 +76,10 @@ test("adding an interval clears the day-off label immediately, and saving persis
   await expect(page.getByText(t.workingHoursSaveError)).not.toBeVisible();
 
   // Reload to prove it round-tripped through the (stateful) PUT, not just
-  // local React state.
+  // local React state. The dashboard always opens back on the Calendar tab
+  // after a reload, so switch back to Settings before looking for the grid.
   await page.reload();
+  await openTab(page, t.settingsTitle);
   const mondayAfterReload = page.locator("li").filter({ hasText: t.weekdayLabels[0] });
   await expect(mondayAfterReload.getByText(t.workingHoursDayOff)).not.toBeVisible();
 });
@@ -84,6 +89,7 @@ test("removing the only interval on a day and saving turns it back into a day of
   await mockWorkingHours(page, { slots: [{ weekday: 0, start_time: "09:00:00", end_time: "18:00:00" }] });
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
   const mondayItem = page.locator("li").filter({ hasText: t.weekdayLabels[0] });
 
   await mondayItem.getByRole("button", { name: t.workingHoursRemoveIntervalLabel }).click();
@@ -98,6 +104,7 @@ test("a failed template save shows an error message", async ({ page }) => {
   await mockWorkingHours(page, { putStatus: 500 });
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
   const mondayItem = page.locator("li").filter({ hasText: t.weekdayLabels[0] });
   await mondayItem.getByRole("button", { name: t.workingHoursAddIntervalButton }).click();
   await page.getByRole("button", { name: t.workingHoursSaveButton }).click();
@@ -110,6 +117,7 @@ test("no exceptions shows the empty-state message", async ({ page }) => {
   await mockWorkingHours(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
 
   await expect(page.getByText(t.workingHoursNoExceptions)).toBeVisible();
   await expect(page.getByRole("button", { name: t.workingHoursDeleteExceptionLabel })).not.toBeVisible();
@@ -120,6 +128,7 @@ test("adding a day-off exception shows it in the list", async ({ page }) => {
   await mockWorkingHours(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
   const form = page.locator("form").filter({ hasText: t.workingHoursAddExceptionTitle });
 
   await form.locator('input[type="date"]').fill(FUTURE_DATE);
@@ -135,6 +144,7 @@ test("adding a custom-hours exception shows the hours range", async ({ page }) =
   await mockWorkingHours(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
   const form = page.locator("form").filter({ hasText: t.workingHoursAddExceptionTitle });
 
   await form.locator('input[type="date"]').fill(FUTURE_DATE);
@@ -153,6 +163,7 @@ test("deleting an exception removes it and restores the empty-state message", as
   });
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
   await expect(page.getByRole("button", { name: t.workingHoursDeleteExceptionLabel })).toHaveCount(1);
 
   await page.getByRole("button", { name: t.workingHoursDeleteExceptionLabel }).click();
@@ -165,6 +176,7 @@ test("a failed exception save shows an error message", async ({ page }) => {
   await mockWorkingHours(page, { exceptionPutStatus: 500 });
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
   const form = page.locator("form").filter({ hasText: t.workingHoursAddExceptionTitle });
   await form.locator('input[type="date"]').fill(FUTURE_DATE);
   await form.getByRole("button", { name: t.workingHoursAddExceptionButton }).click();
@@ -180,6 +192,7 @@ test("a failed exception delete shows an error message and keeps the exception",
   });
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
   await page.getByRole("button", { name: t.workingHoursDeleteExceptionLabel }).click();
 
   await expect(page.getByText(t.workingHoursExceptionDeleteError)).toBeVisible();

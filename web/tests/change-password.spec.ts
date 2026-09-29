@@ -5,6 +5,7 @@ import {
   mockMyCalendar,
   mockMyServices,
   mockProviderSettings,
+  openTab,
   serviceToggle,
   t,
 } from "./mocks";
@@ -27,6 +28,7 @@ test("changing password with matching, long-enough fields shows a success messag
   await mockChangePassword(page);
 
   await page.goto("/cabinet/");
+  await openTab(page, t.changePasswordTitle);
   await page.getByPlaceholder(t.currentPasswordPlaceholder).fill("old-password");
   await page.getByPlaceholder(t.newPasswordPlaceholder, { exact: true }).fill("a-brand-new-password");
   await page.getByPlaceholder(t.confirmNewPasswordPlaceholder).fill("a-brand-new-password");
@@ -49,6 +51,7 @@ test("a mismatched confirmation shows a validation error without calling the API
   // (and not the generic one) below also proves the request never fired.
 
   await page.goto("/cabinet/");
+  await openTab(page, t.changePasswordTitle);
   await page.getByPlaceholder(t.currentPasswordPlaceholder).fill("old-password");
   await page.getByPlaceholder(t.newPasswordPlaceholder, { exact: true }).fill("a-brand-new-password");
   await page.getByPlaceholder(t.confirmNewPasswordPlaceholder).fill("something-else-entirely");
@@ -67,6 +70,7 @@ test("a new password shorter than 8 characters shows a validation error without 
   // test above.
 
   await page.goto("/cabinet/");
+  await openTab(page, t.changePasswordTitle);
   await page.getByPlaceholder(t.currentPasswordPlaceholder).fill("old-password");
   await page.getByPlaceholder(t.newPasswordPlaceholder, { exact: true }).fill("short1");
   await page.getByPlaceholder(t.confirmNewPasswordPlaceholder).fill("short1");
@@ -84,6 +88,7 @@ test("a wrong current password shows the specific error and keeps the fields fil
   await mockChangePassword(page, { status: 401 });
 
   await page.goto("/cabinet/");
+  await openTab(page, t.changePasswordTitle);
   await page.getByPlaceholder(t.currentPasswordPlaceholder).fill("wrong-password");
   await page.getByPlaceholder(t.newPasswordPlaceholder, { exact: true }).fill("a-brand-new-password");
   await page.getByPlaceholder(t.confirmNewPasswordPlaceholder).fill("a-brand-new-password");
@@ -101,6 +106,7 @@ test("a server error shows the generic error, not the wrong-current-password one
   await mockChangePassword(page, { status: 500 });
 
   await page.goto("/cabinet/");
+  await openTab(page, t.changePasswordTitle);
   await page.getByPlaceholder(t.currentPasswordPlaceholder).fill("old-password");
   await page.getByPlaceholder(t.newPasswordPlaceholder, { exact: true }).fill("a-brand-new-password");
   await page.getByPlaceholder(t.confirmNewPasswordPlaceholder).fill("a-brand-new-password");

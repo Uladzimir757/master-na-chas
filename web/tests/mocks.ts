@@ -179,6 +179,13 @@ export async function mockTranslations(page: Page, map: Record<string, string> =
   );
 }
 
+/** CabinetDashboard.tsx now splits into tabs (Calendar/Services/Settings/
+ * Password) instead of one long scrolling page — a spec that needs a
+ * control outside the default Calendar tab switches to it first with this. */
+export async function openTab(page: Page, name: string) {
+  await page.getByRole("tab", { name }).click();
+}
+
 export const SERVICE = {
   id: "11111111-1111-1111-1111-111111111111",
   name: "Стрижка",

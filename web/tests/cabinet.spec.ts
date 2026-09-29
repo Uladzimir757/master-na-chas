@@ -9,6 +9,7 @@ import {
   mockMyServices,
   mockProviderSettings,
   mockUpdateMyLocation,
+  openTab,
   PROVIDER,
   SERVICE,
   serviceToggle,
@@ -80,12 +81,17 @@ test("successful login loads the dashboard with settings and bookings", async ({
   await page.getByRole("button", { name: t.loginButton }).click();
 
   await expect(page.getByRole("heading", { name: t.cabinetTitle(PROVIDER.name) })).toBeVisible();
-  await expect(page.getByRole("checkbox", { name: t.requiresConfirmationLabel })).toBeChecked();
-  await expect(page.getByRole("checkbox", { name: SERVICE.name })).toBeChecked();
   // the booking shows up as an event chip on the calendar's default Day view
   await expect(page.getByText(booking.client_name, { exact: false })).toBeVisible();
   await page.getByText(booking.client_name, { exact: false }).click();
   await expect(page.getByText(t.bookingStatusLabel.pending)).toBeVisible();
+  await page.getByRole("button", { name: t.calendarCloseButton }).click();
+
+  await openTab(page, t.servicesOfferedTitle);
+  await expect(page.getByRole("checkbox", { name: SERVICE.name })).toBeChecked();
+
+  await openTab(page, t.settingsTitle);
+  await expect(page.getByRole("checkbox", { name: t.requiresConfirmationLabel })).toBeChecked();
 });
 
 test("an empty calendar loads cleanly, with no stray booking chips", async ({ page }) => {
@@ -107,6 +113,7 @@ test("toggling the confirmation setting saves the new value", async ({ page }) =
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
   const checkbox = page.getByRole("checkbox", { name: t.requiresConfirmationLabel });
   await expect(checkbox).toBeChecked();
 
@@ -123,6 +130,7 @@ test("a failed settings save shows an error message", async ({ page }) => {
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
   await page.getByRole("checkbox", { name: t.requiresConfirmationLabel }).click();
 
   await expect(page.getByText(t.settingsSaveError)).toBeVisible();
@@ -139,6 +147,7 @@ test("toggling share_location saves the new value", async ({ page }) => {
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
   const checkbox = page.getByRole("checkbox", { name: t.shareLocationLabel });
   await expect(checkbox).not.toBeChecked();
 
@@ -162,6 +171,7 @@ test("granting geolocation permission after enabling share_location shows the ac
   await mockUpdateMyLocation(page);
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
   await page.getByRole("checkbox", { name: t.shareLocationLabel }).click();
 
   await expect(page.getByText(t.locationSharingActive)).toBeVisible();
@@ -259,6 +269,7 @@ test("no active services shows the empty-state message instead of a blank checkl
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.servicesOfferedTitle);
 
   await expect(page.getByText(t.noActiveServices)).toBeVisible();
 });
@@ -270,6 +281,7 @@ test("turning a service on saves it", async ({ page }) => {
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.servicesOfferedTitle);
   const checkbox = page.getByRole("checkbox", { name: SERVICE.name });
   await expect(checkbox).not.toBeChecked();
 
@@ -286,15 +298,16 @@ test("turning a service off saves it, independently of the confirmation checkbox
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.servicesOfferedTitle);
   const serviceCheckbox = page.getByRole("checkbox", { name: SERVICE.name });
-  const confirmationCheckbox = page.getByRole("checkbox", { name: t.requiresConfirmationLabel });
 
   await serviceCheckbox.click();
-
   await expect(serviceCheckbox).not.toBeChecked();
+
   // toggling one didn't touch the other — they save through two different
   // endpoints (PUT .../services vs PATCH .../settings)
-  await expect(confirmationCheckbox).toBeChecked();
+  await openTab(page, t.settingsTitle);
+  await expect(page.getByRole("checkbox", { name: t.requiresConfirmationLabel })).toBeChecked();
 });
 
 test("a failed services save shows an error message", async ({ page }) => {
@@ -304,6 +317,7 @@ test("a failed services save shows an error message", async ({ page }) => {
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.servicesOfferedTitle);
   await page.getByRole("checkbox", { name: SERVICE.name }).click();
 
   await expect(page.getByText(t.servicesSaveError)).toBeVisible();
@@ -322,6 +336,7 @@ test("price and description fields are hidden for a service that's turned off", 
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.servicesOfferedTitle);
 
   await expect(page.getByPlaceholder(t.servicePriceMinPlaceholder)).not.toBeVisible();
   await expect(page.getByPlaceholder(t.servicePriceMaxPlaceholder)).not.toBeVisible();
@@ -335,6 +350,7 @@ test("setting a service's price range saves it on blur", async ({ page }) => {
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.servicesOfferedTitle);
   const minInput = page.getByPlaceholder(t.servicePriceMinPlaceholder);
   await minInput.fill("80");
   await minInput.blur();
@@ -356,6 +372,7 @@ test("setting a service's description saves it on blur", async ({ page }) => {
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.servicesOfferedTitle);
   const descInput = page.getByPlaceholder(t.serviceDescriptionPlaceholder);
   await descInput.fill("Со своим инструментом");
   await descInput.blur();
@@ -371,6 +388,7 @@ test("toggling a service off then on again keeps its previously-set price and de
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.servicesOfferedTitle);
   const checkbox = page.getByRole("checkbox", { name: SERVICE.name });
 
   await checkbox.click(); // off
@@ -393,6 +411,7 @@ test("setting a call-out fee saves it on blur", async ({ page }) => {
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
   const feeInput = page.getByPlaceholder(t.callOutFeePlaceholder);
   await feeInput.fill("50");
   await feeInput.blur();
@@ -410,6 +429,7 @@ test("clearing the call-out fee saves null", async ({ page }) => {
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
   const feeInput = page.getByPlaceholder(t.callOutFeePlaceholder);
   await expect(feeInput).toHaveValue("80");
 
@@ -426,6 +446,7 @@ test("a failed call-out fee save shows an error message", async ({ page }) => {
   await mockMyCalendar(page, {});
 
   await page.goto("/cabinet/");
+  await openTab(page, t.settingsTitle);
   const feeInput = page.getByPlaceholder(t.callOutFeePlaceholder);
   await feeInput.fill("50");
   await feeInput.blur();
