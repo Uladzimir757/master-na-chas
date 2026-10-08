@@ -68,6 +68,11 @@ class Settings(BaseSettings):
     TWILIO_SENDER_ID: str = "MasterNaChas"  # <=11 latin chars, decide the real brand name later
     SMS_ENABLED: bool = False
 
+    # Публичный адрес веб-фронтенда — для ссылки на форму отзыва, которую
+    # SMS-сообщение шлёт клиенту после завершённой брони (см.
+    # app/main.py:update_booking_status). Без схемы/слеша на конце.
+    WEB_PUBLIC_URL: str = "http://localhost:3000"
+
     # Этап 2: the Next.js frontend is a separate deploy (separate origin), so
     # the browser enforces CORS on every fetch() it makes to this API.
     # Comma-separated list, no trailing slashes. localhost:3000 by default so

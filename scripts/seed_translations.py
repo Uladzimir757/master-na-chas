@@ -378,6 +378,44 @@ ENTRIES: list[tuple[str, str, str]] = [
     ),
     ("calendarSavingTime", "Zapisywanie…", "Saving…"),
     ("calendarSaveTimeButton", "Zapisz", "Save"),
+
+    # Публичная страница отзыва по SMS-ссылке (Этап 3) — web/app/review/page.tsx.
+    ("reviewPageTitle", "Oceń wizytę", "Rate your visit"),
+    (
+        "reviewPageSubtitle",
+        "{provider} — {service}, {date}",
+        "{provider} — {service}, {date}",
+    ),
+    ("reviewRatingLabel", "Twoja ocena", "Your rating"),
+    ("reviewTextPlaceholder", "Opowiedz, jak poszło (opcjonalnie)", "Tell us how it went (optional)"),
+    ("reviewPhotosLabel", "Zdjęcia (do 3, opcjonalnie)", "Photos (up to 3, optional)"),
+    ("reviewSubmitButton", "Wyślij ocenę", "Submit review"),
+    ("reviewSubmitting", "Wysyłanie…", "Submitting…"),
+    ("reviewThankYou", "Dziękujemy za ocenę!", "Thanks for your review!"),
+    (
+        "reviewInviteLoadError",
+        "Link jest nieprawidłowy lub wygasł.",
+        "This link is invalid or has expired.",
+    ),
+    (
+        "reviewAlreadySubmitted",
+        "Ta wizyta została już oceniona — dziękujemy!",
+        "This visit has already been reviewed — thank you!",
+    ),
+    ("reviewSubmitError", "Nie udało się wysłać oceny. Spróbuj ponownie.", "Couldn't submit your review. Please try again."),
+    ("reviewRatingRequired", "Wybierz ocenę od 1 do 5.", "Please choose a rating from 1 to 5."),
+    (
+        "reviewPhotoTooBig",
+        "Zdjęcie jest za duże nawet po kompresji — wybierz inne.",
+        "This photo is too large even after compression — please pick another.",
+    ),
+    ("reviewPhotosMax", "Maksymalnie 3 zdjęcia.", "Up to 3 photos."),
+    ("reviewRemovePhoto", "Usuń", "Remove"),
+    # Lista opinii mistrza (Этап 3) — components/MasterPicker.tsx /
+    # (nowa) sekcja opinii pod kalendarzem rezerwacji.
+    ("reviewsSectionTitle", "Opinie klientów", "Customer reviews"),
+    ("reviewsEmpty", "Jeszcze nie ma opinii.", "No reviews yet."),
+    ("reviewsLoadError", "Nie udało się załadować opinii.", "Couldn't load reviews."),
 ]
 
 

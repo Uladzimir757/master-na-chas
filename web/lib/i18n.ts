@@ -229,6 +229,25 @@ export interface Translations {
   calendarRescheduleError: string;
   calendarSavingTime: string;
   calendarSaveTimeButton: string;
+
+  reviewPageTitle: string;
+  reviewPageSubtitle: (provider: string, service: string, date: string) => string;
+  reviewRatingLabel: string;
+  reviewTextPlaceholder: string;
+  reviewPhotosLabel: string;
+  reviewSubmitButton: string;
+  reviewSubmitting: string;
+  reviewThankYou: string;
+  reviewInviteLoadError: string;
+  reviewAlreadySubmitted: string;
+  reviewSubmitError: string;
+  reviewRatingRequired: string;
+  reviewPhotoTooBig: string;
+  reviewPhotosMax: string;
+  reviewRemovePhoto: string;
+  reviewsSectionTitle: string;
+  reviewsEmpty: string;
+  reviewsLoadError: string;
 }
 
 export function buildTranslations(map: TranslationMap): Translations {
@@ -438,5 +457,25 @@ export function buildTranslations(map: TranslationMap): Translations {
     calendarRescheduleError: pick(map, "calendarRescheduleError"),
     calendarSavingTime: pick(map, "calendarSavingTime"),
     calendarSaveTimeButton: pick(map, "calendarSaveTimeButton"),
+
+    reviewPageTitle: pick(map, "reviewPageTitle"),
+    reviewPageSubtitle: (provider, service, date) =>
+      interpolate(pick(map, "reviewPageSubtitle"), { provider, service, date }),
+    reviewRatingLabel: pick(map, "reviewRatingLabel"),
+    reviewTextPlaceholder: pick(map, "reviewTextPlaceholder"),
+    reviewPhotosLabel: pick(map, "reviewPhotosLabel"),
+    reviewSubmitButton: pick(map, "reviewSubmitButton"),
+    reviewSubmitting: pick(map, "reviewSubmitting"),
+    reviewThankYou: pick(map, "reviewThankYou"),
+    reviewInviteLoadError: pick(map, "reviewInviteLoadError"),
+    reviewAlreadySubmitted: pick(map, "reviewAlreadySubmitted"),
+    reviewSubmitError: pick(map, "reviewSubmitError"),
+    reviewRatingRequired: pick(map, "reviewRatingRequired"),
+    reviewPhotoTooBig: pick(map, "reviewPhotoTooBig"),
+    reviewPhotosMax: pick(map, "reviewPhotosMax"),
+    reviewRemovePhoto: pick(map, "reviewRemovePhoto"),
+    reviewsSectionTitle: pick(map, "reviewsSectionTitle"),
+    reviewsEmpty: pick(map, "reviewsEmpty"),
+    reviewsLoadError: pick(map, "reviewsLoadError"),
   };
 }

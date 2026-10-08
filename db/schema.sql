@@ -308,6 +308,47 @@ CREATE TABLE translation_entry (
 CREATE INDEX idx_translation_entry_lookup ON translation_entry (namespace, lang, status);
 
 -- ----------------------------------------------------------------------------
+-- review_invite / review — отзывы по SMS-ссылке после завершённой брони
+-- (Этап 3, docs/ai-and-reviews.md "Не-AI: рейтинги и отзывы с фото"). Не
+-- email-верификация (как у Review/ReviewVerification в Garage System), а
+-- факт завершённой брони: когда мастер переводит бронь в status='completed'
+-- (PATCH /api/bookings/{id}/status), клиенту на тот же номер уходит
+-- одноразовая SMS-ссылка (тот же канал Twilio, что и подтверждение брони) —
+-- без регистрации и пароля. Токен хранится как открытый текст, как и
+-- telegram_link_token выше — тот же уровень доверия (одноразовый,
+-- недолгоживущий, не учётные данные).
+-- ----------------------------------------------------------------------------
+CREATE TABLE review_invite (
+    token         text PRIMARY KEY,
+    booking_id    uuid NOT NULL UNIQUE REFERENCES booking(id) ON DELETE CASCADE,
+    expires_at    timestamptz NOT NULL,
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    used_at       timestamptz
+);
+
+-- Один отзыв на одну завершённую бронь (booking_id UNIQUE) — то же самое
+-- "подтверждённый визит = одна возможность оценить", которое и было целью
+-- верификации по брони, а не просто ограничение API-уровня.
+CREATE TABLE review (
+    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id     uuid NOT NULL REFERENCES tenant(id),
+    provider_id   uuid NOT NULL REFERENCES provider(id),
+    booking_id    uuid NOT NULL UNIQUE REFERENCES booking(id),
+    client_name   text,
+    rating        smallint NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    text          text,
+    -- До 3 фото (docs/ai-and-reviews.md), сжатых на клиенте перед отправкой.
+    -- Хранятся как data-URL (base64) прямо в колонке — в проекте нет
+    -- файлового хранилища (S3/Cloudinary и т.п.), заводить его только под
+    -- эту фичу для MVP на 2 мастеров избыточно. Если объём отзывов/фото
+    -- вырастет — перенести на внешнее хранилище, см. handoff этой задачи.
+    photos        jsonb NOT NULL DEFAULT '[]'::jsonb,
+    created_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_review_provider ON review (provider_id, created_at DESC);
+
+-- ----------------------------------------------------------------------------
 -- Seed example: two tenants sharing the same engine
 -- ----------------------------------------------------------------------------
 -- INSERT INTO tenant (slug, name) VALUES

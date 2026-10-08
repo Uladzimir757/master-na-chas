@@ -40,6 +40,9 @@ Routes:
   POST  /admin/translations/approve          (ADMIN_SECRET header OR admin session required — the only thing that does)
   POST  /telegram/webhook                     (called by Telegram, not by us)
   POST  /push/subscribe                       (logged-in master only)
+  GET   /api/reviews/invite/{booking_id}       (public — token from the SMS link)
+  POST  /api/reviews/invite/{booking_id}       (public — token from the SMS link, submits the review)
+  GET   /api/providers/{provider_id}/reviews   (public)
 """
 
 from __future__ import annotations
@@ -54,7 +57,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, sta
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.sessions import SessionMiddleware
@@ -68,6 +71,8 @@ from app.models import (
     Provider,
     ProviderBlock,
     ProviderService,
+    Review,
+    ReviewInvite,
     Service,
     TelegramLinkToken,
     TranslationEntry,
@@ -103,6 +108,9 @@ from app.schemas import (
     ProviderSettingsOut,
     ProviderSettingsUpdate,
     PushSubscribeRequest,
+    ReviewCreate,
+    ReviewInviteOut,
+    ReviewOut,
     ServiceOut,
     ServiceToggleOut,
     TelegramLinkOut,
@@ -487,9 +495,19 @@ async def update_booking_status(
     booking = await db.get(Booking, booking_id)
     if booking is None or booking.provider_id != provider.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Booking not found")
+    was_completed = booking.status == BookingStatus.completed
     booking.status = payload.status
     await db.commit()
     await db.refresh(booking)
+
+    # Отзывы (Этап 3): ссылка уходит ровно в момент, когда мастер отмечает
+    # работу сделанной — не раньше (работа ещё не была выполнена, нечего
+    # оценивать) и не повторно при каждом PATCH (completed -> completed
+    # через повторный клик, или completed -> cancelled -> completed —
+    # once-per-booking, не once-per-status-change-into-completed).
+    if payload.status == BookingStatus.completed and not was_completed and booking.client_phone:
+        await _issue_review_invite(db, booking, provider)
+
     return booking
 
 
@@ -1202,6 +1220,161 @@ async def list_provider_services(
         )
         for service, link in rows
     ]
+
+
+# ============================================================================
+# Отзывы (Этап 3, docs/ai-and-reviews.md "Не-AI: рейтинги и отзывы с фото").
+# Верификация не по email, а по факту завершённой брони: see
+# _issue_review_invite, called from update_booking_status above on
+# completed. Все три эндпоинта ниже — публичные (у клиента нет аккаунта),
+# защищены только токеном из SMS-ссылки + (на POST) рейт-лимитом.
+# ============================================================================
+
+
+REVIEW_INVITE_VALIDITY_DAYS = 14
+
+
+async def _issue_review_invite(db: AsyncSession, booking: Booking, provider: Provider) -> None:
+    """Выпускает одноразовый токен и шлёт клиенту SMS со ссылкой на форму
+    отзыва. Best-effort, как и остальные уведомления в app/notifications.py
+    — ошибка здесь не должна откатывать сам PATCH .../status.
+
+    booking_id UNIQUE на review_invite — если бронь уже проходила через
+    completed раньше (completed -> cancelled -> completed снова), invite
+    уже существует; не плодим второй и не шлём повторную SMS."""
+    existing = (
+        await db.execute(select(ReviewInvite).where(ReviewInvite.booking_id == booking.id))
+    ).scalar_one_or_none()
+    if existing is not None:
+        return
+    service = await db.get(Service, booking.service_id)
+    token = secrets.token_urlsafe(24)
+    db.add(
+        ReviewInvite(
+            token=token,
+            booking_id=booking.id,
+            expires_at=datetime.now(timezone.utc) + timedelta(days=REVIEW_INVITE_VALIDITY_DAYS),
+        )
+    )
+    await db.commit()
+
+    # Query-param, not /review/{booking.id} — the frontend is a static
+    # export (next.config.ts output: "export"), so a dynamic path segment
+    # would need generateStaticParams for every possible booking id ahead
+    # of time, which is impossible; app/review/page.tsx reads both from
+    # the query string instead.
+    link = f"{settings.WEB_PUBLIC_URL}/review/?booking_id={booking.id}&token={token}"
+    service_name = service.name if service else "услуга"
+    await send_sms(
+        to_phone=booking.client_phone,
+        text=f"{provider.name} закончил: {service_name}. Оцените работу: {link}",
+    )
+
+
+async def _recompute_provider_rating(db: AsyncSession, provider_id: uuid.UUID) -> None:
+    """Пересчитывает Provider.rating/rating_count из реальных отзывов —
+    вызывается после каждого нового отзыва. Перекрывает значение, заданное
+    вручную через админку (app/models.py Provider.rating docstring): как
+    только у мастера появился хоть один настоящий отзыв, ручное значение
+    больше не нужно."""
+    row = (
+        await db.execute(
+            select(func.avg(Review.rating), func.count(Review.id)).where(Review.provider_id == provider_id)
+        )
+    ).one()
+    avg_rating, count = row
+    provider = await db.get(Provider, provider_id)
+    provider.rating = round(float(avg_rating), 1) if avg_rating is not None else None
+    provider.rating_count = count or 0
+    await db.commit()
+
+
+@app.get("/api/reviews/invite/{booking_id}", response_model=ReviewInviteOut)
+async def get_review_invite(
+    booking_id: uuid.UUID,
+    token: str,
+    db: AsyncSession = Depends(get_db),
+) -> ReviewInviteOut:
+    booking = await db.get(Booking, booking_id)
+    invite = await db.get(ReviewInvite, token)
+    # Один и тот же 404 для "нет такой брони", "токен не тот" и "просрочен"
+    # — не даём угадывающему токены понять, какая часть угадана верно.
+    if (
+        booking is None
+        or invite is None
+        or invite.booking_id != booking_id
+        or invite.expires_at < datetime.now(timezone.utc)
+    ):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Invite not found or expired")
+    if invite.used_at is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This booking has already been reviewed")
+
+    provider = await db.get(Provider, booking.provider_id)
+    service = await db.get(Service, booking.service_id)
+    return ReviewInviteOut(
+        provider_name=provider.name if provider else "",
+        service_name=service.name if service else "",
+        start_at=booking.start_at,
+        client_name=booking.client_name,
+    )
+
+
+@app.post("/api/reviews/invite/{booking_id}", response_model=ReviewOut, status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/minute")
+async def submit_review(
+    request: Request,
+    booking_id: uuid.UUID,
+    payload: ReviewCreate,
+    db: AsyncSession = Depends(get_db),
+) -> Review:
+    booking = await db.get(Booking, booking_id)
+    invite = await db.get(ReviewInvite, payload.token)
+    if (
+        booking is None
+        or invite is None
+        or invite.booking_id != booking_id
+        or invite.expires_at < datetime.now(timezone.utc)
+    ):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Invite not found or expired")
+    if invite.used_at is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This booking has already been reviewed")
+
+    review = Review(
+        tenant_id=booking.tenant_id,
+        provider_id=booking.provider_id,
+        booking_id=booking.id,
+        client_name=booking.client_name,
+        rating=payload.rating,
+        text=payload.text,
+        photos=payload.photos,
+    )
+    invite.used_at = datetime.now(timezone.utc)
+    db.add(review)
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        # booking_id UNIQUE на review — тот же гонка-case, что EXCLUDE на
+        # booking: два одновременных сабмита с одним токеном, второй теряет.
+        if "unique" in str(exc.orig).lower():
+            raise HTTPException(status.HTTP_409_CONFLICT, "This booking has already been reviewed") from exc
+        raise
+    await db.refresh(review)
+
+    await _recompute_provider_rating(db, booking.provider_id)
+    return review
+
+
+@app.get("/api/providers/{provider_id}/reviews", response_model=list[ReviewOut])
+async def list_provider_reviews(
+    provider_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> list[Review]:
+    provider = await db.get(Provider, provider_id)
+    if provider is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Provider not found")
+    stmt = select(Review).where(Review.provider_id == provider_id).order_by(Review.created_at.desc())
+    return (await db.execute(stmt)).scalars().all()
 
 
 # ============================================================================

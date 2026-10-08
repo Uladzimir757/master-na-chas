@@ -304,6 +304,30 @@ export interface BlockPayload {
   reason?: string | null;
 }
 
+export interface ReviewInvite {
+  provider_name: string;
+  service_name: string;
+  start_at: string; // ISO 8601, tz-aware
+  client_name: string;
+}
+
+export interface ReviewSubmitPayload {
+  token: string;
+  rating: number; // 1..5
+  text?: string | null;
+  photos: string[]; // data: URLs, compressed client-side — see ReviewCreate in app/schemas.py
+}
+
+export interface Review {
+  id: string;
+  provider_id: string;
+  client_name: string | null;
+  rating: number;
+  text: string | null;
+  photos: string[];
+  created_at: string;
+}
+
 export const api = {
   // lang (Этап 3) resolves Service.name server-side — see app/main.py's
   // _resolve_service_name. Not needed by getAvailability: slot times carry
@@ -444,4 +468,12 @@ export const api = {
   // docstring for why that's checked instead of a raw cascade.
   deleteMaster: (masterUserId: string) =>
     request<{ ok: true }>(`/admin/masters/${masterUserId}`, { method: "DELETE" }),
+
+  // Отзывы (Этап 3) — публичные, верификация токеном из SMS-ссылки, см.
+  // app/main.py's _issue_review_invite/get_review_invite/submit_review.
+  getReviewInvite: (bookingId: string, token: string) =>
+    request<ReviewInvite>(`/api/reviews/invite/${bookingId}?token=${encodeURIComponent(token)}`),
+  submitReview: (bookingId: string, payload: ReviewSubmitPayload) =>
+    request<Review>(`/api/reviews/invite/${bookingId}`, { method: "POST", body: JSON.stringify(payload) }),
+  listProviderReviews: (providerId: string) => request<Review[]>(`/api/providers/${providerId}/reviews`),
 };

@@ -574,3 +574,50 @@ class TranslationApproveRequest(BaseModel):
     publish something nobody actually reviewed."""
 
     entries: list[TranslationRef] = Field(min_length=1)
+
+
+class ReviewInviteOut(BaseModel):
+    """GET /api/reviews/invite/{booking_id}?token=... — just enough to show
+    the review form a reasonable header without re-exposing full booking/
+    client data to whoever has the link."""
+
+    provider_name: str
+    service_name: str
+    start_at: datetime
+    client_name: str
+
+
+class ReviewCreate(BaseModel):
+    token: str
+    rating: int = Field(ge=1, le=5)
+    text: str | None = Field(default=None, max_length=2000)
+    # Data-URLs (base64), compressed client-side before sending — see
+    # app/models.py's Review.photos docstring for why there's no separate
+    # upload endpoint/storage here.
+    photos: list[str] = Field(default_factory=list, max_length=3)
+
+    @field_validator("photos")
+    @classmethod
+    def photos_look_like_data_urls(cls, v: list[str]) -> list[str]:
+        for photo in v:
+            if not photo.startswith("data:image/"):
+                raise ValueError("each photo must be a data: URL (data:image/...)")
+            # ~2MB source photo -> ~2.7MB base64; refuse anything wildly over
+            # that instead of letting a client dump an unsanitized huge
+            # string into the DB.
+            if len(photo) > 4_000_000:
+                raise ValueError("photo too large — compress before sending")
+        return v
+
+
+class ReviewOut(BaseModel):
+    id: uuid.UUID
+    provider_id: uuid.UUID
+    client_name: str | None
+    rating: int
+    text: str | None
+    photos: list[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

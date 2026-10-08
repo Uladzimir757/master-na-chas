@@ -10,8 +10,9 @@ import uuid
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, Numeric, SmallInteger, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ENUM as PgEnum
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -345,3 +346,44 @@ class TranslationEntry(Base):
     updated_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (UniqueConstraint("namespace", "key", "lang"),)
+
+
+class ReviewInvite(Base):
+    """Одноразовая SMS-ссылка на отзыв, выданная после PATCH
+    .../status → 'completed' (см. app/main.py:update_booking_status). Токен
+    хранится как есть (не хэш) — тот же уровень доверия, что у
+    TelegramLinkToken выше: одноразовый, короткоживущий, не учётные данные."""
+
+    __tablename__ = "review_invite"
+
+    token: Mapped[str] = mapped_column(String, primary_key=True)
+    booking_id: Mapped[uuid.UUID] = _uuid_col(fk="booking.id")
+    expires_at: Mapped[datetime] = mapped_column(TZDateTime)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(timezone.utc))
+    used_at: Mapped[datetime | None] = mapped_column(TZDateTime)
+
+    __table_args__ = (UniqueConstraint("booking_id"),)
+
+
+class Review(Base):
+    """Отзыв клиента — ровно один на завершённую бронь (booking_id UNIQUE),
+    что и есть защита от накрутки (см. ReviewInvite выше). Фото хранятся как
+    data-URL прямо в jsonb-колонке — нет файлового хранилища в проекте, см.
+    комментарий у review в db/schema.sql."""
+
+    __tablename__ = "review"
+
+    id: Mapped[uuid.UUID] = _uuid_col(primary_key=True)
+    tenant_id: Mapped[uuid.UUID] = _uuid_col(fk="tenant.id")
+    provider_id: Mapped[uuid.UUID] = _uuid_col(fk="provider.id")
+    booking_id: Mapped[uuid.UUID] = _uuid_col(fk="booking.id")
+    client_name: Mapped[str | None] = mapped_column(String)
+    rating: Mapped[int] = mapped_column(SmallInteger)
+    text: Mapped[str | None] = mapped_column(Text)
+    photos: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        UniqueConstraint("booking_id"),
+        CheckConstraint("rating BETWEEN 1 AND 5", name="review_rating_range"),
+    )
