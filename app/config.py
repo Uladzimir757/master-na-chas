@@ -68,6 +68,18 @@ class Settings(BaseSettings):
     TWILIO_SENDER_ID: str = "MasterNaChas"  # <=11 latin chars, decide the real brand name later
     SMS_ENABLED: bool = False
 
+    # Тексты уведомлений (SMS клиенту, Telegram/push мастеру) пишет LLM в
+    # момент отправки — в коде нет ни одного готового текста (app/llm_text.py).
+    # Без ключа уведомление просто не уходит (лог warning), запасного текста нет.
+    ANTHROPIC_API_KEY: str = ""
+    NOTIFICATION_LLM_MODEL: str = "claude-opus-5-5"
+    # Серверный fallback на случай отказа классификатора безопасности; пустая
+    # строка выключает (нужно, если модель выше его не поддерживает).
+    NOTIFICATION_LLM_FALLBACK_MODEL: str = "claude-opus-4-8"
+    NOTIFICATION_LLM_TIMEOUT_SECONDS: float = 60.0
+    # Язык сообщений мастеру (клиенту язык выбирается по коду страны номера).
+    NOTIFICATION_MASTER_LANGUAGE: str = "Russian"
+
     # Публичный адрес веб-фронтенда — для ссылки на форму отзыва, которую
     # SMS-сообщение шлёт клиенту после завершённой брони (см.
     # app/main.py:update_booking_status). Без схемы/слеша на конце.

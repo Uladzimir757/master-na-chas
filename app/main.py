@@ -80,7 +80,7 @@ from app.models import (
     WorkingHours,
     WorkingHoursException,
 )
-from app.notifications import send_sms, send_telegram_message, send_web_push
+from app.notifications import notify_client_sms, notify_master, reply_telegram, run_in_background
 from app.schemas import (
     AdminLoginRequest,
     AdminMasterUpdate,
@@ -422,38 +422,47 @@ async def create_booking(request: Request, payload: BookingCreate, db: AsyncSess
 
 
 async def _notify_new_booking(db: AsyncSession, booking: Booking, service: Service) -> None:
-    """Best-effort — never raises into the request (see notifications.py docstring)."""
+    """Best-effort — never raises into the request (see notifications.py docstring).
+    Текст пишет LLM (app/llm_text.py) в фоне; здесь только собираются факты —
+    plain-значения, а не ORM-объекты, потому что сессия живёт недолго."""
     master_user = (
         await db.execute(select(MasterUser).where(MasterUser.provider_id == booking.provider_id))
     ).scalar_one_or_none()
 
-    text = (
-        f"Новая бронь: {service.name}\n"
-        f"{booking.start_at.strftime('%d.%m %H:%M')}\n"
-        f"Клиент: {booking.client_name} {booking.client_phone or ''}"
-    )
+    start_local = booking.start_at.astimezone(BUSINESS_TZ)
+    when = {
+        "date": start_local.date().isoformat(),
+        "weekday": start_local.strftime("%A"),
+        "time": start_local.strftime("%H:%M"),
+    }
 
     if master_user is not None:
-        if master_user.telegram_chat_id:
-            await send_telegram_message(master_user.telegram_chat_id, text)
-
         subs = (
             await db.execute(
                 select(WebPushSubscription).where(WebPushSubscription.master_user_id == master_user.id)
             )
         ).scalars().all()
-        for sub in subs:
-            await send_web_push(
-                endpoint=sub.endpoint,
-                p256dh=sub.p256dh,
-                auth=sub.auth,
-                payload={"title": "Новая бронь", "body": text},
+        run_in_background(
+            notify_master(
+                telegram_chat_id=master_user.telegram_chat_id,
+                push_subscriptions=[{"endpoint": s.endpoint, "p256dh": s.p256dh, "auth": s.auth} for s in subs],
+                purpose="Tell the master that a client has just booked a new job and give the job, the time and how to reach the client.",
+                facts={
+                    "service": service.name,
+                    **when,
+                    "client_name": booking.client_name,
+                    "client_phone": booking.client_phone,
+                },
             )
+        )
 
     if booking.client_phone:
-        await send_sms(
-            to_phone=booking.client_phone,
-            text=f"Заявка принята: {service.name} {booking.start_at.strftime('%d.%m %H:%M')}. Мастер на час.",
+        run_in_background(
+            notify_client_sms(
+                phone=booking.client_phone,
+                purpose="Confirm to the client that the booking request was received for the given service and time.",
+                facts={"service": service.name, **when},
+            )
         )
 
 
@@ -1264,10 +1273,13 @@ async def _issue_review_invite(db: AsyncSession, booking: Booking, provider: Pro
     # of time, which is impossible; app/review/page.tsx reads both from
     # the query string instead.
     link = f"{settings.WEB_PUBLIC_URL}/review/?booking_id={booking.id}&token={token}"
-    service_name = service.name if service else "услуга"
-    await send_sms(
-        to_phone=booking.client_phone,
-        text=f"{provider.name} закончил: {service_name}. Оцените работу: {link}",
+    run_in_background(
+        notify_client_sms(
+            phone=booking.client_phone,
+            purpose="Tell the client the job is done and invite them to rate the work using the link.",
+            facts={"master": provider.name, "service": service.name if service else None},
+            must_include=link,
+        )
     )
 
 
@@ -1675,7 +1687,12 @@ async def telegram_webhook(update: dict, db: AsyncSession = Depends(get_db)) -> 
     token = text.removeprefix("/start ").strip()
     link = await db.get(TelegramLinkToken, token)
     if link is None or link.used_at is not None:
-        await send_telegram_message(str(chat_id), "Ссылка недействительна или уже использована.")
+        run_in_background(
+            reply_telegram(
+                chat_id=str(chat_id),
+                purpose="Tell the user that the link they used to connect notifications is invalid or was already used.",
+            )
+        )
         return {"ok": True}
 
     master_user = await db.get(MasterUser, link.master_user_id)
@@ -1683,7 +1700,12 @@ async def telegram_webhook(update: dict, db: AsyncSession = Depends(get_db)) -> 
     link.used_at = datetime.now(timezone.utc)
     await db.commit()
 
-    await send_telegram_message(str(chat_id), "Готово — уведомления о бронях теперь приходят сюда.")
+    run_in_background(
+        reply_telegram(
+            chat_id=str(chat_id),
+            purpose="Confirm that booking notifications will now arrive in this chat.",
+        )
+    )
     return {"ok": True}
 
 

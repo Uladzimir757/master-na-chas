@@ -5,13 +5,22 @@ POST /api/bookings")."""
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from collections.abc import Coroutine
+from typing import Any
 
 import httpx
 
 from app.config import settings
+from app.llm_text import compose_message, language_for_phone
 
 logger = logging.getLogger("notifications")
+
+SMS_MAX_CHARS = 300
+MASTER_MAX_CHARS = 400
+
+_background_tasks: set[asyncio.Task] = set()
 
 
 async def send_telegram_message(chat_id: str, text: str) -> None:
@@ -68,3 +77,81 @@ async def send_sms(*, to_phone: str, text: str) -> None:
         client.messages.create(to=to_phone, from_=settings.TWILIO_SENDER_ID, body=text)
     except Exception:
         logger.exception("sms_send_failed to=%s", to_phone)
+
+
+def run_in_background(coro: Coroutine[Any, Any, None]) -> None:
+    """Уведомление не должно задерживать ответ клиенту: текст пишет LLM (секунды),
+    поэтому compose+send уходят в отдельную задачу. Ссылка на задачу держится
+    в множестве, иначе её может собрать GC до завершения."""
+    task = asyncio.get_running_loop().create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
+
+async def notify_client_sms(
+    *, phone: str, purpose: str, facts: dict | None = None, must_include: str | None = None
+) -> None:
+    if not settings.SMS_ENABLED:
+        logger.info("sms_disabled: skipping send to %s", phone)
+        return
+    text = await compose_message(
+        recipient="client",
+        purpose=purpose,
+        facts=facts,
+        language=language_for_phone(phone),
+        max_chars=SMS_MAX_CHARS,
+        must_include=must_include,
+    )
+    if text:
+        await send_sms(to_phone=phone, text=text)
+
+
+async def notify_master(
+    *,
+    telegram_chat_id: str | None,
+    push_subscriptions: list[dict],
+    purpose: str,
+    facts: dict | None = None,
+) -> None:
+    """Один текст на оба канала: первая строка — заголовок пуша, Telegram
+    получает сообщение целиком."""
+    telegram_on = bool(telegram_chat_id and settings.TELEGRAM_BOT_TOKEN)
+    push_on = bool(push_subscriptions and settings.WEB_PUSH_ENABLED)
+    if not (telegram_on or push_on):
+        logger.info("master_notification_skipped: no active channel")
+        return
+    text = await compose_message(
+        recipient="master",
+        purpose=purpose,
+        facts=facts,
+        language=settings.NOTIFICATION_MASTER_LANGUAGE,
+        max_chars=MASTER_MAX_CHARS,
+        with_title=True,
+    )
+    if not text:
+        return
+    if telegram_on:
+        await send_telegram_message(telegram_chat_id, text)
+    if push_on:
+        title, _, body = text.partition("\n")
+        for sub in push_subscriptions:
+            await send_web_push(
+                endpoint=sub["endpoint"],
+                p256dh=sub["p256dh"],
+                auth=sub["auth"],
+                payload={"title": title.strip(), "body": body.strip() or title.strip()},
+            )
+
+
+async def reply_telegram(*, chat_id: str, purpose: str) -> None:
+    if not settings.TELEGRAM_BOT_TOKEN:
+        logger.info("telegram_disabled: no TELEGRAM_BOT_TOKEN configured, skipping send")
+        return
+    text = await compose_message(
+        recipient="master",
+        purpose=purpose,
+        language=settings.NOTIFICATION_MASTER_LANGUAGE,
+        max_chars=MASTER_MAX_CHARS,
+    )
+    if text:
+        await send_telegram_message(chat_id, text)
