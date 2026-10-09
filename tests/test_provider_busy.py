@@ -34,10 +34,10 @@ def test_provider_busy_range_is_none_when_not_busy():
     assert provider_busy_range(_provider()) is None
 
 
-def test_provider_busy_range_is_open_ended_without_an_estimate():
-    start = datetime(2027, 6, 7, 10, 0, tzinfo=timezone.utc)
+def test_provider_busy_range_ends_at_end_of_local_day_without_an_estimate():
+    start = datetime(2027, 6, 7, 10, 0, tzinfo=timezone.utc)  # 12:00 в Варшаве
     result = provider_busy_range(_provider(busy_started_at=start))
-    assert result == (start, datetime.max.replace(tzinfo=timezone.utc))
+    assert result == (start, datetime(2027, 6, 7, 22, 0, tzinfo=timezone.utc))  # 00:00 8 июня в Варшаве
 
 
 def test_provider_busy_range_ends_at_estimate_plus_fixed_buffer():
@@ -51,11 +51,20 @@ def test_overlaps_provider_busy_range_false_when_not_busy():
     assert overlaps_provider_busy_range(_provider(), start, start + timedelta(hours=1)) is False
 
 
-def test_overlaps_provider_busy_range_true_arbitrarily_far_out_without_an_estimate():
+def test_overlaps_provider_busy_range_true_later_the_same_local_day_without_an_estimate():
+    start = datetime(2027, 6, 7, 10, 0, tzinfo=timezone.utc)  # 12:00 в Варшаве
+    p = _provider(busy_started_at=start)
+    evening = datetime(2027, 6, 7, 19, 0, tzinfo=timezone.utc)  # 21:00 в Варшаве
+    assert overlaps_provider_busy_range(p, evening, evening + timedelta(hours=1)) is True
+
+
+def test_overlaps_provider_busy_range_false_from_the_next_local_day_without_an_estimate():
     start = datetime(2027, 6, 7, 10, 0, tzinfo=timezone.utc)
     p = _provider(busy_started_at=start)
+    next_day = datetime(2027, 6, 7, 22, 0, tzinfo=timezone.utc)  # 00:00 8 июня в Варшаве
     far_future = datetime(2030, 1, 1, tzinfo=timezone.utc)
-    assert overlaps_provider_busy_range(p, far_future, far_future + timedelta(hours=1)) is True
+    assert overlaps_provider_busy_range(p, next_day, next_day + timedelta(hours=1)) is False
+    assert overlaps_provider_busy_range(p, far_future, far_future + timedelta(hours=1)) is False
 
 
 def test_overlaps_provider_busy_range_false_before_busy_started():
@@ -84,7 +93,18 @@ def test_overlaps_provider_busy_range_false_after_estimate_plus_buffer_window():
 # ----------------------------------------------------------------------------
 
 
-async def test_busy_with_no_estimate_blocks_every_slot_from_then_on(
+async def test_busy_with_no_estimate_does_not_block_next_days(
+    db_session: AsyncSession, bookable_provider: Provider, service: Service
+):
+    bookable_provider.busy_started_at = datetime.combine(NEXT_MONDAY, time(12, 0), tzinfo=BUSINESS_TZ)
+    db_session.add(bookable_provider)
+    await db_session.commit()
+    tuesday = NEXT_MONDAY + timedelta(days=1)
+    slots = await get_availability(db_session, service, tuesday, tuesday, provider=bookable_provider)
+    assert slots, "next day must stay bookable"
+
+
+async def test_busy_with_no_estimate_blocks_rest_of_that_day(
     db_session: AsyncSession, bookable_provider: Provider, service: Service
 ):
     busy_start = datetime.combine(NEXT_MONDAY, time(12, 0), tzinfo=BUSINESS_TZ)

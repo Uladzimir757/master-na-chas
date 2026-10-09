@@ -63,16 +63,19 @@ def provider_busy_range(provider: Provider) -> tuple[datetime, datetime] | None:
     bookings say — for a job that runs long, or for off-app work never
     booked through the site at all. None if he isn't currently marked busy.
 
-    With no estimate the range has no upper bound — every slot from
-    busy_started_at on stays blocked until he presses "закончить" or adds
-    one; nothing here auto-expires on its own. That's the safe direction to
-    fail in: better an available master looks busy a while too long than a
-    genuinely busy one gets double-booked. With an estimate, the range ends
+    With no estimate the range runs until the end of that same local day
+    (Europe/Warsaw): later days stay bookable even if he forgot to press
+    "закончить" (real bug: a forgotten toggle blocked the next 14 days).
+    With an estimate, the range ends
     at busy_started_at + busy_estimated_minutes + BUSY_ESTIMATE_BUFFER."""
     if provider.busy_started_at is None:
         return None
     if provider.busy_estimated_minutes is None:
-        return provider.busy_started_at, datetime.max.replace(tzinfo=timezone.utc)
+        # Без оценки «занят» держится до конца того же дня (по Варшаве), а не
+        # бессрочно: забытая кнопка не должна закрывать мастера на недели.
+        local_start = provider.busy_started_at.astimezone(BUSINESS_TZ)
+        end_of_day = datetime.combine(local_start.date() + timedelta(days=1), time.min, tzinfo=BUSINESS_TZ)
+        return provider.busy_started_at, end_of_day
     busy_until = provider.busy_started_at + timedelta(minutes=provider.busy_estimated_minutes) + BUSY_ESTIMATE_BUFFER
     return provider.busy_started_at, busy_until
 
