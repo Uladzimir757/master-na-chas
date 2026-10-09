@@ -198,6 +198,18 @@ export interface Translations {
   calendarNextLabel: string;
   calendarTodayButton: string;
   calendarAddLabel: string;
+  closedPeriodTitle: string;
+  closedPeriodHint: string;
+  closedPeriodRestOfToday: string;
+  closedPeriodTomorrow: string;
+  closedPeriodWeek: string;
+  closedPeriodFrom: string;
+  closedPeriodTo: string;
+  closedPeriodReason: string;
+  closedPeriodSave: string;
+  closedPeriodRemove: string;
+  closedPeriodInvalid: string;
+  closedPeriodError: string;
   serviceDurationLabel: string;
   servicePriceMinLabel: string;
   servicePriceMaxLabel: string;
@@ -536,6 +548,18 @@ export function buildTranslations(map: TranslationMap): Translations {
     calendarNextLabel: pick(map, "calendarNextLabel"),
     calendarTodayButton: pick(map, "calendarTodayButton"),
     calendarAddLabel: pick(map, "calendarAddLabel"),
+    closedPeriodTitle: pick(map, "closedPeriodTitle"),
+    closedPeriodHint: pick(map, "closedPeriodHint"),
+    closedPeriodRestOfToday: pick(map, "closedPeriodRestOfToday"),
+    closedPeriodTomorrow: pick(map, "closedPeriodTomorrow"),
+    closedPeriodWeek: pick(map, "closedPeriodWeek"),
+    closedPeriodFrom: pick(map, "closedPeriodFrom"),
+    closedPeriodTo: pick(map, "closedPeriodTo"),
+    closedPeriodReason: pick(map, "closedPeriodReason"),
+    closedPeriodSave: pick(map, "closedPeriodSave"),
+    closedPeriodRemove: pick(map, "closedPeriodRemove"),
+    closedPeriodInvalid: pick(map, "closedPeriodInvalid"),
+    closedPeriodError: pick(map, "closedPeriodError"),
     serviceDurationLabel: pick(map, "serviceDurationLabel"),
     servicePriceMinLabel: pick(map, "servicePriceMinLabel"),
     servicePriceMaxLabel: pick(map, "servicePriceMaxLabel"),

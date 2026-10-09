@@ -15,6 +15,7 @@ import {
   type LocationSharingStatus,
 } from "@/lib/useLocationSharing";
 import type { Translations } from "@/lib/i18n";
+import ClosedPeriods from "@/components/ClosedPeriods";
 import AnalyticsPanel from "@/components/AnalyticsPanel";
 import StaffManager from "@/components/StaffManager";
 import {
@@ -693,6 +694,8 @@ export default function CabinetDashboard({
               <p className="mt-2 text-sm text-danger">{busyError}</p>
             )}
           </section>
+
+          <ClosedPeriods />
 
           <section className="border-t border-line pt-5">
             <h2 className="mb-2 text-sm font-medium text-ink/60">
