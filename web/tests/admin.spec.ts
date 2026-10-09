@@ -185,7 +185,8 @@ test("a master with existing bookings can't be deleted — shows the backend's 4
   await page.getByRole("button", { name: "Да, удалить" }).click();
 
   await expect(page.getByText("есть бронирования")).toBeVisible();
-  await expect(page.getByRole("cell", { name: "Владимир" })).toBeVisible();
+  // мастера показаны карточками (раньше — таблица): имя осталось в списке
+  await expect(page.getByText("Владимир", { exact: true })).toBeVisible();
 });
 
 test("logging out returns to the login form", async ({ page }) => {

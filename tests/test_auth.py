@@ -17,7 +17,8 @@ from tests.conftest import MASTER_PASSWORD
 async def test_login_then_me_then_logout(client: AsyncClient, master_user: MasterUser):
     login = await client.post("/auth/login", json={"email": master_user.email, "password": MASTER_PASSWORD})
     assert login.status_code == 200, login.text
-    assert login.json() == {"ok": True}
+    # рядом с cookie-сессией выдаётся Bearer-токен (запасной путь для Safari/iOS)
+    assert login.json()["ok"] is True and login.json()["token"]
 
     me = await client.get("/auth/me")
     assert me.status_code == 200

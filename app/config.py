@@ -47,6 +47,13 @@ class Settings(BaseSettings):
                 "browsers silently drop SameSite=None cookies that aren't also Secure, which "
                 "would otherwise fail exactly the way this setting exists to prevent."
             )
+        if self.SESSION_COOKIE_HTTPS_ONLY and "change-me-in-prod" in (self.ADMIN_SECRET, self.SESSION_SECRET):
+            import logging
+
+            logging.getLogger(__name__).critical(
+                "ADMIN_SECRET/SESSION_SECRET still have the default value on an HTTPS deployment — "
+                "anyone can open /admin. Set real secrets in the environment."
+            )
         return self
 
     # Telegram — one bot for the whole platform. chat_id per master lives in

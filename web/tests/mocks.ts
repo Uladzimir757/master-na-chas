@@ -439,10 +439,12 @@ export async function mockAuthMe(
  * wrong credentials (401) or a server error (500). После успешного входа
  * сессия «появляется»: дашборд сам запрашивает /auth/me за правами, и он
  * должен отвечать как залогиненный (как реальный бэкенд). */
-export async function mockLogin(page: Page, opts?: { status?: number }) {
+export async function mockLogin(page: Page, opts?: { status?: number; sessionPersists?: boolean }) {
   const status = opts?.status ?? 200;
   await page.route("**/auth/login", async (route) => {
-    if (status === 200) await mockAuthMe(page, { loggedIn: true });
+    // sessionPersists: false — вход «проходит», но сессия не сохраняется
+    // (Safari режет межсайтовые cookie): /auth/me остаётся 401.
+    if (status === 200 && opts?.sessionPersists !== false) await mockAuthMe(page, { loggedIn: true });
     await route.fulfill(
       status === 200
         ? { status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }

@@ -67,6 +67,20 @@ test("a server error while logging in shows the generic error, not the wrong-cre
   await expect(page.getByText(t.loginGenericError)).toBeVisible();
 });
 
+test("a login that does not stick shows the generic error, not 'wrong password'", async ({ page }) => {
+  await mockAuthMe(page, { loggedIn: false });
+  await mockLogin(page, { sessionPersists: false });
+
+  await page.goto("/cabinet/");
+  await page.getByPlaceholder(t.emailPlaceholder).fill("master@example.com");
+  await page.getByPlaceholder(t.passwordPlaceholder).fill("correct-password");
+  await page.getByRole("button", { name: t.loginButton }).click();
+
+  await expect(page.getByText(t.loginGenericError)).toBeVisible();
+  await expect(page.getByText(t.loginError)).not.toBeVisible();
+  await expect(page.getByRole("heading", { name: t.cabinetLoginTitle })).toBeVisible();
+});
+
 test("successful login loads the dashboard with settings and bookings", async ({ page }) => {
   await mockAuthMe(page, { loggedIn: false });
   await mockLogin(page);

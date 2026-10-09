@@ -135,7 +135,14 @@ from app.schemas import (
     WorkingHoursUpdate,
 )
 from app.permissions import PERMISSIONS, ROLE_DEFAULTS, ROLE_OWNER, ROLES, effective_permissions
-from app.security import hash_password, require_master_user_id, verify_password
+from app.security import (
+    ADMIN_TOKEN_MAX_AGE,
+    hash_password,
+    make_token,
+    read_token,
+    require_master_user_id,
+    verify_password,
+)
 from app.slot_engine import (
     BUSINESS_TZ,
     LOCATION_FRESHNESS,
@@ -220,7 +227,12 @@ def require_admin(request: Request, x_admin_secret: str = Header(default="")) ->
     single login request."""
     if request.session.get("is_admin") is True:
         return
-    if not secrets.compare_digest(x_admin_secret, settings.ADMIN_SECRET):
+    if read_token(request, "admin", ADMIN_TOKEN_MAX_AGE) is not None:
+        return
+    # compare_digest(str, str) бросает TypeError на не-ASCII -> 500; сравниваем байты.
+    if not x_admin_secret or not secrets.compare_digest(
+        x_admin_secret.encode("utf-8"), settings.ADMIN_SECRET.encode("utf-8")
+    ):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Not admin")
 
 
@@ -658,7 +670,7 @@ async def login(request: Request, payload: LoginRequest, db: AsyncSession = Depe
     if master_user is None or not verify_password(payload.password, master_user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials")
     request.session["master_user_id"] = str(master_user.id)
-    return {"ok": True}
+    return {"ok": True, "token": make_token("master", str(master_user.id))}
 
 
 @app.post("/auth/logout")
@@ -1834,10 +1846,10 @@ async def get_my_analytics(
 @app.post("/admin/login")
 @limiter.limit("5/minute")
 async def admin_login(request: Request, payload: AdminLoginRequest) -> dict:
-    if not secrets.compare_digest(payload.password, settings.ADMIN_SECRET):
+    if not secrets.compare_digest(payload.password.encode("utf-8"), settings.ADMIN_SECRET.encode("utf-8")):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid password")
     request.session["is_admin"] = True
-    return {"ok": True}
+    return {"ok": True, "token": make_token("admin")}
 
 
 @app.post("/admin/logout")

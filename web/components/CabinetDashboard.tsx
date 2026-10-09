@@ -139,14 +139,20 @@ export default function CabinetDashboard({
       setSettings(s);
       setServiceToggles(svc);
       setLoaded(true);
-    } catch {
+    } catch (err) {
+      // Сессия не сохранилась (например, Safari режет межсайтовые cookie) —
+      // вернуть на экран входа, а не показывать общую «не удалось загрузить».
+      if (err instanceof ApiError && err.status === 401) {
+        onLogout();
+        return;
+      }
       setLoadError(t.cabinetLoadError);
     }
     // t is derived from `locale` and would otherwise re-run this on every
     // translation-object identity change; `locale` alone covers the real
     // trigger (service names are resolved server-side per lang).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locale]);
+  }, [locale, onLogout]);
 
   useEffect(() => {
     if (!ready) return;

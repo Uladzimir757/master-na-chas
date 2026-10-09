@@ -42,3 +42,18 @@ body {
 .chip-settle {
   animation: chip-settle 200ms ease-out;
 }
+
+/* iOS Safari увеличивает страницу при фокусе на поле со шрифтом < 16px —
+   на телефонах держим 16px у всех полей ввода. */
+@media (max-width: 639px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Нижняя панель календаря не должна прятаться под «домашней» полосой iPhone. */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}

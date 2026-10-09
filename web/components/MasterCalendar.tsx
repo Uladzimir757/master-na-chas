@@ -342,7 +342,7 @@ export default function MasterCalendar() {
         </div>
       )}
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg sm:hidden">
+      <div className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg sm:hidden">
         <div className="flex items-stretch gap-1 px-2 py-2">
           <button
             type="button"

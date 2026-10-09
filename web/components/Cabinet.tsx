@@ -37,10 +37,26 @@ export default function Cabinet() {
       setLoginError(null);
       setLoggingIn(true);
       try {
-        await api.login(email, password);
+        try {
+          await api.login(email, password);
+        } catch (err) {
+          setLoginError(
+            err instanceof ApiError && err.status === 401
+              ? t.loginError
+              : t.loginGenericError,
+          );
+          return;
+        }
+        // Пароль верный, но сессия могла не сохраниться (cookie/токен) —
+        // тогда кабинет стартовал бы без неё и падал на загрузке. Это не
+        // «неверный пароль», поэтому показываем общую ошибку, а не loginError.
+        try {
+          await api.me();
+        } catch {
+          setLoginError(t.loginGenericError);
+          return;
+        }
         setAuthState("authed");
-      } catch (err) {
-        setLoginError(err instanceof ApiError && err.status === 401 ? t.loginError : t.loginGenericError);
       } finally {
         setLoggingIn(false);
       }

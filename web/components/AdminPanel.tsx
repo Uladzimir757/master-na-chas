@@ -17,7 +17,8 @@ import { PasswordInput } from "@/components/PasswordInput";
 
 type AuthState = "checking" | "anon" | "authed";
 
-const inputClass = "w-full rounded-md border border-line bg-bg px-3 py-2 text-ink placeholder:text-ink/40";
+const inputClass =
+  "w-full rounded-md border border-line bg-bg px-3 py-2 text-ink placeholder:text-ink/40";
 const passwordClass = `${inputClass} pr-10`;
 
 export default function AdminPanel() {
@@ -148,50 +149,83 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     }
   }, []);
 
-  const handleRatingBlur = useCallback(async (master: AdminMaster, raw: string) => {
-    const trimmed = raw.trim();
-    const parsed = trimmed === "" ? null : Number(trimmed);
-    const nextRating = parsed !== null && Number.isNaN(parsed) ? null : parsed;
-    if (nextRating === master.rating) return;
-    setRatingError(null);
-    setSavingRatingFor(master.master_user_id);
-    try {
-      const updated = await api.updateMasterRating(master.master_user_id, nextRating, master.rating_count);
-      setMasters((prev) => prev?.map((m) => (m.master_user_id === updated.master_user_id ? updated : m)) ?? prev);
-    } catch {
-      setRatingError("Не удалось сохранить оценку — попробуйте ещё раз");
-    } finally {
-      setSavingRatingFor(null);
-    }
-  }, []);
+  const handleRatingBlur = useCallback(
+    async (master: AdminMaster, raw: string) => {
+      const trimmed = raw.trim();
+      const parsed = trimmed === "" ? null : Number(trimmed);
+      const nextRating =
+        parsed !== null && Number.isNaN(parsed) ? null : parsed;
+      if (nextRating === master.rating) return;
+      setRatingError(null);
+      setSavingRatingFor(master.master_user_id);
+      try {
+        const updated = await api.updateMasterRating(
+          master.master_user_id,
+          nextRating,
+          master.rating_count,
+        );
+        setMasters(
+          (prev) =>
+            prev?.map((m) =>
+              m.master_user_id === updated.master_user_id ? updated : m,
+            ) ?? prev,
+        );
+      } catch {
+        setRatingError("Не удалось сохранить оценку — попробуйте ещё раз");
+      } finally {
+        setSavingRatingFor(null);
+      }
+    },
+    [],
+  );
 
-  const handleRatingCountBlur = useCallback(async (master: AdminMaster, raw: string) => {
-    const trimmed = raw.trim();
-    const parsed = trimmed === "" ? 0 : Math.trunc(Number(trimmed));
-    const nextCount = Number.isNaN(parsed) ? master.rating_count : Math.max(0, parsed);
-    if (nextCount === master.rating_count) return;
-    setRatingError(null);
-    setSavingRatingFor(master.master_user_id);
-    try {
-      const updated = await api.updateMasterRating(master.master_user_id, master.rating, nextCount);
-      setMasters((prev) => prev?.map((m) => (m.master_user_id === updated.master_user_id ? updated : m)) ?? prev);
-    } catch {
-      setRatingError("Не удалось сохранить оценку — попробуйте ещё раз");
-    } finally {
-      setSavingRatingFor(null);
-    }
-  }, []);
+  const handleRatingCountBlur = useCallback(
+    async (master: AdminMaster, raw: string) => {
+      const trimmed = raw.trim();
+      const parsed = trimmed === "" ? 0 : Math.trunc(Number(trimmed));
+      const nextCount = Number.isNaN(parsed)
+        ? master.rating_count
+        : Math.max(0, parsed);
+      if (nextCount === master.rating_count) return;
+      setRatingError(null);
+      setSavingRatingFor(master.master_user_id);
+      try {
+        const updated = await api.updateMasterRating(
+          master.master_user_id,
+          master.rating,
+          nextCount,
+        );
+        setMasters(
+          (prev) =>
+            prev?.map((m) =>
+              m.master_user_id === updated.master_user_id ? updated : m,
+            ) ?? prev,
+        );
+      } catch {
+        setRatingError("Не удалось сохранить оценку — попробуйте ещё раз");
+      } finally {
+        setSavingRatingFor(null);
+      }
+    },
+    [],
+  );
 
   const handleDeleteMaster = useCallback(async (master: AdminMaster) => {
     setDeleteError(null);
     setDeletingFor(master.master_user_id);
     try {
       await api.deleteMaster(master.master_user_id);
-      setMasters((prev) => prev?.filter((m) => m.master_user_id !== master.master_user_id) ?? prev);
+      setMasters(
+        (prev) =>
+          prev?.filter((m) => m.master_user_id !== master.master_user_id) ??
+          prev,
+      );
       setConfirmDeleteFor(null);
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
-        setDeleteError(`${master.name}: есть бронирования — сначала перенесите или отмените их`);
+        setDeleteError(
+          `${master.name}: есть бронирования — сначала перенесите или отмените их`,
+        );
       } else {
         setDeleteError("Не удалось удалить мастера — попробуйте ещё раз");
       }
@@ -213,112 +247,121 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         <h2 className="mb-3 text-lg font-medium">Мастера</h2>
         {loadError && <p className="mb-3 text-sm text-danger">{loadError}</p>}
         {masters === null && !loadError && <Centered>Загрузка…</Centered>}
-        {masters !== null && masters.length === 0 && <p className="text-sm text-ink/60">Мастеров пока нет</p>}
+        {masters !== null && masters.length === 0 && (
+          <p className="text-sm text-ink/60">Мастеров пока нет</p>
+        )}
         {masters !== null && masters.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-line text-ink/60">
-                  <th className="py-2 pr-3 font-normal">Имя</th>
-                  <th className="py-2 pr-3 font-normal">Email</th>
-                  <th className="py-2 pr-3 font-normal">Буфер выезда</th>
-                  <th className="py-2 pr-3 font-normal">Рейтинг</th>
-                  <th className="py-2 pr-3 font-normal">Telegram</th>
-                  <th className="py-2 pr-3 font-normal">&nbsp;</th>
-                  <th className="py-2 font-normal">&nbsp;</th>
-                </tr>
-              </thead>
-              <tbody>
-                {masters.map((m) => (
-                  <tr key={m.master_user_id} className="border-b border-line last:border-0">
-                    <td className="py-2 pr-3">{m.name}</td>
-                    <td className="py-2 pr-3">{m.email}</td>
-                    <td className="py-2 pr-3">{m.travel_buffer_minutes} мин</td>
-                    <td className="py-2 pr-3">
-                      <div className="flex items-center gap-1">
-                        <input
-                          key={`${m.master_user_id}-rating-${m.rating ?? "empty"}`}
-                          type="number"
-                          min={0}
-                          max={5}
-                          step="0.1"
-                          aria-label={`Рейтинг — ${m.name}`}
-                          defaultValue={m.rating ?? ""}
-                          placeholder="—"
-                          disabled={savingRatingFor === m.master_user_id}
-                          onBlur={(e) => handleRatingBlur(m, e.target.value)}
-                          className="w-16 rounded-md border border-line bg-bg px-2 py-1 text-ink"
-                        />
-                        <span className="text-ink/40">/</span>
-                        <input
-                          key={`${m.master_user_id}-count-${m.rating_count}`}
-                          type="number"
-                          min={0}
-                          step="1"
-                          aria-label={`Число оценок — ${m.name}`}
-                          defaultValue={m.rating_count}
-                          disabled={savingRatingFor === m.master_user_id}
-                          onBlur={(e) => handleRatingCountBlur(m, e.target.value)}
-                          className="w-16 rounded-md border border-line bg-bg px-2 py-1 text-ink"
-                        />
-                      </div>
-                    </td>
-                    <td className="py-2 pr-3">{m.telegram_linked ? "привязан" : "не привязан"}</td>
-                    <td className="py-2">
-                      {!m.telegram_linked &&
-                        (linkByMaster[m.master_user_id] ? (
-                          <a
-                            href={linkByMaster[m.master_user_id]}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-accent underline"
-                          >
-                            открыть ссылку
-                          </a>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleGetTelegramLink(m.master_user_id)}
-                            className="text-accent underline"
-                          >
-                            получить ссылку
-                          </button>
-                        ))}
-                    </td>
-                    <td className="py-2">
-                      {confirmDeleteFor === m.master_user_id ? (
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteMaster(m)}
-                            disabled={deletingFor === m.master_user_id}
-                            className="text-danger underline"
-                          >
-                            {deletingFor === m.master_user_id ? "Удаляем…" : "Да, удалить"}
-                          </button>
-                          <button type="button" onClick={() => setConfirmDeleteFor(null)} className="text-ink/60 underline">
-                            Отмена
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDeleteFor(m.master_user_id)}
-                          className="text-danger underline"
-                        >
-                          Удалить
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="flex flex-col gap-3">
+            {masters.map((m) => (
+              <div
+                key={m.master_user_id}
+                className="rounded-lg border border-line p-3 text-sm"
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                  <span className="text-base font-medium">{m.name}</span>
+                  <span className="break-all text-ink/60">{m.email}</span>
+                </div>
+                <div className="mt-1 text-ink/60">
+                  Буфер выезда: {m.travel_buffer_minutes} мин
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-ink/60">Рейтинг</span>
+                  <input
+                    key={`${m.master_user_id}-rating-${m.rating ?? "empty"}`}
+                    type="number"
+                    min={0}
+                    max={5}
+                    step="0.1"
+                    inputMode="decimal"
+                    aria-label={`Рейтинг — ${m.name}`}
+                    defaultValue={m.rating ?? ""}
+                    placeholder="—"
+                    disabled={savingRatingFor === m.master_user_id}
+                    onBlur={(e) => handleRatingBlur(m, e.target.value)}
+                    className="w-20 rounded-md border border-line bg-bg px-2 py-1.5 text-ink"
+                  />
+                  <span className="text-ink/40">из</span>
+                  <input
+                    key={`${m.master_user_id}-count-${m.rating_count}`}
+                    type="number"
+                    min={0}
+                    step="1"
+                    inputMode="numeric"
+                    aria-label={`Число оценок — ${m.name}`}
+                    defaultValue={m.rating_count}
+                    disabled={savingRatingFor === m.master_user_id}
+                    onBlur={(e) => handleRatingCountBlur(m, e.target.value)}
+                    className="w-20 rounded-md border border-line bg-bg px-2 py-1.5 text-ink"
+                  />
+                  <span className="text-ink/60">оценок</span>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span className="text-ink/60">Telegram: </span>
+                    {m.telegram_linked ? (
+                      "привязан"
+                    ) : linkByMaster[m.master_user_id] ? (
+                      <a
+                        href={linkByMaster[m.master_user_id]}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-accent underline"
+                      >
+                        открыть ссылку
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleGetTelegramLink(m.master_user_id)}
+                        className="text-accent underline"
+                      >
+                        получить ссылку
+                      </button>
+                    )}
+                  </div>
+                  {confirmDeleteFor === m.master_user_id ? (
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteMaster(m)}
+                        disabled={deletingFor === m.master_user_id}
+                        className="text-danger underline"
+                      >
+                        {deletingFor === m.master_user_id
+                          ? "Удаляем…"
+                          : "Да, удалить"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteFor(null)}
+                        className="text-ink/60 underline"
+                      >
+                        Отмена
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteFor(m.master_user_id)}
+                      className="text-danger underline"
+                    >
+                      Удалить
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         )}
         {linkError && <p className="mt-2 text-sm text-danger">{linkError}</p>}
-        {ratingError && <p className="mt-2 text-sm text-danger">{ratingError}</p>}
-        {deleteError && <p className="mt-2 text-sm text-danger">{deleteError}</p>}
+        {ratingError && (
+          <p className="mt-2 text-sm text-danger">{ratingError}</p>
+        )}
+        {deleteError && (
+          <p className="mt-2 text-sm text-danger">{deleteError}</p>
+        )}
       </Card>
 
       <CreateMasterForm onCreated={load} />
@@ -412,7 +455,11 @@ function CreateMasterForm({ onCreated }: { onCreated: () => void }) {
           />
         </label>
         {error && <p className="text-sm text-danger">{error}</p>}
-        {success && <p className="text-sm text-accent-2">Мастер создан. Не забудьте выдать ему email и пароль.</p>}
+        {success && (
+          <p className="text-sm text-accent-2">
+            Мастер создан. Не забудьте выдать ему email и пароль.
+          </p>
+        )}
         <Button type="submit" disabled={submitting}>
           {submitting ? "Создаём…" : "Создать мастера"}
         </Button>

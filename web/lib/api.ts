@@ -5,6 +5,8 @@
  * enough that hand-written types are the right amount of ceremony.
  */
 
+import { getToken, kindForPath, setToken } from "@/lib/authToken";
+
 // NEXT_PUBLIC_* is inlined at BUILD time, not read at runtime — a missing
 // value here means every deployed visitor silently gets a dead API target
 // with no error anywhere obvious to a developer. Falling back to the local
@@ -45,6 +47,8 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token =
+    typeof window === "undefined" ? null : getToken(kindForPath(path));
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     // The public booking flow never needed this (no login involved), but the
@@ -53,7 +57,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     // from the frontend in both prod (separate onrender.com services) and
     // local dev (different port). Harmless for the anonymous endpoints.
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...init?.headers,
+    },
   });
   if (!res.ok) {
     let detail: unknown;
@@ -430,12 +438,21 @@ export const api = {
   // from anything the client sends (see app/main.py's _get_own_provider —
   // GET /api/bookings used to take an arbitrary provider_id and hand back
   // any client's name/phone, which is exactly the bug this shape avoids).
-  login: (email: string, password: string) =>
-    request<{ ok: true }>("/auth/login", {
+  login: async (email: string, password: string) => {
+    const res = await request<{ ok: true; token?: string }>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
-    }),
-  logout: () => request<{ ok: true }>("/auth/logout", { method: "POST" }),
+    });
+    setToken("master", res.token);
+    return res;
+  },
+  logout: async () => {
+    try {
+      return await request<{ ok: true }>("/auth/logout", { method: "POST" });
+    } finally {
+      setToken("master", null);
+    }
+  },
   me: () =>
     request<{
       master_user_id: string;
@@ -616,12 +633,21 @@ export const api = {
 
   // Admin panel — session cookie set by adminLogin(), same require_admin
   // gate as the pre-existing X-Admin-Secret scripts (app/main.py).
-  adminLogin: (password: string) =>
-    request<{ ok: true }>("/admin/login", {
+  adminLogin: async (password: string) => {
+    const res = await request<{ ok: true; token?: string }>("/admin/login", {
       method: "POST",
       body: JSON.stringify({ password }),
-    }),
-  adminLogout: () => request<{ ok: true }>("/admin/logout", { method: "POST" }),
+    });
+    setToken("admin", res.token);
+    return res;
+  },
+  adminLogout: async () => {
+    try {
+      return await request<{ ok: true }>("/admin/logout", { method: "POST" });
+    } finally {
+      setToken("admin", null);
+    }
+  },
   adminMe: () => request<{ is_admin: true }>("/admin/me"),
   listMasters: () => request<AdminMaster[]>("/admin/masters"),
   createMaster: (payload: CreateMasterPayload) =>

@@ -101,7 +101,8 @@ async def test_admin_login_then_me_then_logout(client: AsyncClient):
 
     login = await client.post("/admin/login", json={"password": TEST_SECRET})
     assert login.status_code == 200, login.text
-    assert login.json() == {"ok": True}
+    # рядом с cookie-сессией выдаётся Bearer-токен (запасной путь для Safari/iOS)
+    assert login.json()["ok"] is True and login.json()["token"]
 
     me = await client.get("/admin/me")
     assert me.status_code == 200
