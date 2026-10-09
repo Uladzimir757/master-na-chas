@@ -90,6 +90,11 @@ class Settings(BaseSettings):
     # app/main.py:update_booking_status). Без схемы/слеша на конце.
     WEB_PUBLIC_URL: str = "http://localhost:3000"
 
+    # Клиент может сам отменить/перенести запись не позже чем за N часов до начала.
+    CLIENT_CHANGE_MIN_HOURS: int = 4
+    # Живая точка мастера на странице записи показывается за N часов до начала.
+    TRACK_WINDOW_HOURS: int = 2
+
     # Этап 2: the Next.js frontend is a separate deploy (separate origin), so
     # the browser enforces CORS on every fetch() it makes to this API.
     # Comma-separated list, no trailing slashes. localhost:3000 by default so

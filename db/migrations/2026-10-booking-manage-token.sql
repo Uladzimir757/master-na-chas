@@ -1,0 +1,1 @@
+ALTER TABLE booking ADD COLUMN IF NOT EXISTS manage_token text UNIQUE;

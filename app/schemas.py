@@ -58,6 +58,13 @@ class BookingOut(BaseModel):
         from_attributes = True
 
 
+class BookingCreatedOut(BookingOut):
+    """Ответ на публичный POST /api/bookings: плюс секрет ссылки «моя запись»
+    (его же получает клиент в SMS) — SMS пока может быть не подключён."""
+
+    manage_token: str | None = None
+
+
 class BookingStatusUpdate(BaseModel):
     status: BookingStatus
     # итоговая цена работы — при завершении (аналитика)
@@ -683,3 +690,35 @@ class AnalyticsOut(BaseModel):
     services: list[ServiceStatOut]
 
 
+# ---- "Моя запись": публичная страница клиента по ссылке из SMS --------------
+
+
+class MyBookingOut(BaseModel):
+    id: uuid.UUID
+    service_name: str
+    provider_name: str
+    start_at: datetime
+    end_at: datetime
+    status: BookingStatus
+    can_change: bool          # можно ли ещё отменить/перенести
+    change_deadline: datetime  # до какого момента можно
+    location: ProviderLocationOut | None = None  # живая точка мастера (если можно показывать)
+
+
+class MyBookingReschedule(BaseModel):
+    token: str
+    start_at: datetime
+
+    @field_validator("start_at")
+    @classmethod
+    def _tz(cls, v: datetime) -> datetime:
+        return _require_tz_aware(v)
+
+
+class MyBookingHistoryItem(BaseModel):
+    id: uuid.UUID
+    service_name: str
+    provider_name: str
+    start_at: datetime
+    status: BookingStatus
+    price: Decimal | None = None

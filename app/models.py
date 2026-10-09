@@ -279,6 +279,8 @@ class Booking(Base):
     # Итоговая цена работы — мастер/сотрудник вводит при завершении; нужна
     # аналитике по работам. NULL = не указана (в выручку не входит).
     price: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    # Секрет ссылки «моя запись» (отмена/перенос/история/трекинг) из SMS клиенту.
+    manage_token: Mapped[str | None] = mapped_column(String, unique=True)
 
 
 class MasterUser(Base):

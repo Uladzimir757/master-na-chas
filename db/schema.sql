@@ -225,6 +225,7 @@ CREATE TABLE booking (
     status        booking_status NOT NULL DEFAULT 'pending',
     notes         text,
     price         numeric(10,2),         -- итоговая цена работы (аналитика)
+    manage_token  text UNIQUE,           -- секрет ссылки «моя запись» из SMS клиенту
     created_at    timestamptz NOT NULL DEFAULT now(),
 
     -- THE important line: Postgres itself refuses to let two active bookings

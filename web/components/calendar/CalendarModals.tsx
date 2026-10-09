@@ -513,7 +513,11 @@ export function EventDetailsModal({
               </div>
             )}
             {(event.status === "pending" || event.status === "confirmed") && (
-              <CompactButton variant="secondary" disabled={busy} onClick={() => handleStatus("cancelled")}>
+              <CompactButton
+                variant="secondary"
+                disabled={busy}
+                onClick={() => handleStatus("cancelled")}
+              >
                 {t.cancelBookingButton}
               </CompactButton>
             )}

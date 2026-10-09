@@ -89,7 +89,9 @@ export default function SlotPicker({
   const [clientPhone, setClientPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [booking, setBooking] = useState<Booking | null>(null);
+  const [booking, setBooking] = useState<
+    (Booking & { manage_token?: string | null }) | null
+  >(null);
 
   const loadAvailability = useCallback(async () => {
     setSlotsError(null);
@@ -242,7 +244,9 @@ export default function SlotPicker({
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-2/15 text-2xl text-accent-2">
             ✓
           </div>
-          <h1 className="text-xl font-extrabold tracking-[-0.01em]">{t.bookingCreatedTitle}</h1>
+          <h1 className="text-xl font-extrabold tracking-[-0.01em]">
+            {t.bookingCreatedTitle}
+          </h1>
           <p className="text-ink/70">
             {service.name} · {providerName(booking.provider_id)}
             <br />
@@ -256,7 +260,14 @@ export default function SlotPicker({
               ? t.bookingPending
               : t.bookingConfirmed}
           </p>
-          <p className="text-sm text-ink/60">{booking.status === "pending" ? t.bookingPending : t.bookingConfirmed}</p>
+          {booking.manage_token && (
+            <a
+              className="text-sm text-accent-2 underline"
+              href={`/booking/?id=${booking.id}&token=${encodeURIComponent(booking.manage_token)}`}
+            >
+              {t.myBookingTitle}
+            </a>
+          )}
           <Button className="mt-4" onClick={bookAgain}>
             {t.bookAgain}
           </Button>
@@ -276,7 +287,9 @@ export default function SlotPicker({
             {t.changeService}
           </button>
         )}
-        <h1 className="mb-1 text-xl font-extrabold tracking-[-0.01em]">{service.name}</h1>
+        <h1 className="mb-1 text-xl font-extrabold tracking-[-0.01em]">
+          {service.name}
+        </h1>
         <p className="mb-1 text-sm text-ink/60">
           {t.durationMinutes(service.duration_minutes)}
           {service.price_min != null || service.price_max != null ? (
@@ -324,7 +337,9 @@ export default function SlotPicker({
             <div className="flex flex-col gap-4">
               {slotsByTimeOfDay.map((bucket) => (
                 <div key={bucket.label}>
-                  <h2 className="mb-2 text-xs font-semibold tracking-wide text-ink/50 uppercase">{bucket.label}</h2>
+                  <h2 className="mb-2 text-xs font-semibold tracking-wide text-ink/50 uppercase">
+                    {bucket.label}
+                  </h2>
                   <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                     {bucket.slots.map((s) => {
                       const isSelected =

@@ -198,6 +198,21 @@ export interface Translations {
   calendarNextLabel: string;
   calendarTodayButton: string;
   calendarAddLabel: string;
+  myBookingTitle: string;
+  myBookingLoadError: string;
+  myBookingCancelButton: string;
+  myBookingCancelled: string;
+  myBookingRescheduleButton: string;
+  myBookingPickNewTime: string;
+  myBookingNoSlots: string;
+  myBookingConfirmMove: string;
+  myBookingMoved: string;
+  myBookingActionError: string;
+  myBookingTooLate: string;
+  myBookingTooLateCall: string;
+  myBookingMasterOnWay: string;
+  myBookingHistoryTitle: string;
+  myBookingHistoryEmpty: string;
   pickMasterSearch: string;
   pickMasterSortLabel: string;
   pickMasterSortRating: string;
@@ -517,6 +532,21 @@ export function buildTranslations(map: TranslationMap): Translations {
     calendarNextLabel: pick(map, "calendarNextLabel"),
     calendarTodayButton: pick(map, "calendarTodayButton"),
     calendarAddLabel: pick(map, "calendarAddLabel"),
+    myBookingTitle: pick(map, "myBookingTitle"),
+    myBookingLoadError: pick(map, "myBookingLoadError"),
+    myBookingCancelButton: pick(map, "myBookingCancelButton"),
+    myBookingCancelled: pick(map, "myBookingCancelled"),
+    myBookingRescheduleButton: pick(map, "myBookingRescheduleButton"),
+    myBookingPickNewTime: pick(map, "myBookingPickNewTime"),
+    myBookingNoSlots: pick(map, "myBookingNoSlots"),
+    myBookingConfirmMove: pick(map, "myBookingConfirmMove"),
+    myBookingMoved: pick(map, "myBookingMoved"),
+    myBookingActionError: pick(map, "myBookingActionError"),
+    myBookingTooLate: pick(map, "myBookingTooLate"),
+    myBookingTooLateCall: pick(map, "myBookingTooLateCall"),
+    myBookingMasterOnWay: pick(map, "myBookingMasterOnWay"),
+    myBookingHistoryTitle: pick(map, "myBookingHistoryTitle"),
+    myBookingHistoryEmpty: pick(map, "myBookingHistoryEmpty"),
     pickMasterSearch: pick(map, "pickMasterSearch"),
     pickMasterSortLabel: pick(map, "pickMasterSortLabel"),
     pickMasterSortRating: pick(map, "pickMasterSortRating"),

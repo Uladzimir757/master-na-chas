@@ -88,6 +88,27 @@ export interface ProviderLocation {
   updated_at: string; // ISO 8601, tz-aware
 }
 
+export interface MyBooking {
+  id: string;
+  service_name: string;
+  provider_name: string;
+  start_at: string;
+  end_at: string;
+  status: BookingStatus;
+  can_change: boolean;
+  change_deadline: string;
+  location: ProviderLocation | null;
+}
+
+export interface MyBookingHistoryItem {
+  id: string;
+  service_name: string;
+  provider_name: string;
+  start_at: string;
+  status: BookingStatus;
+  price: string | null;
+}
+
 export interface Provider {
   id: string;
   name: string;
@@ -131,7 +152,8 @@ export interface BookingCreate {
   notes?: string;
 }
 
-export type BookingStatus = "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
+export type BookingStatus =
+  "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
 
 export interface Booking {
   id: string;
@@ -393,7 +415,10 @@ export const api = {
       ).toString()}`,
     ),
   createBooking: (payload: BookingCreate) =>
-    request<Booking>("/api/bookings", { method: "POST", body: JSON.stringify(payload) }),
+    request<Booking & { manage_token?: string | null }>("/api/bookings", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   // Этап 3 — approved UI strings for one lang, see lib/LocaleContext.tsx.
   getTranslations: (lang: string) =>
     request<Record<string, string>>(
@@ -634,6 +659,33 @@ export const api = {
       `/api/reviews/invite/${bookingId}?token=${encodeURIComponent(token)}`,
     ),
   submitReview: (bookingId: string, payload: ReviewSubmitPayload) =>
-    request<Review>(`/api/reviews/invite/${bookingId}`, { method: "POST", body: JSON.stringify(payload) }),
-  listProviderReviews: (providerId: string) => request<Review[]>(`/api/providers/${providerId}/reviews`),
+    request<Review>(`/api/reviews/invite/${bookingId}`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  // «Моя запись» — публичная страница клиента по ссылке из SMS (manage_token).
+  getMyBooking: (id: string, token: string) =>
+    request<MyBooking>(
+      `/api/my-booking/${id}?token=${encodeURIComponent(token)}`,
+    ),
+  cancelMyBooking: (id: string, token: string) =>
+    request<MyBooking>(
+      `/api/my-booking/${id}/cancel?token=${encodeURIComponent(token)}`,
+      { method: "POST" },
+    ),
+  rescheduleMyBooking: (id: string, token: string, startAt: string) =>
+    request<MyBooking>(`/api/my-booking/${id}/reschedule`, {
+      method: "POST",
+      body: JSON.stringify({ token, start_at: startAt }),
+    }),
+  myBookingSlots: (id: string, token: string, from: string, to: string) =>
+    request<Slot[]>(
+      `/api/my-booking/${id}/slots?token=${encodeURIComponent(token)}&date_from=${from}&date_to=${to}`,
+    ),
+  myBookingHistory: (id: string, token: string) =>
+    request<MyBookingHistoryItem[]>(
+      `/api/my-booking/${id}/history?token=${encodeURIComponent(token)}`,
+    ),
+  listProviderReviews: (providerId: string) =>
+    request<Review[]>(`/api/providers/${providerId}/reviews`),
 };

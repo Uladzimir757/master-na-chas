@@ -83,6 +83,9 @@ from app.models import (
 )
 from app.notifications import notify_client_sms, notify_master, reply_telegram, run_in_background
 from app.schemas import (
+    MyBookingHistoryItem,
+    MyBookingOut,
+    MyBookingReschedule,
     AnalyticsOut,
     RolesMetaOut,
     ServiceStatOut,
@@ -93,6 +96,7 @@ from app.schemas import (
     AdminMasterUpdate,
     AvailabilityQuery,
     BookingCreate,
+    BookingCreatedOut,
     BookingOut,
     BookingRescheduleUpdate,
     BookingStatusUpdate,
@@ -359,7 +363,7 @@ async def get_availability_endpoint(
     return await get_availability(db, service, query.date_from, query.date_to, provider=provider)
 
 
-@app.post("/api/bookings", response_model=BookingOut, status_code=status.HTTP_201_CREATED)
+@app.post("/api/bookings", response_model=BookingCreatedOut, status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
 async def create_booking(request: Request, payload: BookingCreate, db: AsyncSession = Depends(get_db)) -> Booking:
     service = await db.get(Service, payload.service_id)
@@ -431,6 +435,7 @@ async def create_booking(request: Request, payload: BookingCreate, db: AsyncSess
         end_at=end_at,
         notes=payload.notes,
         status=initial_status,
+        manage_token=secrets.token_urlsafe(24),
     )
     db.add(booking)
     try:
@@ -492,8 +497,9 @@ async def _notify_new_booking(db: AsyncSession, booking: Booking, service: Servi
         run_in_background(
             notify_client_sms(
                 phone=booking.client_phone,
-                purpose="Confirm to the client that the booking request was received for the given service and time.",
+                purpose="Confirm to the client that the booking request was received for the given service and time, and give the link to view, cancel or reschedule it.",
                 facts={"service": service.name, **when},
+                must_include=f"{settings.WEB_PUBLIC_URL}/booking/?id={booking.id}&token={booking.manage_token}",
             )
         )
 
@@ -1283,6 +1289,187 @@ async def list_provider_services(
             description=link.description,
         )
         for service, link in rows
+    ]
+
+
+# ============================================================================
+# "Моя запись" — публичная страница клиента по ссылке из SMS: просмотр,
+# отмена/перенос (не позже CLIENT_CHANGE_MIN_HOURS до начала), живая точка
+# мастера и история записей по тому же телефону. Доступ — по manage_token
+# (секрет из SMS); 404 и для чужого id, и для неверного токена.
+# ============================================================================
+
+
+async def _get_booking_by_token(db: AsyncSession, booking_id: uuid.UUID, token: str) -> Booking:
+    booking = await db.get(Booking, booking_id)
+    if (
+        booking is None
+        or not booking.manage_token
+        or not secrets.compare_digest(booking.manage_token, token)
+    ):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Booking not found")
+    return booking
+
+
+def _change_deadline(booking: Booking) -> datetime:
+    return booking.start_at - timedelta(hours=settings.CLIENT_CHANGE_MIN_HOURS)
+
+
+def _can_change(booking: Booking, now: datetime) -> bool:
+    return booking.status in (BookingStatus.pending, BookingStatus.confirmed) and now <= _change_deadline(booking)
+
+
+async def _my_booking_out(db: AsyncSession, booking: Booking) -> MyBookingOut:
+    now = datetime.now(timezone.utc)
+    service = await db.get(Service, booking.service_id)
+    provider = await db.get(Provider, booking.provider_id)
+    location = None
+    if (
+        provider is not None
+        and booking.status in (BookingStatus.pending, BookingStatus.confirmed)
+        and booking.start_at - timedelta(hours=settings.TRACK_WINDOW_HOURS) <= now <= booking.end_at
+    ):
+        location = await _resolve_provider_location(db, provider, now)
+    return MyBookingOut(
+        id=booking.id,
+        service_name=service.name if service else "",
+        provider_name=provider.name if provider else "",
+        start_at=booking.start_at,
+        end_at=booking.end_at,
+        status=booking.status,
+        can_change=_can_change(booking, now),
+        change_deadline=_change_deadline(booking),
+        location=location,
+    )
+
+
+@app.get("/api/my-booking/{booking_id}", response_model=MyBookingOut)
+async def get_my_booking(booking_id: uuid.UUID, token: str, db: AsyncSession = Depends(get_db)) -> MyBookingOut:
+    booking = await _get_booking_by_token(db, booking_id, token)
+    return await _my_booking_out(db, booking)
+
+
+@app.post("/api/my-booking/{booking_id}/cancel", response_model=MyBookingOut)
+@limiter.limit("10/minute")
+async def cancel_my_booking(
+    request: Request, booking_id: uuid.UUID, token: str, db: AsyncSession = Depends(get_db)
+) -> MyBookingOut:
+    booking = await _get_booking_by_token(db, booking_id, token)
+    if not _can_change(booking, datetime.now(timezone.utc)):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Too late to cancel online — please call the master")
+    booking.status = BookingStatus.cancelled
+    await db.commit()
+    await db.refresh(booking)
+    service = await db.get(Service, booking.service_id)
+    start_local = booking.start_at.astimezone(BUSINESS_TZ)
+    await _notify_staff(
+        db,
+        booking.provider_id,
+        "Tell the master that the client has cancelled this booking, so the time is free again.",
+        {
+            "service": service.name if service else None,
+            "date": start_local.date().isoformat(),
+            "time": start_local.strftime("%H:%M"),
+            "client_name": booking.client_name,
+            "client_phone": booking.client_phone,
+        },
+    )
+    return await _my_booking_out(db, booking)
+
+
+@app.post("/api/my-booking/{booking_id}/reschedule", response_model=MyBookingOut)
+@limiter.limit("10/minute")
+async def reschedule_my_booking(
+    request: Request, booking_id: uuid.UUID, payload: MyBookingReschedule, db: AsyncSession = Depends(get_db)
+) -> MyBookingOut:
+    """Перенос только на реально свободный слот того же мастера: новое время
+    должно присутствовать в его актуальной доступности (рабочие часы,
+    блокировки, «занят», буфер) — не просто «любое время»."""
+    booking = await _get_booking_by_token(db, booking_id, payload.token)
+    now = datetime.now(timezone.utc)
+    if not _can_change(booking, now):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Too late to reschedule online — please call the master")
+    provider = await db.get(Provider, booking.provider_id)
+    service = await db.get(Service, booking.service_id)
+    if provider is None or service is None or not provider.is_active:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Booking not found")
+
+    day = payload.start_at.astimezone(BUSINESS_TZ).date()
+    slots = await get_availability(db, service, day, day, provider=provider)
+    wanted = payload.start_at.astimezone(timezone.utc)
+    if not any(s.start_at.astimezone(timezone.utc) == wanted for s in slots):
+        raise HTTPException(status.HTTP_409_CONFLICT, "This time is not available")
+
+    old_start = booking.start_at
+    duration = booking.end_at - booking.start_at
+    booking.start_at = payload.start_at
+    booking.end_at = payload.start_at + duration
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        if "exclusion constraint" in str(exc.orig).lower():
+            raise HTTPException(status.HTTP_409_CONFLICT, "Slot was just booked by someone else") from exc
+        raise
+    await db.refresh(booking)
+    new_local = booking.start_at.astimezone(BUSINESS_TZ)
+    old_local = old_start.astimezone(BUSINESS_TZ)
+    await _notify_staff(
+        db,
+        booking.provider_id,
+        "Tell the master that the client has moved this booking to a new time.",
+        {
+            "service": service.name,
+            "old_date": old_local.date().isoformat(),
+            "old_time": old_local.strftime("%H:%M"),
+            "new_date": new_local.date().isoformat(),
+            "new_time": new_local.strftime("%H:%M"),
+            "client_name": booking.client_name,
+            "client_phone": booking.client_phone,
+        },
+    )
+    return await _my_booking_out(db, booking)
+
+
+@app.get("/api/my-booking/{booking_id}/slots", response_model=list[SlotOut])
+async def my_booking_slots(
+    booking_id: uuid.UUID, token: str, date_from: date, date_to: date, db: AsyncSession = Depends(get_db)
+) -> list[SlotOut]:
+    """Свободные слоты того же мастера и услуги — для выбора нового времени."""
+    if date_to < date_from or (date_to - date_from).days > 14:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid date range")
+    booking = await _get_booking_by_token(db, booking_id, token)
+    provider = await db.get(Provider, booking.provider_id)
+    service = await db.get(Service, booking.service_id)
+    if provider is None or service is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Booking not found")
+    return await get_availability(db, service, date_from, date_to, provider=provider)
+
+
+@app.get("/api/my-booking/{booking_id}/history", response_model=list[MyBookingHistoryItem])
+async def my_booking_history(
+    booking_id: uuid.UUID, token: str, db: AsyncSession = Depends(get_db)
+) -> list[MyBookingHistoryItem]:
+    """История заказов этого клиента (по телефону из записи). Владение
+    телефоном подтверждено самой ссылкой из SMS; логинов у клиентов нет."""
+    booking = await _get_booking_by_token(db, booking_id, token)
+    if not booking.client_phone:
+        return []
+    rows = (
+        await db.execute(
+            select(Booking, Service.name, Provider.name)
+            .join(Service, Service.id == Booking.service_id)
+            .join(Provider, Provider.id == Booking.provider_id)
+            .where(Booking.client_phone == booking.client_phone)
+            .order_by(Booking.start_at.desc())
+            .limit(50)
+        )
+    ).all()
+    return [
+        MyBookingHistoryItem(
+            id=b.id, service_name=sn, provider_name=pn, start_at=b.start_at, status=b.status, price=b.price
+        )
+        for b, sn, pn in rows
     ]
 
 
