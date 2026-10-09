@@ -1,11 +1,7 @@
 import type { ButtonHTMLAttributes } from "react";
 
 export function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mx-auto w-[90%] rounded-md border border-line bg-bg p-4 sm:p-6">
-      {children}
-    </div>
-  );
+  return <div className="w-full px-3 py-4 sm:px-6">{children}</div>;
 }
 
 export function Centered({ children }: { children: React.ReactNode }) {
@@ -19,7 +15,11 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 // One shape for every button on the site: 6px radius, no pill effect. Hover
 // is a flat brightness shift (no shadow/motion) — the only intentional
 // motion elsewhere is the slot-chip settle animation in SlotPicker.tsx.
-export function Button({ variant = "primary", className = "", ...props }: ButtonProps) {
+export function Button({
+  variant = "primary",
+  className = "",
+  ...props
+}: ButtonProps) {
   const variantClass =
     variant === "primary"
       ? "bg-accent text-bg hover:brightness-90"
@@ -37,7 +37,11 @@ export function Button({ variant = "primary", className = "", ...props }: Button
 // single input) — same shape/tokens as Button above, just less padding, so
 // controls that sit close together (a form's submit+close row, say) don't
 // force the whole modal wider than it needs to be.
-export function CompactButton({ variant = "primary", className = "", ...props }: ButtonProps) {
+export function CompactButton({
+  variant = "primary",
+  className = "",
+  ...props
+}: ButtonProps) {
   const variantClass =
     variant === "primary"
       ? "bg-accent text-bg hover:brightness-90"
@@ -54,7 +58,8 @@ export function CompactButton({ variant = "primary", className = "", ...props }:
 /** One shared shape for every text/number/time/tel input on the site
  * (previously duplicated ad hoc per component, with drifting radius/padding
  * — see components/AdminPanel.tsx's own local `inputClass`). */
-export const inputClass = "w-full rounded-md border border-line bg-bg px-3 py-2 text-sm text-ink placeholder:text-ink/40";
+export const inputClass =
+  "w-full rounded-md border border-line bg-bg px-3 py-2 text-sm text-ink placeholder:text-ink/40";
 
 export interface Tab<T extends string> {
   id: T;
@@ -75,7 +80,10 @@ export function Tabs<T extends string>({
   onChange: (id: T) => void;
 }) {
   return (
-    <div role="tablist" className="mb-5 flex flex-wrap gap-1 rounded-md border border-line bg-line/20 p-1">
+    <div
+      role="tablist"
+      className="mb-5 flex flex-wrap gap-1 rounded-md border border-line bg-line/20 p-1"
+    >
       {tabs.map((tab) => (
         <button
           key={tab.id}
@@ -84,7 +92,9 @@ export function Tabs<T extends string>({
           aria-selected={active === tab.id}
           onClick={() => onChange(tab.id)}
           className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-            active === tab.id ? "bg-bg text-ink shadow-sm" : "text-ink/60 hover:text-ink"
+            active === tab.id
+              ? "bg-bg text-ink shadow-sm"
+              : "text-ink/60 hover:text-ink"
           }`}
         >
           {tab.label}

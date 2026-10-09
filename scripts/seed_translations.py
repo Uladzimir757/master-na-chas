@@ -323,6 +323,7 @@ ENTRIES: list[tuple[str, str, str]] = [
     ("calendarPrevLabel", "Poprzedni okres", "Previous period"),
     ("calendarNextLabel", "Następny okres", "Next period"),
     ("calendarTodayButton", "Dziś", "Today"),
+    ("calendarAddLabel", "Dodaj wpis", "Add entry"),
     ("calendarMoreEvents", "+{n} więcej", "+{n} more"),
     (
         "calendarLoadError",

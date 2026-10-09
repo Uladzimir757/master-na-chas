@@ -332,24 +332,37 @@ export const api = {
   // lang (Этап 3) resolves Service.name server-side — see app/main.py's
   // _resolve_service_name. Not needed by getAvailability: slot times carry
   // no translatable text.
-  listServices: (lang: string) => request<Service[]>(`/api/services?lang=${encodeURIComponent(lang)}`),
+  listServices: (lang: string) =>
+    request<Service[]>(`/api/services?lang=${encodeURIComponent(lang)}`),
   // Sorted by rating server-side (see app/main.py's list_providers) — the
   // master-picker screen renders this order as-is, no client-side re-sort.
   listProviders: () => request<Provider[]>("/api/providers"),
   // One master's own offered services, for the booking flow once a master
   // has been picked (components/MasterPicker.tsx).
   listProviderServices: (providerId: string, lang: string) =>
-    request<ProviderServiceOffering[]>(`/api/providers/${providerId}/services?lang=${encodeURIComponent(lang)}`),
-  getAvailability: (params: { service_id: string; provider_id?: string; date_from: string; date_to: string }) =>
+    request<ProviderServiceOffering[]>(
+      `/api/providers/${providerId}/services?lang=${encodeURIComponent(lang)}`,
+    ),
+  getAvailability: (params: {
+    service_id: string;
+    provider_id?: string;
+    date_from: string;
+    date_to: string;
+  }) =>
     request<Slot[]>(
       `/api/availability?${new URLSearchParams(
-        Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined)) as Record<string, string>,
+        Object.fromEntries(
+          Object.entries(params).filter(([, v]) => v !== undefined),
+        ) as Record<string, string>,
       ).toString()}`,
     ),
   createBooking: (payload: BookingCreate) =>
     request<Booking>("/api/bookings", { method: "POST", body: JSON.stringify(payload) }),
   // Этап 3 — approved UI strings for one lang, see lib/LocaleContext.tsx.
-  getTranslations: (lang: string) => request<Record<string, string>>(`/api/translations?lang=${encodeURIComponent(lang)}`),
+  getTranslations: (lang: string) =>
+    request<Record<string, string>>(
+      `/api/translations?lang=${encodeURIComponent(lang)}`,
+    ),
 
   // Личный кабинет мастера — every call below relies on the session cookie
   // set by login(); the API resolves "which provider" from that cookie, not
@@ -357,7 +370,10 @@ export const api = {
   // GET /api/bookings used to take an arbitrary provider_id and hand back
   // any client's name/phone, which is exactly the bug this shape avoids).
   login: (email: string, password: string) =>
-    request<{ ok: true }>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+    request<{ ok: true }>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    }),
   logout: () => request<{ ok: true }>("/auth/logout", { method: "POST" }),
   me: () => request<{ master_user_id: string }>("/auth/me"),
   // A logged-in master changing their own password — previously only the
@@ -368,20 +384,32 @@ export const api = {
   changePassword: (currentPassword: string, newPassword: string) =>
     request<{ ok: true }>("/auth/change-password", {
       method: "POST",
-      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword,
+      }),
     }),
   getMySettings: () => request<ProviderSettings>("/api/providers/me"),
   updateMySettings: (payload: UpdateProviderSettingsPayload) =>
-    request<ProviderSettings>("/api/providers/me/settings", { method: "PATCH", body: JSON.stringify(payload) }),
-  getMyServices: (lang: string) => request<ServiceToggle[]>(`/api/providers/me/services?lang=${encodeURIComponent(lang)}`),
+    request<ProviderSettings>("/api/providers/me/settings", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  getMyServices: (lang: string) =>
+    request<ServiceToggle[]>(
+      `/api/providers/me/services?lang=${encodeURIComponent(lang)}`,
+    ),
   // Replace semantics, matching the backend: pass the FULL set of services
   // this provider now offers (each with his own price/description), not a
   // delta — anything not listed here gets turned off.
   updateMyServices: (services: ServiceOffer[], lang: string) =>
-    request<ServiceToggle[]>(`/api/providers/me/services?lang=${encodeURIComponent(lang)}`, {
-      method: "PUT",
-      body: JSON.stringify({ services }),
-    }),
+    request<ServiceToggle[]>(
+      `/api/providers/me/services?lang=${encodeURIComponent(lang)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ services }),
+      },
+    ),
   listMyBookings: (statusFilter?: BookingStatus) =>
     request<Booking[]>(`/api/bookings${statusFilter ? `?status=${statusFilter}` : ""}`),
   updateBookingStatus: (bookingId: string, status: BookingStatus) =>
@@ -391,13 +419,17 @@ export const api = {
   // stores it unconditionally (app/main.py's update_my_location), whether
   // or not share_location happens to be on right now.
   updateMyLocation: (lat: number, lng: number) =>
-    request<{ ok: true }>("/api/providers/me/location", { method: "PUT", body: JSON.stringify({ lat, lng }) }),
+    request<{ ok: true }>("/api/providers/me/location", {
+      method: "PUT",
+      body: JSON.stringify({ lat, lng }),
+    }),
 
   // "Занят сейчас" — a general override, not tied to any specific booking
   // (see app/main.py's start_busy/update_busy_estimate/finish_busy). start
   // 409s if already busy; the estimate PATCH 409s if not busy yet; finish
   // 409s if not busy. All three return the same ProviderBusy shape.
-  startBusy: () => request<ProviderBusy>("/api/providers/me/busy/start", { method: "POST" }),
+  startBusy: () =>
+    request<ProviderBusy>("/api/providers/me/busy/start", { method: "POST" }),
   // null explicitly clears a previously-set estimate back to open-ended —
   // same always-send-the-full-value shape as updateMySettings.
   updateBusyEstimate: (estimatedMinutes: number | null) =>
@@ -405,29 +437,48 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ estimated_minutes: estimatedMinutes }),
     }),
-  finishBusy: () => request<ProviderBusy>("/api/providers/me/busy/finish", { method: "POST" }),
+  finishBusy: () =>
+    request<ProviderBusy>("/api/providers/me/busy/finish", { method: "POST" }),
 
   // "Мои рабочие часы" — see app/main.py's working-hours section.
-  getMyWorkingHours: () => request<WorkingHours>("/api/providers/me/working-hours"),
+  getMyWorkingHours: () =>
+    request<WorkingHours>("/api/providers/me/working-hours"),
   // Replace semantics, matching the backend: pass the FULL desired weekly
   // template, not a delta — anything not listed here is gone.
   updateMyWorkingHours: (slots: WorkingHoursSlot[]) =>
-    request<WorkingHours>("/api/providers/me/working-hours", { method: "PUT", body: JSON.stringify({ slots }) }),
+    request<WorkingHours>("/api/providers/me/working-hours", {
+      method: "PUT",
+      body: JSON.stringify({ slots }),
+    }),
   // Upsert by date — posting again for an already-overridden date replaces
   // it (see WorkingHoursExceptionUpsert in app/schemas.py).
-  upsertWorkingHoursException: (date: string, payload: WorkingHoursExceptionUpsert) =>
-    request<WorkingHoursException>(`/api/providers/me/working-hours/exceptions/${date}`, {
-      method: "PUT",
-      body: JSON.stringify(payload),
-    }),
+  upsertWorkingHoursException: (
+    date: string,
+    payload: WorkingHoursExceptionUpsert,
+  ) =>
+    request<WorkingHoursException>(
+      `/api/providers/me/working-hours/exceptions/${date}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      },
+    ),
   deleteWorkingHoursException: (date: string) =>
-    request<{ ok: true }>(`/api/providers/me/working-hours/exceptions/${date}`, { method: "DELETE" }),
+    request<{ ok: true }>(
+      `/api/providers/me/working-hours/exceptions/${date}`,
+      { method: "DELETE" },
+    ),
 
   // Букси-style calendar — see CalendarData's docstring above.
   getMyCalendar: (dateFrom: string, dateTo: string) =>
-    request<CalendarData>(`/api/providers/me/calendar?date_from=${dateFrom}&date_to=${dateTo}`),
+    request<CalendarData>(
+      `/api/providers/me/calendar?date_from=${dateFrom}&date_to=${dateTo}`,
+    ),
   createManualBooking: (payload: ManualBookingPayload) =>
-    request<Booking>("/api/providers/me/bookings", { method: "POST", body: JSON.stringify(payload) }),
+    request<Booking>("/api/providers/me/bookings", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   // Drag-and-drop move/resize — both ends given explicitly, see
   // BookingRescheduleUpdate's docstring in app/schemas.py.
   rescheduleBooking: (bookingId: string, startAt: string, endAt: string) =>
@@ -436,16 +487,27 @@ export const api = {
       body: JSON.stringify({ start_at: startAt, end_at: endAt }),
     }),
   createBlock: (payload: BlockPayload) =>
-    request<CalendarBlock>("/api/providers/me/blocks", { method: "POST", body: JSON.stringify(payload) }),
+    request<CalendarBlock>("/api/providers/me/blocks", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   updateBlock: (blockId: string, payload: BlockPayload) =>
-    request<CalendarBlock>(`/api/providers/me/blocks/${blockId}`, { method: "PATCH", body: JSON.stringify(payload) }),
+    request<CalendarBlock>(`/api/providers/me/blocks/${blockId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
   deleteBlock: (blockId: string) =>
-    request<{ ok: true }>(`/api/providers/me/blocks/${blockId}`, { method: "DELETE" }),
+    request<{ ok: true }>(`/api/providers/me/blocks/${blockId}`, {
+      method: "DELETE",
+    }),
 
   // Admin panel — session cookie set by adminLogin(), same require_admin
   // gate as the pre-existing X-Admin-Secret scripts (app/main.py).
   adminLogin: (password: string) =>
-    request<{ ok: true }>("/admin/login", { method: "POST", body: JSON.stringify({ password }) }),
+    request<{ ok: true }>("/admin/login", {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    }),
   adminLogout: () => request<{ ok: true }>("/admin/logout", { method: "POST" }),
   adminMe: () => request<{ is_admin: true }>("/admin/me"),
   listMasters: () => request<AdminMaster[]>("/admin/masters"),
@@ -455,11 +517,17 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   createTelegramLink: (masterUserId: string) =>
-    request<TelegramLink>(`/admin/masters/${masterUserId}/telegram-link`, { method: "POST" }),
+    request<TelegramLink>(`/admin/masters/${masterUserId}/telegram-link`, {
+      method: "POST",
+    }),
   // Manual stand-in for the not-yet-built reviews system — see
   // Provider.rating's docstring in app/models.py. null clears it back to
   // "no rating", same always-send-the-full-value shape as everywhere else.
-  updateMasterRating: (masterUserId: string, rating: number | null, ratingCount: number) =>
+  updateMasterRating: (
+    masterUserId: string,
+    rating: number | null,
+    ratingCount: number,
+  ) =>
     request<AdminMaster>(`/admin/masters/${masterUserId}`, {
       method: "PATCH",
       body: JSON.stringify({ rating, rating_count: ratingCount }),
@@ -467,12 +535,16 @@ export const api = {
   // 409 when the master has bookings — see app/main.py::delete_master's
   // docstring for why that's checked instead of a raw cascade.
   deleteMaster: (masterUserId: string) =>
-    request<{ ok: true }>(`/admin/masters/${masterUserId}`, { method: "DELETE" }),
+    request<{ ok: true }>(`/admin/masters/${masterUserId}`, {
+      method: "DELETE",
+    }),
 
   // Отзывы (Этап 3) — публичные, верификация токеном из SMS-ссылки, см.
   // app/main.py's _issue_review_invite/get_review_invite/submit_review.
   getReviewInvite: (bookingId: string, token: string) =>
-    request<ReviewInvite>(`/api/reviews/invite/${bookingId}?token=${encodeURIComponent(token)}`),
+    request<ReviewInvite>(
+      `/api/reviews/invite/${bookingId}?token=${encodeURIComponent(token)}`,
+    ),
   submitReview: (bookingId: string, payload: ReviewSubmitPayload) =>
     request<Review>(`/api/reviews/invite/${bookingId}`, { method: "POST", body: JSON.stringify(payload) }),
   listProviderReviews: (providerId: string) => request<Review[]>(`/api/providers/${providerId}/reviews`),

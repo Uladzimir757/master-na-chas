@@ -10,7 +10,10 @@ import {
 } from "@/lib/api";
 import { formatTime } from "@/lib/format";
 import { useLocale } from "@/lib/LocaleContext";
-import { useLocationSharing, type LocationSharingStatus } from "@/lib/useLocationSharing";
+import {
+  useLocationSharing,
+  type LocationSharingStatus,
+} from "@/lib/useLocationSharing";
 import type { Translations } from "@/lib/i18n";
 import { Card, Centered, CompactButton, inputClass, Tabs } from "@/components/ui";
 import { PasswordInput } from "@/components/PasswordInput";
@@ -19,7 +22,10 @@ import MasterCalendar from "@/components/MasterCalendar";
 
 type CabinetTab = "calendar" | "services" | "settings" | "password";
 
-function locationStatusText(status: LocationSharingStatus, t: Translations): string | null {
+function locationStatusText(
+  status: LocationSharingStatus,
+  t: Translations,
+): string | null {
   switch (status) {
     case "idle":
       return null;
@@ -64,7 +70,9 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
-  const [changePasswordError, setChangePasswordError] = useState<string | null>(null);
+  const [changePasswordError, setChangePasswordError] = useState<string | null>(
+    null,
+  );
   const [changePasswordSuccess, setChangePasswordSuccess] = useState(false);
 
   const feeInputRef = useRef<HTMLInputElement>(null);
@@ -75,7 +83,10 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
   // ever asks for a specific provider_id (see app/main.py's _get_own_provider).
   const loadAll = useCallback(async () => {
     try {
-      const [s, svc] = await Promise.all([api.getMySettings(), api.getMyServices(locale)]);
+      const [s, svc] = await Promise.all([
+        api.getMySettings(),
+        api.getMyServices(locale),
+      ]);
       setSettings(s);
       setServiceToggles(svc);
       setLoaded(true);
@@ -183,7 +194,9 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
 
   const handleToggleService = useCallback(
     (serviceId: string) => {
-      const nextOffered = new Set(serviceToggles.filter((s) => s.is_offered).map((s) => s.service_id));
+      const nextOffered = new Set(
+        serviceToggles.filter((s) => s.is_offered).map((s) => s.service_id),
+      );
       if (nextOffered.has(serviceId)) {
         nextOffered.delete(serviceId);
       } else {
@@ -300,7 +313,8 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
     if (!settings || !busyEstimateInputRef.current) return;
     const raw = busyEstimateInputRef.current.value.trim();
     const parsed = raw === "" ? null : Math.round(Number(raw));
-    const nextEstimate = parsed !== null && Number.isNaN(parsed) ? null : parsed;
+    const nextEstimate =
+      parsed !== null && Number.isNaN(parsed) ? null : parsed;
     if (nextEstimate === settings.busy_estimated_minutes) return;
     setBusyError(null);
     setSavingBusy(true);
@@ -342,7 +356,9 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
         setConfirmNewPassword("");
       } catch (err) {
         setChangePasswordError(
-          err instanceof ApiError && err.status === 401 ? t.changePasswordWrongCurrentError : t.changePasswordGenericError,
+          err instanceof ApiError && err.status === 401
+            ? t.changePasswordWrongCurrentError
+            : t.changePasswordGenericError,
         );
       } finally {
         setChangingPassword(false);
@@ -372,8 +388,13 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
   return (
     <Card>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{t.cabinetTitle(settings.name)}</h1>
-        <button onClick={onLogout} className="text-sm text-ink/60 hover:text-ink">
+        <h1 className="text-xl font-semibold">
+          {t.cabinetTitle(settings.name)}
+        </h1>
+        <button
+          onClick={onLogout}
+          className="text-sm text-ink/60 hover:text-ink"
+        >
           {t.logoutButton}
         </button>
       </div>
@@ -399,7 +420,10 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
           ) : (
             <ul className="flex flex-col gap-2">
               {serviceToggles.map((svc) => (
-                <li key={svc.service_id} className="rounded-md border border-line p-3">
+                <li
+                  key={svc.service_id}
+                  className="rounded-md border border-line p-3"
+                >
                   <label className="flex items-start gap-3">
                     <input
                       type="checkbox"
@@ -426,7 +450,12 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
                           defaultValue={svc.price_min ?? ""}
                           placeholder={t.servicePriceMinPlaceholder}
                           disabled={savingServices}
-                          onBlur={(e) => handleServicePriceMinBlur(svc.service_id, e.target.value)}
+                          onBlur={(e) =>
+                            handleServicePriceMinBlur(
+                              svc.service_id,
+                              e.target.value,
+                            )
+                          }
                           className={`sm:w-32 ${inputClass}`}
                         />
                         <input
@@ -438,7 +467,12 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
                           defaultValue={svc.price_max ?? ""}
                           placeholder={t.servicePriceMaxPlaceholder}
                           disabled={savingServices}
-                          onBlur={(e) => handleServicePriceMaxBlur(svc.service_id, e.target.value)}
+                          onBlur={(e) =>
+                            handleServicePriceMaxBlur(
+                              svc.service_id,
+                              e.target.value,
+                            )
+                          }
                           className={`sm:w-32 ${inputClass}`}
                         />
                       </div>
@@ -449,7 +483,12 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
                         defaultValue={svc.description ?? ""}
                         placeholder={t.serviceDescriptionPlaceholder}
                         disabled={savingServices}
-                        onBlur={(e) => handleServiceDescriptionBlur(svc.service_id, e.target.value)}
+                        onBlur={(e) =>
+                          handleServiceDescriptionBlur(
+                            svc.service_id,
+                            e.target.value,
+                          )
+                        }
                         className={inputClass}
                       />
                     </div>
@@ -458,27 +497,41 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
               ))}
             </ul>
           )}
-          {servicesError && <p className="mt-2 text-sm text-danger">{servicesError}</p>}
+          {servicesError && (
+            <p className="mt-2 text-sm text-danger">{servicesError}</p>
+          )}
         </section>
       )}
 
       {tab === "settings" && (
         <div className="flex flex-col gap-6">
           <section>
-            <h2 className="mb-2 text-sm font-medium text-ink/60">{t.busyTitle}</h2>
+            <h2 className="mb-2 text-sm font-medium text-ink/60">
+              {t.busyTitle}
+            </h2>
             {settings.busy_started_at ? (
               <div>
-                <p className="font-medium">{t.busyStatusSince(formatTime(settings.busy_started_at, locale))}</p>
+                <p className="font-medium">
+                  {t.busyStatusSince(
+                    formatTime(settings.busy_started_at, locale),
+                  )}
+                </p>
                 {settings.busy_until ? (
-                  <p className="text-sm text-ink/60">{t.busyUntilText(formatTime(settings.busy_until, locale))}</p>
+                  <p className="text-sm text-ink/60">
+                    {t.busyUntilText(formatTime(settings.busy_until, locale))}
+                  </p>
                 ) : (
                   <p className="text-sm text-ink/60">{t.busyOpenEndedNote}</p>
                 )}
 
                 <div className="mt-3">
                   <label className="block">
-                    <span className="block font-medium">{t.busyEstimateLabel}</span>
-                    <span className="mt-1 block text-sm text-ink/60">{t.busyEstimateHint}</span>
+                    <span className="block font-medium">
+                      {t.busyEstimateLabel}
+                    </span>
+                    <span className="mt-1 block text-sm text-ink/60">
+                      {t.busyEstimateHint}
+                    </span>
                     <input
                       key={settings.busy_estimated_minutes ?? "empty"}
                       ref={busyEstimateInputRef}
@@ -495,7 +548,11 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
                   </label>
                 </div>
 
-                <CompactButton disabled={savingBusy} onClick={handleFinishBusy} className="mt-3">
+                <CompactButton
+                  disabled={savingBusy}
+                  onClick={handleFinishBusy}
+                  className="mt-3"
+                >
                   {t.finishBusyButton}
                 </CompactButton>
               </div>
@@ -507,11 +564,15 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
                 </CompactButton>
               </div>
             )}
-            {busyError && <p className="mt-2 text-sm text-danger">{busyError}</p>}
+            {busyError && (
+              <p className="mt-2 text-sm text-danger">{busyError}</p>
+            )}
           </section>
 
           <section className="border-t border-line pt-5">
-            <h2 className="mb-2 text-sm font-medium text-ink/60">{t.settingsTitle}</h2>
+            <h2 className="mb-2 text-sm font-medium text-ink/60">
+              {t.settingsTitle}
+            </h2>
             <label className="flex items-start gap-3">
               <input
                 type="checkbox"
@@ -521,15 +582,21 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
                 className="mt-1"
               />
               <span>
-                <span className="block font-medium">{t.requiresConfirmationLabel}</span>
-                <span className="block text-sm text-ink/60">{t.requiresConfirmationHint}</span>
+                <span className="block font-medium">
+                  {t.requiresConfirmationLabel}
+                </span>
+                <span className="block text-sm text-ink/60">
+                  {t.requiresConfirmationHint}
+                </span>
               </span>
             </label>
 
             <div className="mt-4">
               <label className="block">
                 <span className="block font-medium">{t.callOutFeeLabel}</span>
-                <span className="mt-1 block text-sm text-ink/60">{t.callOutFeeHint}</span>
+                <span className="mt-1 block text-sm text-ink/60">
+                  {t.callOutFeeHint}
+                </span>
                 <input
                   key={settings.call_out_fee ?? "empty"}
                   ref={feeInputRef}
@@ -556,16 +623,25 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
                   className="mt-1"
                 />
                 <span>
-                  <span className="block font-medium">{t.shareLocationLabel}</span>
-                  <span className="block text-sm text-ink/60">{t.shareLocationHint}</span>
-                  {settings.share_location && locationStatusText(locationStatus, t) && (
-                    <span className="mt-1 block text-sm text-ink/60">{locationStatusText(locationStatus, t)}</span>
-                  )}
+                  <span className="block font-medium">
+                    {t.shareLocationLabel}
+                  </span>
+                  <span className="block text-sm text-ink/60">
+                    {t.shareLocationHint}
+                  </span>
+                  {settings.share_location &&
+                    locationStatusText(locationStatus, t) && (
+                      <span className="mt-1 block text-sm text-ink/60">
+                        {locationStatusText(locationStatus, t)}
+                      </span>
+                    )}
                 </span>
               </label>
             </div>
 
-            {settingsError && <p className="mt-2 text-sm text-danger">{settingsError}</p>}
+            {settingsError && (
+              <p className="mt-2 text-sm text-danger">{settingsError}</p>
+            )}
           </section>
 
           <section className="border-t border-line pt-5">
@@ -576,7 +652,10 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
 
       {tab === "password" && (
         <section>
-          <form onSubmit={handleChangePassword} className="flex max-w-xs flex-col gap-3">
+          <form
+            onSubmit={handleChangePassword}
+            className="flex max-w-xs flex-col gap-3"
+          >
             <PasswordInput
               value={currentPassword}
               onChange={setCurrentPassword}
@@ -609,9 +688,17 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
               showLabel={t.showPassword}
               hideLabel={t.hidePassword}
             />
-            {changePasswordError && <p className="text-sm text-danger">{changePasswordError}</p>}
-            {changePasswordSuccess && <p className="text-sm text-accent-2">{t.changePasswordSuccess}</p>}
-            <CompactButton type="submit" disabled={changingPassword} className="self-start">
+            {changePasswordError && (
+              <p className="text-sm text-danger">{changePasswordError}</p>
+            )}
+            {changePasswordSuccess && (
+              <p className="text-sm text-accent-2">{t.changePasswordSuccess}</p>
+            )}
+            <CompactButton
+              type="submit"
+              disabled={changingPassword}
+              className="self-start"
+            >
               {changingPassword ? t.changingPassword : t.changePasswordButton}
             </CompactButton>
           </form>

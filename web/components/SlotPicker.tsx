@@ -1,8 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, ApiError, type Booking, type Provider, type Service, type Slot } from "@/lib/api";
-import { addDays, businessHour, dateKey, formatDayLabel, formatTime, toDateParam } from "@/lib/format";
+import {
+  api,
+  ApiError,
+  type Booking,
+  type Provider,
+  type Service,
+  type Slot,
+} from "@/lib/api";
+import {
+  addDays,
+  businessHour,
+  dateKey,
+  formatDayLabel,
+  formatTime,
+  toDateParam,
+} from "@/lib/format";
 import { useLocale } from "@/lib/LocaleContext";
 import type { Translations } from "@/lib/i18n";
 import { Button, Card, Centered } from "@/components/ui";
@@ -16,8 +30,13 @@ import ProviderMap from "@/components/ProviderMap";
 const LOCATION_LABEL_REFRESH_MS = 30_000;
 
 function formatLocationAgo(updatedAtIso: string, t: Translations): string {
-  const minutes = Math.max(0, Math.round((Date.now() - new Date(updatedAtIso).getTime()) / 60_000));
-  return minutes < 1 ? t.masterLocationJustNow : t.masterLocationMinutesAgo(minutes);
+  const minutes = Math.max(
+    0,
+    Math.round((Date.now() - new Date(updatedAtIso).getTime()) / 60_000),
+  );
+  return minutes < 1
+    ? t.masterLocationJustNow
+    : t.masterLocationMinutesAgo(minutes);
 }
 
 const DAYS_AHEAD = 14;
@@ -51,7 +70,14 @@ interface Props {
  * service changes: initial state already is empty. The only state resets
  * left in this file are inside event handlers (book-again, after a 409),
  * which is an ordinary setState call, not a synchronised effect. */
-export default function SlotPicker({ service, providers, showChangeService, onChangeService, providerId, description }: Props) {
+export default function SlotPicker({
+  service,
+  providers,
+  showChangeService,
+  onChangeService,
+  providerId,
+  description,
+}: Props) {
   const { locale, t } = useLocale();
 
   const [slots, setSlots] = useState<Slot[] | null>(null);
@@ -100,7 +126,12 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
   }, [providers, t]);
 
   const providerTagClass = useMemo(() => {
-    const map = new Map(providers.map((p, i) => [p.id, PROVIDER_TAG_CLASSES[i % PROVIDER_TAG_CLASSES.length]]));
+    const map = new Map(
+      providers.map((p, i) => [
+        p.id,
+        PROVIDER_TAG_CLASSES[i % PROVIDER_TAG_CLASSES.length],
+      ]),
+    );
     return (id: string) => map.get(id) ?? PROVIDER_TAG_CLASSES[0];
   }, [providers]);
 
@@ -127,7 +158,10 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
   // label (below) to recompute — nothing here reads `locationClock` itself.
   const [locationClock, setLocationClock] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setLocationClock((n) => n + 1), LOCATION_LABEL_REFRESH_MS);
+    const id = setInterval(
+      () => setLocationClock((n) => n + 1),
+      LOCATION_LABEL_REFRESH_MS,
+    );
     return () => clearInterval(id);
   }, []);
 
@@ -159,7 +193,8 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
     ];
     for (const s of slotsForSelectedDay) {
       const hour = businessHour(s.start_at);
-      const bucket = hour < 12 ? buckets[0] : hour < 17 ? buckets[1] : buckets[2];
+      const bucket =
+        hour < 12 ? buckets[0] : hour < 17 ? buckets[1] : buckets[2];
       bucket.slots.push(s);
     }
     return buckets.filter((b) => b.slots.length > 0);
@@ -211,7 +246,15 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
           <p className="text-ink/70">
             {service.name} · {providerName(booking.provider_id)}
             <br />
-            {formatDayLabel(booking.start_at, locale, t)}, <span className="font-mono">{formatTime(booking.start_at, locale)}</span>
+            {formatDayLabel(booking.start_at, locale, t)},{" "}
+            <span className="font-mono">
+              {formatTime(booking.start_at, locale)}
+            </span>
+          </p>
+          <p className="text-sm text-ink/60">
+            {booking.status === "pending"
+              ? t.bookingPending
+              : t.bookingConfirmed}
           </p>
           <p className="text-sm text-ink/60">{booking.status === "pending" ? t.bookingPending : t.bookingConfirmed}</p>
           <Button className="mt-4" onClick={bookAgain}>
@@ -226,7 +269,10 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
     <>
       <Card>
         {showChangeService && (
-          <button className="mb-3 text-sm text-ink/50 hover:text-accent-2" onClick={onChangeService}>
+          <button
+            className="mb-3 text-sm text-ink/50 hover:text-accent-2"
+            onClick={onChangeService}
+          >
             {t.changeService}
           </button>
         )}
@@ -236,11 +282,17 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
           {service.price_min != null || service.price_max != null ? (
             <>
               {" · "}
-              <PriceLabel min={service.price_min} max={service.price_max} t={t} />
+              <PriceLabel
+                min={service.price_min}
+                max={service.price_max}
+                t={t}
+              />
             </>
           ) : null}
         </p>
-        {description && <p className="mb-4 text-sm text-ink/70">{description}</p>}
+        {description && (
+          <p className="mb-4 text-sm text-ink/70">{description}</p>
+        )}
         {!description && <div className="mb-4" />}
 
         {slotsError && <Centered>{slotsError}</Centered>}
@@ -276,7 +328,8 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
                   <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                     {bucket.slots.map((s) => {
                       const isSelected =
-                        selectedSlot?.start_at === s.start_at && selectedSlot?.provider_id === s.provider_id;
+                        selectedSlot?.start_at === s.start_at &&
+                        selectedSlot?.provider_id === s.provider_id;
                       return (
                         <button
                           key={`${s.provider_id}-${s.start_at}`}
@@ -287,15 +340,21 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
                           }`}
                           onClick={() => setSelectedSlot(s)}
                         >
-                          <div className="font-mono font-medium">{formatTime(s.start_at, locale)}</div>
+                          <div className="font-mono font-medium">
+                            {formatTime(s.start_at, locale)}
+                          </div>
                           {providers.length > 1 && (
                             <div className="mt-1 flex items-center gap-1">
                               <span
                                 className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-bg ${providerTagClass(s.provider_id)}`}
                               >
-                                {providerName(s.provider_id).charAt(0).toUpperCase()}
+                                {providerName(s.provider_id)
+                                  .charAt(0)
+                                  .toUpperCase()}
                               </span>
-                              <span className="truncate text-xs opacity-70">{providerName(s.provider_id)}</span>
+                              <span className="truncate text-xs opacity-70">
+                                {providerName(s.provider_id)}
+                              </span>
                             </div>
                           )}
                         </button>
@@ -311,18 +370,25 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
         {/* Not nested inside `selectedSlot &&` below: the 409 handler in
             submitBooking() clears selectedSlot in the same breath it sets this,
             so the message would never actually render if it were. */}
-        {submitError && <p className="mt-3 text-sm text-danger">{submitError}</p>}
+        {submitError && (
+          <p className="mt-3 text-sm text-danger">{submitError}</p>
+        )}
 
         {selectedSlot && (
           <div ref={formSectionRef} className="mt-5 border-t border-line pt-4">
             <p className="mb-3 text-sm text-ink/70">
               {formatDayLabel(selectedSlot.start_at, locale, t)},{" "}
-              <span className="font-mono">{formatTime(selectedSlot.start_at, locale)}</span> ·{" "}
-              {providerName(selectedSlot.provider_id)}
+              <span className="font-mono">
+                {formatTime(selectedSlot.start_at, locale)}
+              </span>{" "}
+              · {providerName(selectedSlot.provider_id)}
               {providerCallOutFee(selectedSlot.provider_id) ? (
                 <span className="text-ink/60">
                   {" "}
-                  · {t.callOutFeeLine(providerCallOutFee(selectedSlot.provider_id)!)}
+                  ·{" "}
+                  {t.callOutFeeLine(
+                    providerCallOutFee(selectedSlot.provider_id)!,
+                  )}
                 </span>
               ) : null}
             </p>
@@ -332,13 +398,18 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
               // its own (nothing else here changes every 30s) — see the
               // locationClock tick above.
               <div key={locationClock} className="mb-4">
-                <p className="mb-1.5 text-sm font-medium">{t.masterLocationTitle}</p>
+                <p className="mb-1.5 text-sm font-medium">
+                  {t.masterLocationTitle}
+                </p>
                 <ProviderMap
                   lat={providerLocation(selectedSlot.provider_id)!.lat}
                   lng={providerLocation(selectedSlot.provider_id)!.lng}
                 />
                 <p className="mt-1 text-xs text-ink/60">
-                  {formatLocationAgo(providerLocation(selectedSlot.provider_id)!.updated_at, t)}
+                  {formatLocationAgo(
+                    providerLocation(selectedSlot.provider_id)!.updated_at,
+                    t,
+                  )}
                 </p>
               </div>
             )}
@@ -379,12 +450,19 @@ export default function SlotPicker({ service, providers, showChangeService, onCh
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-bg px-4 py-3 sm:px-6">
           <div className="mx-auto flex w-[90%] items-center justify-between gap-4">
             <span className="truncate text-sm">
-              <span className="font-mono font-medium">{formatTime(selectedSlot.start_at, locale)}</span>{" "}
+              <span className="font-mono font-medium">
+                {formatTime(selectedSlot.start_at, locale)}
+              </span>{" "}
               · {providerName(selectedSlot.provider_id)}
             </span>
             <Button
               className="shrink-0"
-              onClick={() => formSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              onClick={() =>
+                formSectionRef.current?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "start",
+                })
+              }
             >
               {t.continueToFormButton}
             </Button>

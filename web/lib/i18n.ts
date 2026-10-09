@@ -14,7 +14,10 @@
 
 export type TranslationMap = Record<string, string>;
 
-function interpolate(template: string, params: Record<string, string | number>): string {
+function interpolate(
+  template: string,
+  params: Record<string, string | number>,
+): string {
   return template.replace(/\{(\w+)\}/g, (match, name) => {
     const value = params[name];
     return value === undefined ? match : String(value);
@@ -194,6 +197,7 @@ export interface Translations {
   calendarPrevLabel: string;
   calendarNextLabel: string;
   calendarTodayButton: string;
+  calendarAddLabel: string;
   calendarMoreEvents: (n: number) => string;
   calendarLoadError: string;
   calendarChooseActionTitle: string;
@@ -231,7 +235,11 @@ export interface Translations {
   calendarSaveTimeButton: string;
 
   reviewPageTitle: string;
-  reviewPageSubtitle: (provider: string, service: string, date: string) => string;
+  reviewPageSubtitle: (
+    provider: string,
+    service: string,
+    date: string,
+  ) => string;
   reviewRatingLabel: string;
   reviewTextPlaceholder: string;
   reviewPhotosLabel: string;
@@ -266,7 +274,8 @@ export function buildTranslations(map: TranslationMap): Translations {
     durationMinutes: (n) => interpolate(pick(map, "durationMinutes"), { n }),
     slotsLoading: pick(map, "slotsLoading"),
     slotsLoadError: pick(map, "slotsLoadError"),
-    noSlotsInRange: (days) => interpolate(pick(map, "noSlotsInRange"), { days }),
+    noSlotsInRange: (days) =>
+      interpolate(pick(map, "noSlotsInRange"), { days }),
     namePlaceholder: pick(map, "namePlaceholder"),
     phonePlaceholder: pick(map, "phonePlaceholder"),
     submitBooking: pick(map, "submitBooking"),
@@ -280,7 +289,8 @@ export function buildTranslations(map: TranslationMap): Translations {
     today: pick(map, "today"),
     tomorrow: pick(map, "tomorrow"),
     priceFrom: (v) => interpolate(pick(map, "priceFrom"), { v }),
-    priceRange: (min, max) => interpolate(pick(map, "priceRange"), { min, max }),
+    priceRange: (min, max) =>
+      interpolate(pick(map, "priceRange"), { min, max }),
     callOutFeeLine: (fee) => interpolate(pick(map, "callOutFeeLine"), { fee }),
     pageTitle: pick(map, "pageTitle"),
     pageDescription: pick(map, "pageDescription"),
@@ -299,7 +309,8 @@ export function buildTranslations(map: TranslationMap): Translations {
     loginGenericError: pick(map, "loginGenericError"),
     logoutButton: pick(map, "logoutButton"),
     backToBooking: pick(map, "backToBooking"),
-    cabinetTitle: (providerName) => interpolate(pick(map, "cabinetTitle"), { name: providerName }),
+    cabinetTitle: (providerName) =>
+      interpolate(pick(map, "cabinetTitle"), { name: providerName }),
     cabinetLoadError: pick(map, "cabinetLoadError"),
     settingsTitle: pick(map, "settingsTitle"),
     requiresConfirmationLabel: pick(map, "requiresConfirmationLabel"),
@@ -334,13 +345,15 @@ export function buildTranslations(map: TranslationMap): Translations {
     locationSharingError: pick(map, "locationSharingError"),
     masterLocationTitle: pick(map, "masterLocationTitle"),
     masterLocationJustNow: pick(map, "masterLocationJustNow"),
-    masterLocationMinutesAgo: (n) => interpolate(pick(map, "masterLocationMinutesAgo"), { n }),
+    masterLocationMinutesAgo: (n) =>
+      interpolate(pick(map, "masterLocationMinutesAgo"), { n }),
 
     busyTitle: pick(map, "busyTitle"),
     busyHint: pick(map, "busyHint"),
     startBusyButton: pick(map, "startBusyButton"),
     finishBusyButton: pick(map, "finishBusyButton"),
-    busyStatusSince: (time) => interpolate(pick(map, "busyStatusSince"), { time }),
+    busyStatusSince: (time) =>
+      interpolate(pick(map, "busyStatusSince"), { time }),
     busyUntilText: (time) => interpolate(pick(map, "busyUntilText"), { time }),
     busyOpenEndedNote: pick(map, "busyOpenEndedNote"),
     busyEstimateLabel: pick(map, "busyEstimateLabel"),
@@ -357,12 +370,16 @@ export function buildTranslations(map: TranslationMap): Translations {
     changePasswordSuccess: pick(map, "changePasswordSuccess"),
     changePasswordMismatchError: pick(map, "changePasswordMismatchError"),
     changePasswordTooShortError: pick(map, "changePasswordTooShortError"),
-    changePasswordWrongCurrentError: pick(map, "changePasswordWrongCurrentError"),
+    changePasswordWrongCurrentError: pick(
+      map,
+      "changePasswordWrongCurrentError",
+    ),
     changePasswordGenericError: pick(map, "changePasswordGenericError"),
 
     pickMasterTitle: pick(map, "pickMasterTitle"),
     masterListLoadError: pick(map, "masterListLoadError"),
-    ratingValue: (rating, count) => interpolate(pick(map, "ratingValue"), { rating, count }),
+    ratingValue: (rating, count) =>
+      interpolate(pick(map, "ratingValue"), { rating, count }),
     noRatingYet: pick(map, "noRatingYet"),
     chooseMasterButton: pick(map, "chooseMasterButton"),
     backToMasters: pick(map, "backToMasters"),
@@ -389,7 +406,10 @@ export function buildTranslations(map: TranslationMap): Translations {
     workingHoursFromLabel: pick(map, "workingHoursFromLabel"),
     workingHoursToLabel: pick(map, "workingHoursToLabel"),
     workingHoursAddIntervalButton: pick(map, "workingHoursAddIntervalButton"),
-    workingHoursRemoveIntervalLabel: pick(map, "workingHoursRemoveIntervalLabel"),
+    workingHoursRemoveIntervalLabel: pick(
+      map,
+      "workingHoursRemoveIntervalLabel",
+    ),
     workingHoursValidationHint: pick(map, "workingHoursValidationHint"),
     workingHoursSaveButton: pick(map, "workingHoursSaveButton"),
     workingHoursSaving: pick(map, "workingHoursSaving"),
@@ -398,16 +418,34 @@ export function buildTranslations(map: TranslationMap): Translations {
     workingHoursExceptionsTitle: pick(map, "workingHoursExceptionsTitle"),
     workingHoursExceptionsHint: pick(map, "workingHoursExceptionsHint"),
     workingHoursNoExceptions: pick(map, "workingHoursNoExceptions"),
-    workingHoursExceptionDayOffLabel: pick(map, "workingHoursExceptionDayOffLabel"),
+    workingHoursExceptionDayOffLabel: pick(
+      map,
+      "workingHoursExceptionDayOffLabel",
+    ),
     workingHoursReasonLabel: pick(map, "workingHoursReasonLabel"),
-    workingHoursDeleteExceptionLabel: pick(map, "workingHoursDeleteExceptionLabel"),
-    workingHoursExceptionDeleteError: pick(map, "workingHoursExceptionDeleteError"),
+    workingHoursDeleteExceptionLabel: pick(
+      map,
+      "workingHoursDeleteExceptionLabel",
+    ),
+    workingHoursExceptionDeleteError: pick(
+      map,
+      "workingHoursExceptionDeleteError",
+    ),
 
     workingHoursAddExceptionTitle: pick(map, "workingHoursAddExceptionTitle"),
     workingHoursExceptionDateLabel: pick(map, "workingHoursExceptionDateLabel"),
-    workingHoursExceptionDayOffOption: pick(map, "workingHoursExceptionDayOffOption"),
-    workingHoursExceptionCustomHoursOption: pick(map, "workingHoursExceptionCustomHoursOption"),
-    workingHoursExceptionReasonPlaceholder: pick(map, "workingHoursExceptionReasonPlaceholder"),
+    workingHoursExceptionDayOffOption: pick(
+      map,
+      "workingHoursExceptionDayOffOption",
+    ),
+    workingHoursExceptionCustomHoursOption: pick(
+      map,
+      "workingHoursExceptionCustomHoursOption",
+    ),
+    workingHoursExceptionReasonPlaceholder: pick(
+      map,
+      "workingHoursExceptionReasonPlaceholder",
+    ),
     workingHoursAddExceptionButton: pick(map, "workingHoursAddExceptionButton"),
     workingHoursSavingException: pick(map, "workingHoursSavingException"),
     workingHoursExceptionSaveError: pick(map, "workingHoursExceptionSaveError"),
@@ -422,7 +460,9 @@ export function buildTranslations(map: TranslationMap): Translations {
     calendarPrevLabel: pick(map, "calendarPrevLabel"),
     calendarNextLabel: pick(map, "calendarNextLabel"),
     calendarTodayButton: pick(map, "calendarTodayButton"),
-    calendarMoreEvents: (n) => interpolate(pick(map, "calendarMoreEvents"), { n }),
+    calendarAddLabel: pick(map, "calendarAddLabel"),
+    calendarMoreEvents: (n) =>
+      interpolate(pick(map, "calendarMoreEvents"), { n }),
     calendarLoadError: pick(map, "calendarLoadError"),
     calendarChooseActionTitle: pick(map, "calendarChooseActionTitle"),
     calendarAddBookingButton: pick(map, "calendarAddBookingButton"),

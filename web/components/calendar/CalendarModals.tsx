@@ -18,20 +18,40 @@
  */
 
 import { useMemo, useState } from "react";
-import { api, ApiError, type BookingStatus, type ServiceToggle } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  type BookingStatus,
+  type ServiceToggle,
+} from "@/lib/api";
 import { businessHourMinute, dateKey, warsawIso } from "@/lib/format";
 import type { Translations } from "@/lib/i18n";
 import type { LocaleCode } from "@/lib/locale";
 import { CompactButton, inputClass } from "@/components/ui";
-import { type CalEvent, parseHhmm, statusClasses, timeToHhmm, weekdayHeaderLabel } from "./helpers";
+import {
+  type CalEvent,
+  parseHhmm,
+  statusClasses,
+  timeToHhmm,
+  weekdayHeaderLabel,
+} from "./helpers";
 
 // ----------------------------------------------------------------------------
 // Shared modal shell.
 // ----------------------------------------------------------------------------
 
-export function Modal({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+export function Modal({
+  onClose,
+  children,
+}: {
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"
+      onClick={onClose}
+    >
       <div
         className="max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-md border border-line bg-bg p-4 shadow-lg sm:p-5"
         onClick={(e) => e.stopPropagation()}
@@ -63,16 +83,23 @@ export function ChooseActionModal({
 }) {
   return (
     <Modal onClose={onClose}>
-      <h3 className="mb-1 text-sm font-medium text-ink">{t.calendarChooseActionTitle}</h3>
+      <h3 className="mb-1 text-sm font-medium text-ink">
+        {t.calendarChooseActionTitle}
+      </h3>
       <p className="mb-3 text-sm text-ink/60">
         {dateStr}, {time}
       </p>
       <div className="flex flex-col gap-2">
-        <CompactButton onClick={onPickBooking}>{t.calendarAddBookingButton}</CompactButton>
+        <CompactButton onClick={onPickBooking}>
+          {t.calendarAddBookingButton}
+        </CompactButton>
         <CompactButton variant="secondary" onClick={onPickBlock}>
           {t.calendarBlockTimeButton}
         </CompactButton>
-        <button onClick={onClose} className="mt-1 text-sm text-ink/60 hover:text-ink">
+        <button
+          onClick={onClose}
+          className="mt-1 text-sm text-ink/60 hover:text-ink"
+        >
           {t.calendarCloseButton}
         </button>
       </div>
@@ -95,7 +122,10 @@ export function ManualBookingForm({
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const offered = useMemo(() => services.filter((s) => s.is_offered), [services]);
+  const offered = useMemo(
+    () => services.filter((s) => s.is_offered),
+    [services],
+  );
   const [serviceId, setServiceId] = useState(offered[0]?.service_id ?? "");
   const [time, setTime] = useState(initialTime);
   const [duration, setDuration] = useState(offered[0]?.duration_minutes ?? 60);
@@ -129,7 +159,9 @@ export function ManualBookingForm({
       onCreated();
     } catch (err) {
       setError(
-        err instanceof ApiError && err.status === 409 ? t.calendarConflictError : t.calendarCreateBookingError,
+        err instanceof ApiError && err.status === 409
+          ? t.calendarConflictError
+          : t.calendarCreateBookingError,
       );
     } finally {
       setSaving(false);
@@ -138,14 +170,20 @@ export function ManualBookingForm({
 
   return (
     <Modal onClose={onClose}>
-      <h3 className="mb-3 text-sm font-medium text-ink">{t.calendarNewBookingTitle}</h3>
+      <h3 className="mb-3 text-sm font-medium text-ink">
+        {t.calendarNewBookingTitle}
+      </h3>
       {offered.length === 0 ? (
         <p className="text-sm text-ink/60">{t.noActiveServices}</p>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1 text-sm">
             {t.calendarServiceLabel}
-            <select value={serviceId} onChange={(e) => handleServiceChange(e.target.value)} className={inputClass}>
+            <select
+              value={serviceId}
+              onChange={(e) => handleServiceChange(e.target.value)}
+              className={inputClass}
+            >
               {offered.map((s) => (
                 <option key={s.service_id} value={s.service_id}>
                   {s.name}
@@ -213,7 +251,9 @@ export function ManualBookingForm({
           {error && <p className="text-sm text-danger">{error}</p>}
           <div className="mt-1 flex flex-wrap gap-2">
             <CompactButton type="submit" disabled={saving}>
-              {saving ? t.calendarCreatingBooking : t.calendarCreateBookingButton}
+              {saving
+                ? t.calendarCreatingBooking
+                : t.calendarCreateBookingButton}
             </CompactButton>
             <CompactButton type="button" variant="secondary" onClick={onClose}>
               {t.calendarCloseButton}
@@ -275,7 +315,9 @@ export function BlockForm({
       onSaved();
     } catch (err) {
       setError(
-        err instanceof ApiError && err.status === 409 ? t.calendarConflictError : t.calendarCreateBlockError,
+        err instanceof ApiError && err.status === 409
+          ? t.calendarConflictError
+          : t.calendarCreateBlockError,
       );
     } finally {
       setSaving(false);
@@ -284,7 +326,9 @@ export function BlockForm({
 
   return (
     <Modal onClose={onClose}>
-      <h3 className="mb-3 text-sm font-medium text-ink">{t.calendarNewBlockTitle}</h3>
+      <h3 className="mb-3 text-sm font-medium text-ink">
+        {t.calendarNewBlockTitle}
+      </h3>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <div className="flex flex-col gap-2 sm:flex-row">
           <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
@@ -403,22 +447,30 @@ export function EventDetailsModal({
     <Modal onClose={onClose}>
       {event.kind === "booking" ? (
         <>
-          <h3 className="mb-1 text-sm font-medium text-ink">{serviceName(event.service_id)}</h3>
+          <h3 className="mb-1 text-sm font-medium text-ink">
+            {serviceName(event.service_id)}
+          </h3>
           <p className="mb-1 text-sm text-ink/60">
-            {weekdayHeaderLabel(dateStr, locale)}, {timeToHhmm(startHm.hour, startHm.minute)}–
+            {weekdayHeaderLabel(dateStr, locale)},{" "}
+            {timeToHhmm(startHm.hour, startHm.minute)}–
             {timeToHhmm(endHm.hour, endHm.minute)}
           </p>
           <p className="mb-3 text-sm text-ink/60">
             {event.client_name}
             {event.client_phone ? ` · ${event.client_phone}` : ""}
           </p>
-          <span className={`mb-3 inline-block rounded-full px-2.5 py-1 text-xs ${statusClasses(event.status)}`}>
+          <span
+            className={`mb-3 inline-block rounded-full px-2.5 py-1 text-xs ${statusClasses(event.status)}`}
+          >
             {t.bookingStatusLabel[event.status] ?? event.status}
           </span>
           {error && <p className="mb-2 text-sm text-danger">{error}</p>}
           <div className="flex flex-wrap gap-2">
             {event.status === "pending" && (
-              <CompactButton disabled={busy} onClick={() => handleStatus("confirmed")}>
+              <CompactButton
+                disabled={busy}
+                onClick={() => handleStatus("confirmed")}
+              >
                 {t.confirmBookingButton}
               </CompactButton>
             )}
@@ -427,25 +479,41 @@ export function EventDetailsModal({
                 {t.cancelBookingButton}
               </CompactButton>
             )}
-            <CompactButton variant="secondary" disabled={busy} onClick={() => setEditingTime(true)}>
+            <CompactButton
+              variant="secondary"
+              disabled={busy}
+              onClick={() => setEditingTime(true)}
+            >
               {t.calendarEditTimeButton}
             </CompactButton>
-            <button onClick={onClose} className="ml-auto text-sm text-ink/60 hover:text-ink">
+            <button
+              onClick={onClose}
+              className="ml-auto text-sm text-ink/60 hover:text-ink"
+            >
               {t.calendarCloseButton}
             </button>
           </div>
         </>
       ) : (
         <>
-          <h3 className="mb-1 text-sm font-medium text-ink">{t.calendarBlockDetailsTitle}</h3>
+          <h3 className="mb-1 text-sm font-medium text-ink">
+            {t.calendarBlockDetailsTitle}
+          </h3>
           <p className="mb-1 text-sm text-ink/60">
-            {weekdayHeaderLabel(dateStr, locale)}, {timeToHhmm(startHm.hour, startHm.minute)}–
+            {weekdayHeaderLabel(dateStr, locale)},{" "}
+            {timeToHhmm(startHm.hour, startHm.minute)}–
             {timeToHhmm(endHm.hour, endHm.minute)}
           </p>
-          {event.reason && <p className="mb-3 text-sm text-ink">{event.reason}</p>}
+          {event.reason && (
+            <p className="mb-3 text-sm text-ink">{event.reason}</p>
+          )}
           {error && <p className="mb-2 text-sm text-danger">{error}</p>}
           <div className="flex flex-wrap gap-2">
-            <CompactButton variant="secondary" disabled={busy} onClick={() => setEditingTime(true)}>
+            <CompactButton
+              variant="secondary"
+              disabled={busy}
+              onClick={() => setEditingTime(true)}
+            >
               {t.calendarEditTimeButton}
             </CompactButton>
             <CompactButton
@@ -455,7 +523,10 @@ export function EventDetailsModal({
             >
               {busy ? t.calendarDeletingBlock : t.calendarDeleteBlockButton}
             </CompactButton>
-            <button onClick={onClose} className="ml-auto text-sm text-ink/60 hover:text-ink">
+            <button
+              onClick={onClose}
+              className="ml-auto text-sm text-ink/60 hover:text-ink"
+            >
               {t.calendarCloseButton}
             </button>
           </div>
@@ -484,7 +555,9 @@ function RescheduleTimeForm({
 }) {
   const startHm = businessHourMinute(event.start_at);
   const endHm = businessHourMinute(event.end_at);
-  const [startTime, setStartTime] = useState(timeToHhmm(startHm.hour, startHm.minute));
+  const [startTime, setStartTime] = useState(
+    timeToHhmm(startHm.hour, startHm.minute),
+  );
   const [endTime, setEndTime] = useState(timeToHhmm(endHm.hour, endHm.minute));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -501,11 +574,19 @@ function RescheduleTimeForm({
       if (event.kind === "booking") {
         await api.rescheduleBooking(event.id, startIso, endIso);
       } else {
-        await api.updateBlock(event.id, { start_at: startIso, end_at: endIso, reason: event.reason ?? undefined });
+        await api.updateBlock(event.id, {
+          start_at: startIso,
+          end_at: endIso,
+          reason: event.reason ?? undefined,
+        });
       }
       onSaved();
     } catch (err) {
-      setError(err instanceof ApiError && err.status === 409 ? t.calendarConflictError : t.calendarRescheduleError);
+      setError(
+        err instanceof ApiError && err.status === 409
+          ? t.calendarConflictError
+          : t.calendarRescheduleError,
+      );
     } finally {
       setSaving(false);
     }
@@ -513,7 +594,9 @@ function RescheduleTimeForm({
 
   return (
     <Modal onClose={onClose}>
-      <h3 className="mb-3 text-sm font-medium text-ink">{t.calendarEditTimeButton}</h3>
+      <h3 className="mb-3 text-sm font-medium text-ink">
+        {t.calendarEditTimeButton}
+      </h3>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <div className="flex flex-col gap-2 sm:flex-row">
           <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm">

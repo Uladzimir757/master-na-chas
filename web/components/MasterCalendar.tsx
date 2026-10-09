@@ -64,9 +64,11 @@ export default function MasterCalendar() {
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [composer, setComposer] = useState<{ dateStr: string; time: string; mode: "choose" | "booking" | "block" } | null>(
-    null,
-  );
+  const [composer, setComposer] = useState<{
+    dateStr: string;
+    time: string;
+    mode: "choose" | "booking" | "block";
+  } | null>(null);
   const [selected, setSelected] = useState<CalEvent | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
 
@@ -81,14 +83,19 @@ export default function MasterCalendar() {
     const last = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
     const firstWeekday = (first.getDay() + 6) % 7;
     const lastWeekday = (last.getDay() + 6) % 7;
-    return { from: addDays(first, -firstWeekday), to: addDays(last, 6 - lastWeekday) };
+    return {
+      from: addDays(first, -firstWeekday),
+      to: addDays(last, 6 - lastWeekday),
+    };
   }, [view, anchor]);
 
   const load = useCallback(async () => {
     try {
       const [cal, svc] = await Promise.all([
         api.getMyCalendar(toDateParam(range.from), toDateParam(range.to)),
-        serviceToggles.length === 0 ? api.getMyServices(locale) : Promise.resolve(serviceToggles),
+        serviceToggles.length === 0
+          ? api.getMyServices(locale)
+          : Promise.resolve(serviceToggles),
       ]);
       setEvents(toEvents(cal.bookings, cal.blocks));
       setServiceToggles(svc);
@@ -143,7 +150,12 @@ export default function MasterCalendar() {
     setComposer({ dateStr, time: timeToHhmm(hour, minute), mode: "choose" });
   };
 
-  const handleDropEvent = async (event: CalEvent, targetDateStr: string, hour: number, minute: number) => {
+  const handleDropEvent = async (
+    event: CalEvent,
+    targetDateStr: string,
+    hour: number,
+    minute: number,
+  ) => {
     setDropError(null);
     const durationMs = Date.parse(event.end_at) - Date.parse(event.start_at);
     const startIso = warsawIso(targetDateStr, hour, minute);
@@ -152,17 +164,68 @@ export default function MasterCalendar() {
       if (event.kind === "booking") {
         await api.rescheduleBooking(event.id, startIso, endIso);
       } else {
-        await api.updateBlock(event.id, { start_at: startIso, end_at: endIso, reason: event.reason ?? undefined });
+        await api.updateBlock(event.id, {
+          start_at: startIso,
+          end_at: endIso,
+          reason: event.reason ?? undefined,
+        });
       }
       await load();
     } catch (err) {
-      setDropError(err instanceof ApiError && err.status === 409 ? t.calendarConflictError : t.calendarRescheduleError);
+      setDropError(
+        err instanceof ApiError && err.status === 409
+          ? t.calendarConflictError
+          : t.calendarRescheduleError,
+      );
     }
   };
 
+  // Phone: only the day view (week/month grids are unreadable at 360px).
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const enforce = () => {
+      if (mq.matches) setView("day");
+    };
+    enforce();
+    mq.addEventListener("change", enforce);
+    return () => mq.removeEventListener("change", enforce);
+  }, []);
+
+  // Mon–Sun strip for the week containing the anchor day.
+  const weekStrip = useMemo(() => {
+    const weekday = (anchor.getDay() + 6) % 7;
+    const start = addDays(anchor, -weekday);
+    return Array.from({ length: 7 }, (_, i) => toDateParam(addDays(start, i)));
+  }, [anchor]);
+  const todayStr = toDateParam(new Date());
+  const anchorStr = toDateParam(anchor);
+  const stripLabel = (dateStr: string) => {
+    const d = new Date(`${dateStr}T00:00:00Z`);
+    const tag = locale === "pl" ? "pl-PL" : "en-GB";
+    return {
+      wd: new Intl.DateTimeFormat(tag, {
+        weekday: "short",
+        timeZone: "UTC",
+      }).format(d),
+      day: d.getUTCDate(),
+    };
+  };
+  const openComposerNow = () => {
+    const now = new Date();
+    setComposer({
+      dateStr: anchorStr,
+      time: timeToHhmm(now.getHours(), now.getMinutes() < 30 ? 0 : 30),
+      mode: "choose",
+    });
+  };
+
   const goToday = () => setAnchor(new Date());
-  const goPrev = () => setAnchor((d) => addDays(d, view === "day" ? -1 : view === "week" ? -7 : -30));
-  const goNext = () => setAnchor((d) => addDays(d, view === "day" ? 1 : view === "week" ? 7 : 30));
+  const goPrev = () =>
+    setAnchor((d) =>
+      addDays(d, view === "day" ? -1 : view === "week" ? -7 : -30),
+    );
+  const goNext = () =>
+    setAnchor((d) => addDays(d, view === "day" ? 1 : view === "week" ? 7 : 30));
 
   const title =
     view === "month"
@@ -172,30 +235,48 @@ export default function MasterCalendar() {
         : `${weekdayHeaderLabel(toDateParam(range.from), locale)} – ${weekdayHeaderLabel(toDateParam(range.to), locale)}`;
 
   return (
-    <section>
+    <section className="pb-24 sm:pb-0">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
-          <CompactButton variant="secondary" onClick={goPrev} aria-label={t.calendarPrevLabel} className="px-2.5">
+        <div className="flex w-full items-center gap-1 sm:w-auto">
+          <CompactButton
+            variant="secondary"
+            onClick={goPrev}
+            aria-label={t.calendarPrevLabel}
+            className="px-2.5"
+          >
             ‹
           </CompactButton>
-          <CompactButton variant="secondary" onClick={goNext} aria-label={t.calendarNextLabel} className="px-2.5">
+          <CompactButton
+            variant="secondary"
+            onClick={goNext}
+            aria-label={t.calendarNextLabel}
+            className="px-2.5"
+          >
             ›
           </CompactButton>
           <CompactButton variant="secondary" onClick={goToday} className="ml-1">
             {t.calendarTodayButton}
           </CompactButton>
-          <span className="ml-2 text-sm font-medium capitalize text-ink">{title}</span>
+          <span className="ml-2 truncate text-sm font-semibold capitalize text-ink">
+            {title}
+          </span>
         </div>
-        <div className="flex gap-1 rounded-md border border-line bg-line/20 p-1 text-sm">
+        <div className="hidden gap-1 rounded-md border border-line bg-line/20 p-1 text-sm sm:flex">
           {(["day", "week", "month"] as ViewMode[]).map((v) => (
             <button
               key={v}
               onClick={() => setView(v)}
               className={`rounded-md px-2.5 py-1 font-medium transition ${
-                view === v ? "bg-bg text-ink shadow-sm" : "text-ink/60 hover:text-ink"
+                view === v
+                  ? "bg-bg text-ink shadow-sm"
+                  : "text-ink/60 hover:text-ink"
               }`}
             >
-              {v === "day" ? t.calendarViewDay : v === "week" ? t.calendarViewWeek : t.calendarViewMonth}
+              {v === "day"
+                ? t.calendarViewDay
+                : v === "week"
+                  ? t.calendarViewWeek
+                  : t.calendarViewMonth}
             </button>
           ))}
         </div>
@@ -218,12 +299,21 @@ export default function MasterCalendar() {
           }}
         />
       ) : (
-        <div className="overflow-x-auto rounded-md border border-line">
-          <div className="flex" style={{ minWidth: view === "week" ? 700 : undefined }}>
+        <div className="overflow-x-auto border-y border-line sm:rounded-md sm:border">
+          <div
+            className="flex"
+            style={{ minWidth: view === "week" ? 700 : undefined }}
+          >
             <div className="w-12 shrink-0 border-r border-line">
               <div className="h-6 border-b border-line/60" />
-              {Array.from({ length: gridBounds.endHour - gridBounds.startHour }).map((_, i) => (
-                <div key={i} className="text-right text-[10px] text-ink/40" style={{ height: 60 }}>
+              {Array.from({
+                length: gridBounds.endHour - gridBounds.startHour,
+              }).map((_, i) => (
+                <div
+                  key={i}
+                  className="text-right text-[10px] text-ink/40"
+                  style={{ height: 60 }}
+                >
                   {pad2(gridBounds.startHour + i)}:00
                 </div>
               ))}
@@ -232,7 +322,9 @@ export default function MasterCalendar() {
               {dayStrs.map((dateStr) => (
                 <div key={dateStr} className="flex flex-1 flex-col">
                   <div className="h-6 border-b border-line/60 text-center text-xs font-medium capitalize text-ink/70">
-                    {view === "week" ? weekdayHeaderLabel(dateStr, locale) : null}
+                    {view === "week"
+                      ? weekdayHeaderLabel(dateStr, locale)
+                      : null}
                   </div>
                   <DayColumn
                     dateStr={dateStr}
@@ -250,6 +342,41 @@ export default function MasterCalendar() {
           </div>
         </div>
       )}
+
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg sm:hidden">
+        <div className="flex items-stretch gap-1 px-2 py-2">
+          {weekStrip.map((ds) => {
+            const { wd, day } = stripLabel(ds);
+            const isSel = ds === anchorStr;
+            const isToday = ds === todayStr;
+            return (
+              <button
+                key={ds}
+                type="button"
+                onClick={() => setAnchor(new Date(`${ds}T12:00:00`))}
+                className={`flex flex-1 flex-col items-center rounded-lg py-1.5 text-xs transition ${
+                  isSel
+                    ? "bg-accent text-white"
+                    : isToday
+                      ? "border border-accent text-accent-2"
+                      : "text-ink/70"
+                }`}
+              >
+                <span className="uppercase">{wd}</span>
+                <span className="text-base font-semibold">{day}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={openComposerNow}
+        aria-label={t.calendarAddLabel}
+        className="fixed bottom-24 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-3xl leading-none text-white shadow-lg sm:hidden"
+      >
+        +
+      </button>
 
       {composer?.mode === "choose" && (
         <ChooseActionModal
