@@ -536,74 +536,86 @@ export default function CabinetDashboard({
                   {svc.is_offered && (
                     <div className="mt-3 flex flex-col gap-2 pl-7">
                       <div className="flex flex-col gap-2 sm:flex-row">
-                        <input
-                          key={`${svc.service_id}-dur-${svc.duration_minutes}`}
-                          type="number"
-                          min={5}
-                          step={5}
-                          inputMode="numeric"
-                          defaultValue={svc.duration_minutes}
-                          placeholder={t.serviceDurationPlaceholder}
-                          title={t.serviceDurationPlaceholder}
-                          disabled={savingServices}
-                          onBlur={(e) =>
-                            handleServiceDurationBlur(
-                              svc.service_id,
-                              e.target.value,
-                            )
-                          }
-                          className={`sm:w-28 ${inputClass}`}
-                        />
-                        <input
-                          key={`${svc.service_id}-min-${svc.price_min ?? "empty"}`}
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          inputMode="decimal"
-                          defaultValue={svc.price_min ?? ""}
-                          placeholder={t.servicePriceMinPlaceholder}
-                          disabled={savingServices}
-                          onBlur={(e) =>
-                            handleServicePriceMinBlur(
-                              svc.service_id,
-                              e.target.value,
-                            )
-                          }
-                          className={`sm:w-32 ${inputClass}`}
-                        />
-                        <input
-                          key={`${svc.service_id}-max-${svc.price_max ?? "empty"}`}
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          inputMode="decimal"
-                          defaultValue={svc.price_max ?? ""}
-                          placeholder={t.servicePriceMaxPlaceholder}
-                          disabled={savingServices}
-                          onBlur={(e) =>
-                            handleServicePriceMaxBlur(
-                              svc.service_id,
-                              e.target.value,
-                            )
-                          }
-                          className={`sm:w-32 ${inputClass}`}
-                        />
+                        <label className="flex flex-col gap-1 text-xs text-ink/60">
+                          <span>{t.serviceDurationLabel}</span>
+                          <input
+                            key={`${svc.service_id}-dur-${svc.duration_minutes}`}
+                            type="number"
+                            min={5}
+                            step={5}
+                            inputMode="numeric"
+                            defaultValue={svc.duration_minutes}
+                            placeholder={t.serviceDurationPlaceholder}
+                            title={t.serviceDurationPlaceholder}
+                            disabled={savingServices}
+                            onBlur={(e) =>
+                              handleServiceDurationBlur(
+                                svc.service_id,
+                                e.target.value,
+                              )
+                            }
+                            className={`sm:w-28 ${inputClass}`}
+                          />
+                        </label>
+                        <label className="flex flex-col gap-1 text-xs text-ink/60">
+                          <span>{t.servicePriceMinLabel}</span>
+                          <input
+                            key={`${svc.service_id}-min-${svc.price_min ?? "empty"}`}
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            inputMode="decimal"
+                            defaultValue={svc.price_min ?? ""}
+                            placeholder={t.servicePriceMinPlaceholder}
+                            disabled={savingServices}
+                            onBlur={(e) =>
+                              handleServicePriceMinBlur(
+                                svc.service_id,
+                                e.target.value,
+                              )
+                            }
+                            className={`sm:w-32 ${inputClass}`}
+                          />
+                        </label>
+                        <label className="flex flex-col gap-1 text-xs text-ink/60">
+                          <span>{t.servicePriceMaxLabel}</span>
+                          <input
+                            key={`${svc.service_id}-max-${svc.price_max ?? "empty"}`}
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            inputMode="decimal"
+                            defaultValue={svc.price_max ?? ""}
+                            placeholder={t.servicePriceMaxPlaceholder}
+                            disabled={savingServices}
+                            onBlur={(e) =>
+                              handleServicePriceMaxBlur(
+                                svc.service_id,
+                                e.target.value,
+                              )
+                            }
+                            className={`sm:w-32 ${inputClass}`}
+                          />
+                        </label>
                       </div>
-                      <input
-                        key={`${svc.service_id}-desc-${svc.description ?? "empty"}`}
-                        type="text"
-                        maxLength={2000}
-                        defaultValue={svc.description ?? ""}
-                        placeholder={t.serviceDescriptionPlaceholder}
-                        disabled={savingServices}
-                        onBlur={(e) =>
-                          handleServiceDescriptionBlur(
-                            svc.service_id,
-                            e.target.value,
-                          )
-                        }
-                        className={inputClass}
-                      />
+                      <label className="flex flex-col gap-1 text-xs text-ink/60">
+                        <span>{t.serviceDescriptionLabel}</span>
+                        <input
+                          key={`${svc.service_id}-desc-${svc.description ?? "empty"}`}
+                          type="text"
+                          maxLength={2000}
+                          defaultValue={svc.description ?? ""}
+                          placeholder={t.serviceDescriptionPlaceholder}
+                          disabled={savingServices}
+                          onBlur={(e) =>
+                            handleServiceDescriptionBlur(
+                              svc.service_id,
+                              e.target.value,
+                            )
+                          }
+                          className={inputClass}
+                        />
+                      </label>
                     </div>
                   )}
                 </li>

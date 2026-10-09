@@ -198,6 +198,10 @@ export interface Translations {
   calendarNextLabel: string;
   calendarTodayButton: string;
   calendarAddLabel: string;
+  serviceDurationLabel: string;
+  servicePriceMinLabel: string;
+  servicePriceMaxLabel: string;
+  serviceDescriptionLabel: string;
   myBookingTitle: string;
   myBookingLoadError: string;
   myBookingCancelButton: string;
@@ -532,6 +536,10 @@ export function buildTranslations(map: TranslationMap): Translations {
     calendarNextLabel: pick(map, "calendarNextLabel"),
     calendarTodayButton: pick(map, "calendarTodayButton"),
     calendarAddLabel: pick(map, "calendarAddLabel"),
+    serviceDurationLabel: pick(map, "serviceDurationLabel"),
+    servicePriceMinLabel: pick(map, "servicePriceMinLabel"),
+    servicePriceMaxLabel: pick(map, "servicePriceMaxLabel"),
+    serviceDescriptionLabel: pick(map, "serviceDescriptionLabel"),
     myBookingTitle: pick(map, "myBookingTitle"),
     myBookingLoadError: pick(map, "myBookingLoadError"),
     myBookingCancelButton: pick(map, "myBookingCancelButton"),

@@ -28,7 +28,7 @@
  * the overflow fix on paired time inputs in narrow modals).
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, type ServiceToggle } from "@/lib/api";
 import { addDays, toDateParam, warsawIso } from "@/lib/format";
 import { useLocale } from "@/lib/LocaleContext";
@@ -180,25 +180,24 @@ export default function MasterCalendar() {
     }
   };
 
-  // Phone: only the day view (week/month grids are unreadable at 360px).
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 639px)");
-    const enforce = () => {
-      if (mq.matches) setView("day");
-    };
-    enforce();
-    mq.addEventListener("change", enforce);
-    return () => mq.removeEventListener("change", enforce);
+  // Лента дней внизу: ±~2 месяца вокруг сегодняшнего дня, прокручивается
+  // горизонтально; выбранный день центрируется.
+  const stripDays = useMemo(() => {
+    const base = new Date();
+    return Array.from({ length: 91 }, (_, i) =>
+      toDateParam(addDays(base, i - 30)),
+    );
   }, []);
-
-  // Mon–Sun strip for the week containing the anchor day.
-  const weekStrip = useMemo(() => {
-    const weekday = (anchor.getDay() + 6) % 7;
-    const start = addDays(anchor, -weekday);
-    return Array.from({ length: 7 }, (_, i) => toDateParam(addDays(start, i)));
-  }, [anchor]);
+  const selectedChipRef = useRef<HTMLButtonElement | null>(null);
   const todayStr = toDateParam(new Date());
   const anchorStr = toDateParam(anchor);
+  useEffect(() => {
+    selectedChipRef.current?.scrollIntoView({
+      inline: "center",
+      block: "nearest",
+      behavior: "smooth",
+    });
+  }, [anchorStr]);
   const stripLabel = (dateStr: string) => {
     const d = new Date(`${dateStr}T00:00:00Z`);
     const tag = locale === "pl" ? "pl-PL" : "en-GB";
@@ -237,7 +236,7 @@ export default function MasterCalendar() {
   return (
     <section className="pb-24 sm:pb-0">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex w-full items-center gap-1 sm:w-auto">
+        <div className="flex w-full flex-wrap items-center gap-1 sm:w-auto">
           <CompactButton
             variant="secondary"
             onClick={goPrev}
@@ -257,11 +256,11 @@ export default function MasterCalendar() {
           <CompactButton variant="secondary" onClick={goToday} className="ml-1">
             {t.calendarTodayButton}
           </CompactButton>
-          <span className="ml-2 truncate text-sm font-semibold capitalize text-ink">
+          <span className="ml-2 min-w-0 text-sm font-semibold capitalize text-ink">
             {title}
           </span>
         </div>
-        <div className="hidden gap-1 rounded-md border border-line bg-line/20 p-1 text-sm sm:flex">
+        <div className="flex gap-1 rounded-md border border-line bg-line/20 p-1 text-sm">
           {(["day", "week", "month"] as ViewMode[]).map((v) => (
             <button
               key={v}
@@ -345,28 +344,41 @@ export default function MasterCalendar() {
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg sm:hidden">
         <div className="flex items-stretch gap-1 px-2 py-2">
-          {weekStrip.map((ds) => {
-            const { wd, day } = stripLabel(ds);
-            const isSel = ds === anchorStr;
-            const isToday = ds === todayStr;
-            return (
-              <button
-                key={ds}
-                type="button"
-                onClick={() => setAnchor(new Date(`${ds}T12:00:00`))}
-                className={`flex flex-1 flex-col items-center rounded-lg py-1.5 text-xs transition ${
-                  isSel
-                    ? "bg-accent text-white"
-                    : isToday
-                      ? "border border-accent text-accent-2"
-                      : "text-ink/70"
-                }`}
-              >
-                <span className="uppercase">{wd}</span>
-                <span className="text-base font-semibold">{day}</span>
-              </button>
-            );
-          })}
+          <button
+            type="button"
+            onClick={goToday}
+            className="shrink-0 rounded-lg border border-accent px-3 text-xs font-semibold text-accent-2"
+          >
+            {t.calendarTodayButton}
+          </button>
+          <div
+            className="flex flex-1 gap-1 overflow-x-auto"
+            style={{ scrollbarWidth: "none" }}
+          >
+            {stripDays.map((ds) => {
+              const { wd, day } = stripLabel(ds);
+              const isSel = ds === anchorStr;
+              const isToday = ds === todayStr;
+              return (
+                <button
+                  key={ds}
+                  ref={isSel ? selectedChipRef : undefined}
+                  type="button"
+                  onClick={() => setAnchor(new Date(`${ds}T12:00:00`))}
+                  className={`flex w-12 shrink-0 flex-col items-center rounded-lg py-1.5 text-xs transition ${
+                    isSel
+                      ? "bg-accent text-white"
+                      : isToday
+                        ? "border border-accent text-accent-2"
+                        : "text-ink/70"
+                  }`}
+                >
+                  <span className="uppercase">{wd}</span>
+                  <span className="text-base font-semibold">{day}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
       <button
