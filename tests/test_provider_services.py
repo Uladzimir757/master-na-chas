@@ -293,3 +293,70 @@ async def test_create_booking_succeeds_for_a_provider_offering_the_service(
         "/api/bookings", json=_payload(service_id=service.id, provider_id=bookable_provider.id, start=time(9, 0))
     )
     assert resp.status_code == 201, resp.text
+
+
+# ----------------------------------------------------------------------------
+# Свой срок выполнения у мастера (ProviderService.duration_minutes)
+# ----------------------------------------------------------------------------
+
+
+async def test_put_my_services_stores_own_duration_and_null_when_equal_to_default(
+    logged_in_client: AsyncClient, db_session: AsyncSession, provider: Provider, service: Service
+):
+    resp = await logged_in_client.put(
+        "/api/providers/me/services",
+        json={"services": [{"service_id": str(service.id), "duration_minutes": 90}]},
+    )
+    assert resp.status_code == 200, resp.text
+    row = next(r for r in resp.json() if r["service_id"] == str(service.id))
+    assert row["duration_minutes"] == 90
+
+    # то же значение, что у услуги по умолчанию -> NULL в БД
+    resp = await logged_in_client.put(
+        "/api/providers/me/services",
+        json={"services": [{"service_id": str(service.id), "duration_minutes": service.duration_minutes}]},
+    )
+    link = (
+        await db_session.execute(
+            select(ProviderService).where(ProviderService.provider_id == provider.id)
+        )
+    ).scalar_one()
+    await db_session.refresh(link)
+    assert link.duration_minutes is None
+
+
+async def test_own_duration_drives_booking_end_time(
+    logged_in_client: AsyncClient, bookable_provider: Provider, service: Service
+):
+    from datetime import datetime, timedelta
+
+    await logged_in_client.put(
+        "/api/providers/me/services",
+        json={"services": [{"service_id": str(service.id), "duration_minutes": 120}]},
+    )
+    start = datetime.combine(NEXT_MONDAY, time(9, 0), tzinfo=BUSINESS_TZ)
+    resp = await logged_in_client.post(
+        "/api/providers/me/bookings",
+        json={"service_id": str(service.id), "start_at": start.isoformat(), "client_name": "К"},
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert datetime.fromisoformat(body["end_at"]) - datetime.fromisoformat(body["start_at"]) == timedelta(hours=2)
+
+
+async def test_public_provider_list_has_price_from_and_categories(
+    client: AsyncClient, db_session: AsyncSession, provider: Provider, service: Service, provider_service: None
+):
+    from decimal import Decimal
+
+    service.category = "assembly"
+    service.price_min = Decimal("80")
+    link = (await db_session.execute(select(ProviderService).where(ProviderService.provider_id == provider.id))).scalar_one()
+    link.price_min = Decimal("120")
+    await db_session.commit()
+
+    resp = await client.get("/api/providers")
+    assert resp.status_code == 200, resp.text
+    row = next(r for r in resp.json() if r["id"] == str(provider.id))
+    assert row["price_from"] == 120.0
+    assert row["categories"] == ["assembly"]

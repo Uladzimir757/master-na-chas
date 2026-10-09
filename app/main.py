@@ -142,6 +142,7 @@ from app.slot_engine import (
     overlaps_provider_busy_range,
     provider_busy_range,
     provider_offers_service,
+    provider_service_duration,
 )
 from app.translations import DEFAULT_LANG, SUPPORTED_LANGS, refresh_translation_cache, translation_cache
 
@@ -291,6 +292,21 @@ async def list_providers(db: AsyncSession = Depends(get_db)) -> list[ProviderOut
     )
     providers = (await db.execute(stmt)).scalars().all()
     now = datetime.now(timezone.utc)
+    offer_rows = (
+        await db.execute(
+            select(ProviderService, Service)
+            .join(Service, Service.id == ProviderService.service_id)
+            .where(ProviderService.is_active.is_(True), Service.is_active.is_(True))
+        )
+    ).all()
+    price_from: dict[uuid.UUID, float] = {}
+    cats: dict[uuid.UUID, set[str]] = {}
+    for link, svc in offer_rows:
+        price = link.price_min if link.price_min is not None else svc.price_min
+        if price is not None:
+            price_from[link.provider_id] = min(float(price), price_from.get(link.provider_id, float(price)))
+        if svc.category:
+            cats.setdefault(link.provider_id, set()).add(svc.category)
     return [
         ProviderOut(
             id=p.id,
@@ -299,6 +315,8 @@ async def list_providers(db: AsyncSession = Depends(get_db)) -> list[ProviderOut
             rating_count=p.rating_count,
             call_out_fee=p.call_out_fee,
             location=await _resolve_provider_location(db, p, now),
+            price_from=price_from.get(p.id),
+            categories=sorted(cats.get(p.id, set())),
         )
         for p in providers
     ]
@@ -373,7 +391,7 @@ async def create_booking(request: Request, payload: BookingCreate, db: AsyncSess
         if not await provider_offers_service(db, provider.id, service.id):
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Provider does not offer this service")
 
-    end_at = payload.start_at + timedelta(minutes=service.duration_minutes)
+    end_at = payload.start_at + timedelta(minutes=await provider_service_duration(db, provider.id, service))
 
     # Real bug found live (2026-09-15): a client booked today's 09:00 slot
     # at 19:25 and it went through — nothing anywhere in the booking path
@@ -554,7 +572,11 @@ async def create_manual_booking(
     if service is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Service not found")
 
-    duration = payload.duration_minutes if payload.duration_minutes is not None else service.duration_minutes
+    duration = (
+        payload.duration_minutes
+        if payload.duration_minutes is not None
+        else await provider_service_duration(db, provider.id, service)
+    )
     end_at = payload.start_at + timedelta(minutes=duration)
 
     if await overlaps_any_provider_block(db, provider.id, payload.start_at, end_at):
@@ -868,7 +890,7 @@ async def get_my_services(
             ServiceToggleOut(
                 service_id=s.id,
                 name=_resolve_service_name(s, lang),
-                duration_minutes=s.duration_minutes,
+                duration_minutes=link.duration_minutes if link and link.duration_minutes else s.duration_minutes,
                 price_min=link.price_min if link and link.price_min is not None else s.price_min,
                 price_max=link.price_max if link and link.price_max is not None else s.price_max,
                 description=link.description if link else None,
@@ -876,6 +898,11 @@ async def get_my_services(
             )
         )
     return result
+
+
+def _own_duration(value: int | None, service: Service) -> int | None:
+    """Совпадает с умолчанием услуги -> храним NULL (чтобы смена умолчания подтягивалась)."""
+    return None if value is None or value == service.duration_minutes else value
 
 
 @app.put("/api/providers/me/services", response_model=list[ServiceToggleOut])
@@ -894,12 +921,10 @@ async def update_my_services(
     optimistically posted."""
     provider = await _get_own_provider(master_user_id, db, "services_edit")
 
-    valid_service_ids = {
-        row[0]
-        for row in (
-            await db.execute(select(Service.id).where(Service.is_active.is_(True)))
-        ).all()
+    services_by_id = {
+        s.id: s for s in (await db.execute(select(Service).where(Service.is_active.is_(True)))).scalars().all()
     }
+    valid_service_ids = set(services_by_id)
     desired_items = {item.service_id: item for item in payload.services if item.service_id in valid_service_ids}
 
     existing_links = {
@@ -922,9 +947,11 @@ async def update_my_services(
                     price_min=item.price_min,
                     price_max=item.price_max,
                     description=item.description,
+                    duration_minutes=_own_duration(item.duration_minutes, services_by_id[service_id]),
                 )
             )
         else:
+            link.duration_minutes = _own_duration(item.duration_minutes, services_by_id[service_id])
             link.is_active = True
             link.price_min = item.price_min
             link.price_max = item.price_max
@@ -1250,7 +1277,7 @@ async def list_provider_services(
         ProviderServiceOut(
             id=service.id,
             name=_resolve_service_name(service, lang),
-            duration_minutes=service.duration_minutes,
+            duration_minutes=link.duration_minutes or service.duration_minutes,
             price_min=link.price_min if link.price_min is not None else service.price_min,
             price_max=link.price_max if link.price_max is not None else service.price_max,
             description=link.description,

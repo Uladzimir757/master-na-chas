@@ -144,6 +144,8 @@ class Service(Base):
     price_min: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     price_max: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     is_active: Mapped[bool] = mapped_column(default=True)
+    # Категория для фильтра мастеров: electric | plumbing | assembly | repair | other (NULL = без категории).
+    category: Mapped[str | None] = mapped_column(String)
     # Per-locale display name (Этап 3, docs/ai-and-reviews.md §1 — dedicated
     # columns, not translation_entry: domain data, not a UI string, the same
     # split Garage System uses for its own Service.display_name_pl/_en).
@@ -193,6 +195,8 @@ class ProviderService(Base):
     price_min: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     price_max: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     description: Mapped[str | None] = mapped_column(Text)
+    # Свой срок выполнения у мастера; NULL = срок услуги по умолчанию (Service.duration_minutes).
+    duration_minutes: Mapped[int | None] = mapped_column(Integer)
 
 
 class WorkingHours(Base):

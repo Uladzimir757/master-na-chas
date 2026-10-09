@@ -89,6 +89,18 @@ def overlaps_provider_busy_range(provider: Provider, start: datetime, end: datet
     return start < busy_end and end > busy_start
 
 
+async def provider_service_duration(db: AsyncSession, provider_id, service: Service) -> int:
+    """Срок услуги у конкретного мастера: его собственный, иначе по умолчанию."""
+    own = (
+        await db.execute(
+            select(ProviderService.duration_minutes).where(
+                ProviderService.provider_id == provider_id, ProviderService.service_id == service.id
+            )
+        )
+    ).scalar_one_or_none()
+    return own if own else service.duration_minutes
+
+
 async def _slots_for_one_provider(
     db: AsyncSession,
     provider: Provider,
@@ -97,7 +109,7 @@ async def _slots_for_one_provider(
     date_to: date,
     step_minutes: int = 15,
 ) -> list[SlotOut]:
-    duration = timedelta(minutes=service.duration_minutes)
+    duration = timedelta(minutes=await provider_service_duration(db, provider.id, service))
     buffer = timedelta(minutes=provider.travel_buffer_minutes)
     step = timedelta(minutes=step_minutes)
 

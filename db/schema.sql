@@ -92,6 +92,7 @@ CREATE TABLE service (
     price_min         numeric(10,2),
     price_max         numeric(10,2),
     is_active         boolean NOT NULL DEFAULT true,
+    category          text,   -- electric | plumbing | assembly | repair | other
     -- Per-locale display name (Этап 3) — dedicated columns, not
     -- translation_entry below: domain data, not a UI string. `name` above
     -- stays the internal/canonical (Russian) value used in notifications to
@@ -123,6 +124,7 @@ CREATE TABLE provider_service (
     price_min    numeric(10,2),
     price_max    numeric(10,2),
     description  text,
+    duration_minutes integer CHECK (duration_minutes > 0),  -- NULL = service default
     PRIMARY KEY (provider_id, service_id)
 );
 

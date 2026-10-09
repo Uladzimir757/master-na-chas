@@ -252,7 +252,13 @@ export default function CabinetDashboard({
       }
       const offers = serviceToggles
         .filter((s) => nextOffered.has(s.service_id))
-        .map((s) => ({ service_id: s.service_id, price_min: s.price_min, price_max: s.price_max, description: s.description }));
+        .map((s) => ({
+          service_id: s.service_id,
+          price_min: s.price_min,
+          price_max: s.price_max,
+          description: s.description,
+          duration_minutes: s.duration_minutes,
+        }));
       void saveServiceOffers(offers);
     },
     [serviceToggles, saveServiceOffers],
@@ -264,7 +270,15 @@ export default function CabinetDashboard({
   // PUT above. Only ever called for a service that's currently offered
   // (the fields aren't rendered otherwise), so it's always in the array.
   const applyServiceFieldEdit = useCallback(
-    (serviceId: string, patch: Partial<Pick<ServiceToggle, "price_min" | "price_max" | "description">>) => {
+    (
+      serviceId: string,
+      patch: Partial<
+        Pick<
+          ServiceToggle,
+          "price_min" | "price_max" | "description" | "duration_minutes"
+        >
+      >,
+    ) => {
       const offers = serviceToggles
         .filter((s) => s.is_offered)
         .map((s) => ({
@@ -272,11 +286,28 @@ export default function CabinetDashboard({
           price_min: s.price_min,
           price_max: s.price_max,
           description: s.description,
+          duration_minutes: s.duration_minutes,
           ...(s.service_id === serviceId ? patch : {}),
         }));
       void saveServiceOffers(offers);
     },
     [serviceToggles, saveServiceOffers],
+  );
+
+  const handleServiceDurationBlur = useCallback(
+    (serviceId: string, raw: string) => {
+      const current = serviceToggles.find((s) => s.service_id === serviceId);
+      const parsed = Math.round(Number(raw));
+      if (
+        !current ||
+        !Number.isFinite(parsed) ||
+        parsed <= 0 ||
+        parsed === current.duration_minutes
+      )
+        return;
+      applyServiceFieldEdit(serviceId, { duration_minutes: parsed });
+    },
+    [serviceToggles, applyServiceFieldEdit],
   );
 
   // Uncontrolled fields (key'd by the saved value, same convention as
@@ -496,13 +527,33 @@ export default function CabinetDashboard({
                     />
                     <span>
                       <span className="block font-medium">{svc.name}</span>
-                      <span className="block text-sm text-ink/60">{t.durationMinutes(svc.duration_minutes)}</span>
+                      <span className="block text-sm text-ink/60">
+                        {t.durationMinutes(svc.duration_minutes)}
+                      </span>
                     </span>
                   </label>
 
                   {svc.is_offered && (
                     <div className="mt-3 flex flex-col gap-2 pl-7">
                       <div className="flex flex-col gap-2 sm:flex-row">
+                        <input
+                          key={`${svc.service_id}-dur-${svc.duration_minutes}`}
+                          type="number"
+                          min={5}
+                          step={5}
+                          inputMode="numeric"
+                          defaultValue={svc.duration_minutes}
+                          placeholder={t.serviceDurationPlaceholder}
+                          title={t.serviceDurationPlaceholder}
+                          disabled={savingServices}
+                          onBlur={(e) =>
+                            handleServiceDurationBlur(
+                              svc.service_id,
+                              e.target.value,
+                            )
+                          }
+                          className={`sm:w-28 ${inputClass}`}
+                        />
                         <input
                           key={`${svc.service_id}-min-${svc.price_min ?? "empty"}`}
                           type="number"

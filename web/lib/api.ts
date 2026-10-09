@@ -100,6 +100,8 @@ export interface Provider {
   // picked (see components/SlotPicker.tsx) — null/0 means nothing shown.
   call_out_fee: number | null;
   location: ProviderLocation | null;
+  price_from?: number | null;
+  categories?: string[];
 }
 
 // One service a specific master offers, with HIS OWN price/description —
@@ -260,6 +262,7 @@ export interface ServiceOffer {
   price_min: number | null;
   price_max: number | null;
   description: string | null;
+  duration_minutes?: number | null;
 }
 
 // "Мои рабочие часы" — a master's own weekly template + per-date overrides.

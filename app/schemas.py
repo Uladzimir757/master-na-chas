@@ -244,6 +244,9 @@ class ProviderOut(BaseModel):
     rating_count: int = 0
     call_out_fee: float | None = None
     location: ProviderLocationOut | None = None
+    # для фильтра/сортировки на странице выбора мастера
+    price_from: float | None = None
+    categories: list[str] = []
 
     class Config:
         from_attributes = True
@@ -338,6 +341,8 @@ class ProviderServiceUpdateItem(BaseModel):
     price_min: float | None = None
     price_max: float | None = None
     description: str | None = Field(default=None, max_length=2000)
+    # свой срок выполнения (мин); None = по умолчанию для услуги
+    duration_minutes: int | None = Field(default=None, gt=0, le=1440)
 
 
 class ProviderServicesUpdate(BaseModel):

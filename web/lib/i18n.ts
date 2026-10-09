@@ -198,6 +198,20 @@ export interface Translations {
   calendarNextLabel: string;
   calendarTodayButton: string;
   calendarAddLabel: string;
+  pickMasterSearch: string;
+  pickMasterSortLabel: string;
+  pickMasterSortRating: string;
+  pickMasterSortPrice: string;
+  pickMasterSortName: string;
+  pickMasterAllCategories: string;
+  pickMasterNone: string;
+  pickMasterPriceFrom: string;
+  catElectric: string;
+  catPlumbing: string;
+  catAssembly: string;
+  catRepair: string;
+  catOther: string;
+  serviceDurationPlaceholder: string;
   completeJobButton: string;
   jobPriceLabel: string;
   jobPriceShort: string;
@@ -503,6 +517,20 @@ export function buildTranslations(map: TranslationMap): Translations {
     calendarNextLabel: pick(map, "calendarNextLabel"),
     calendarTodayButton: pick(map, "calendarTodayButton"),
     calendarAddLabel: pick(map, "calendarAddLabel"),
+    pickMasterSearch: pick(map, "pickMasterSearch"),
+    pickMasterSortLabel: pick(map, "pickMasterSortLabel"),
+    pickMasterSortRating: pick(map, "pickMasterSortRating"),
+    pickMasterSortPrice: pick(map, "pickMasterSortPrice"),
+    pickMasterSortName: pick(map, "pickMasterSortName"),
+    pickMasterAllCategories: pick(map, "pickMasterAllCategories"),
+    pickMasterNone: pick(map, "pickMasterNone"),
+    pickMasterPriceFrom: pick(map, "pickMasterPriceFrom"),
+    catElectric: pick(map, "catElectric"),
+    catPlumbing: pick(map, "catPlumbing"),
+    catAssembly: pick(map, "catAssembly"),
+    catRepair: pick(map, "catRepair"),
+    catOther: pick(map, "catOther"),
+    serviceDurationPlaceholder: pick(map, "serviceDurationPlaceholder"),
     completeJobButton: pick(map, "completeJobButton"),
     jobPriceLabel: pick(map, "jobPriceLabel"),
     jobPriceShort: pick(map, "jobPriceShort"),
