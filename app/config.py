@@ -71,6 +71,11 @@ class Settings(BaseSettings):
     # Тексты уведомлений (SMS клиенту, Telegram/push мастеру) пишет LLM в
     # момент отправки — в коде нет ни одного готового текста (app/llm_text.py).
     # Без ключа уведомление просто не уходит (лог warning), запасного текста нет.
+    # Провайдер переключается переменной окружения, без правок кода: пока
+    # расходуется баланс OpenAI — "openai", потом "anthropic".
+    NOTIFICATION_LLM_PROVIDER: str = "openai"
+    OPENAI_API_KEY: str = ""
+    NOTIFICATION_OPENAI_MODEL: str = "gpt-4o-mini"
     ANTHROPIC_API_KEY: str = ""
     NOTIFICATION_LLM_MODEL: str = "claude-opus-5-5"
     # Серверный fallback на случай отказа классификатора безопасности; пустая

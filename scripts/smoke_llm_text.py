@@ -1,6 +1,7 @@
 """Живая проверка app/llm_text.py против реального Claude API.
 
-Нужен ANTHROPIC_API_KEY в .env (или в окружении). Тратит ~3 коротких вызова.
+Нужен ключ выбранного провайдера в .env (NOTIFICATION_LLM_PROVIDER: OPENAI_API_KEY
+или ANTHROPIC_API_KEY). Тратит ~3 коротких вызова.
 Запуск: python -m scripts.smoke_llm_text
 
 Проверяет то, что юнит-тесты подменяют: что параметры запроса (модель,
@@ -12,7 +13,7 @@ import asyncio
 import sys
 
 from app.config import settings
-from app.llm_text import compose_message, language_for_phone
+from app.llm_text import _api_key_for, compose_message, language_for_phone
 
 if sys.stdout.encoding is not None and sys.stdout.encoding.lower() != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -54,10 +55,17 @@ CASES = [
 
 
 async def main() -> int:
-    if not settings.ANTHROPIC_API_KEY:
-        print("ANTHROPIC_API_KEY не задан — проверять нечего")
+    provider = settings.NOTIFICATION_LLM_PROVIDER
+    if not _api_key_for(provider):
+        print(f"ключ провайдера {provider!r} не задан — проверять нечего")
         return 1
-    print(f"model={settings.NOTIFICATION_LLM_MODEL} fallback={settings.NOTIFICATION_LLM_FALLBACK_MODEL or '-'}")
+    if provider == "openai":
+        print(f"provider=openai model={settings.NOTIFICATION_OPENAI_MODEL}")
+    else:
+        print(
+            f"provider=anthropic model={settings.NOTIFICATION_LLM_MODEL} "
+            f"fallback={settings.NOTIFICATION_LLM_FALLBACK_MODEL or '-'}"
+        )
     failed = 0
     for case in CASES:
         text = await compose_message(**case)

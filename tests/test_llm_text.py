@@ -29,7 +29,8 @@ def _response(text: str, stop_reason: str = "end_turn"):
 
 @pytest.fixture
 def llm(monkeypatch: pytest.MonkeyPatch):
-    """Ключ задан, _call_model подменён; calls хранит присланные payload'ы."""
+    """Anthropic: ключ задан, _call_model подменён; calls хранит присланные payload'ы."""
+    monkeypatch.setattr(settings, "NOTIFICATION_LLM_PROVIDER", "anthropic")
     monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "test-key")
     state = SimpleNamespace(calls=[], reply=_response("Dzień dobry"))
 
@@ -65,13 +66,21 @@ def test_language_for_phone(phone, expected):
     assert llm_text.language_for_phone(phone) == expected
 
 
-async def test_no_api_key_returns_none_without_calling_the_model(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "")
+@pytest.mark.parametrize("provider", ["openai", "anthropic"])
+async def test_no_api_key_returns_none_without_calling_the_model(monkeypatch: pytest.MonkeyPatch, provider):
+    monkeypatch.setattr(settings, "NOTIFICATION_LLM_PROVIDER", provider)
 
     async def boom(user_json: str):
         raise AssertionError("model must not be called without a key")
 
     monkeypatch.setattr(llm_text, "_call_model", boom)
+    monkeypatch.setattr(llm_text, "_call_openai", boom)
+
+    assert await _compose() is None
+
+
+async def test_unknown_provider_returns_none(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(settings, "NOTIFICATION_LLM_PROVIDER", "gemini")
 
     assert await _compose() is None
 
@@ -86,6 +95,12 @@ async def test_returns_only_text_blocks_and_sends_facts_as_json(llm):
     assert payload["language"] == "Polish"
     assert payload["facts"] == {"service": "Hydraulik"}
     assert payload["max_chars"] == 300
+
+
+async def test_trailing_whitespace_is_stripped_per_line(llm):
+    llm.reply = _response("Tytuł  \n\nTreść  \nLinia  ")
+
+    assert await _compose() == "Tytuł\n\nTreść\nLinia"
 
 
 async def test_model_failure_returns_none(llm):
@@ -178,6 +193,90 @@ async def test_call_model_without_fallback_uses_plain_endpoint(monkeypatch: pyte
     label, kwargs = sink[0]
     assert label == "plain"
     assert "fallbacks" not in kwargs and "betas" not in kwargs
+
+
+# --- OpenAI -------------------------------------------------------------------
+
+
+def _openai_response(content, finish_reason="stop", refusal=None):
+    message = SimpleNamespace(content=content, refusal=refusal)
+    return SimpleNamespace(choices=[SimpleNamespace(message=message, finish_reason=finish_reason)])
+
+
+@pytest.fixture
+def openai_llm(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(settings, "NOTIFICATION_LLM_PROVIDER", "openai")
+    monkeypatch.setattr(settings, "OPENAI_API_KEY", "test-key")
+    state = SimpleNamespace(calls=[], reply=_openai_response("Dzień dobry"))
+
+    async def fake_call(user_json: str):
+        state.calls.append(user_json)
+        if isinstance(state.reply, Exception):
+            raise state.reply
+        return state.reply
+
+    async def anthropic_must_not_run(user_json: str):
+        raise AssertionError("anthropic must not be called when provider=openai")
+
+    monkeypatch.setattr(llm_text, "_call_openai", fake_call)
+    monkeypatch.setattr(llm_text, "_call_model", anthropic_must_not_run)
+    return state
+
+
+async def test_openai_returns_text_and_sends_the_same_payload(openai_llm):
+    openai_llm.reply = _openai_response("  Dzień dobry  ")
+
+    text = await _compose(facts={"service": "Hydraulik"}, language="Polish")
+
+    assert text == "Dzień dobry"
+    payload = json.loads(openai_llm.calls[0])
+    assert payload["language"] == "Polish" and payload["facts"] == {"service": "Hydraulik"}
+
+
+async def test_openai_link_guard_applies_too(openai_llm):
+    openai_llm.reply = _openai_response("Oceń pracę.")
+    assert (await _compose(must_include=LINK)).endswith(LINK)
+
+    openai_llm.reply = _openai_response("Zapłać: https://evil.example/pay")
+    assert await _compose(must_include=LINK) is None
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        _openai_response(None),
+        _openai_response("   "),
+        _openai_response("", finish_reason="content_filter"),
+        _openai_response("x", refusal="I can't help with that"),
+        RuntimeError("api down"),
+    ],
+)
+async def test_openai_empty_refused_or_failed_returns_none(openai_llm, reply):
+    openai_llm.reply = reply
+
+    assert await _compose() is None
+
+
+async def test_call_openai_request_shape(monkeypatch: pytest.MonkeyPatch):
+    seen: dict = {}
+
+    class _Completions:
+        async def create(self, **kwargs):
+            seen.update(kwargs)
+            return _openai_response("ok")
+
+    fake = SimpleNamespace(chat=SimpleNamespace(completions=_Completions()))
+    monkeypatch.setattr(llm_text, "_get_openai_client", lambda: fake)
+    monkeypatch.setattr(settings, "NOTIFICATION_OPENAI_MODEL", "gpt-test")
+
+    await llm_text._call_openai('{"x": 1}')
+
+    assert seen["model"] == "gpt-test"
+    assert seen["max_completion_tokens"] == 4000
+    assert seen["messages"] == [
+        {"role": "system", "content": llm_text.SYSTEM_PROMPT},
+        {"role": "user", "content": '{"x": 1}'},
+    ]
 
 
 # --- слой отправки: notifications.notify_* -------------------------------------

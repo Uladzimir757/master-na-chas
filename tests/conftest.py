@@ -52,6 +52,14 @@ NEXT_MONDAY: date = date.today() + timedelta(days=((7 - date.today().weekday()) 
 assert NEXT_MONDAY.weekday() == 0
 
 
+@pytest.fixture(autouse=True)
+def _no_real_llm_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+    """В .env разработчика лежат реальные ключи LLM — тесты не должны тратить
+    по ним деньги. Тесты, которым нужен ключ, выставляют свой фейковый."""
+    monkeypatch.setattr(settings, "OPENAI_API_KEY", "")
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "")
+
+
 def _to_asyncpg_dsn(sqlalchemy_url: str) -> str:
     # asyncpg.connect() wants a plain "postgresql://" URL, not SQLAlchemy's
     # "postgresql+asyncpg://" dialect-qualified one.
