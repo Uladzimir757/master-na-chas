@@ -140,6 +140,39 @@ export interface Booking {
   start_at: string;
   end_at: string;
   status: BookingStatus;
+  price?: string | null;
+}
+
+export interface StaffMember {
+  id: string;
+  name: string | null;
+  email: string;
+  role: string;
+  permissions: string[];
+}
+
+export interface RolesMeta {
+  roles: Record<string, string[]>;
+  permissions: string[];
+}
+
+export interface ServiceStat {
+  service_id: string;
+  name: string;
+  completed: number;
+  cancelled: number;
+  no_show: number;
+  total_minutes: number;
+  avg_minutes: number;
+  revenue: string;
+  priced_jobs: number;
+  avg_price: string | null;
+}
+
+export interface Analytics {
+  date_from: string;
+  date_to: string;
+  services: ServiceStat[];
 }
 
 export interface ProviderSettings {
@@ -375,7 +408,48 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   logout: () => request<{ ok: true }>("/auth/logout", { method: "POST" }),
-  me: () => request<{ master_user_id: string }>("/auth/me"),
+  me: () =>
+    request<{
+      master_user_id: string;
+      name: string | null;
+      role: string;
+      permissions: string[];
+    }>("/auth/me"),
+  rolesMeta: () => request<RolesMeta>("/api/providers/me/roles"),
+  listStaff: () => request<StaffMember[]>("/api/providers/me/staff"),
+  createStaff: (body: {
+    name: string;
+    email: string;
+    password: string;
+    role: string;
+    permissions?: string[] | null;
+  }) =>
+    request<StaffMember>("/api/providers/me/staff", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateStaff: (
+    id: string,
+    body: {
+      name?: string;
+      role?: string;
+      permissions?: string[];
+      reset_permissions?: boolean;
+      new_password?: string;
+    },
+  ) =>
+    request<StaffMember>(`/api/providers/me/staff/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteStaff: (id: string) =>
+    request<{ ok: true }>(`/api/providers/me/staff/${id}`, {
+      method: "DELETE",
+    }),
+  getAnalytics: (from: string, to: string) =>
+    request<Analytics>(
+      `/api/providers/me/analytics?date_from=${from}&date_to=${to}`,
+    ),
   // A logged-in master changing their own password — previously only the
   // superadmin could ever set one, at creation time (see AdminMaster's
   // createMaster below). 401 means the current password was wrong, 422
@@ -411,9 +485,20 @@ export const api = {
       },
     ),
   listMyBookings: (statusFilter?: BookingStatus) =>
-    request<Booking[]>(`/api/bookings${statusFilter ? `?status=${statusFilter}` : ""}`),
-  updateBookingStatus: (bookingId: string, status: BookingStatus) =>
-    request<Booking>(`/api/bookings/${bookingId}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+    request<Booking[]>(
+      `/api/bookings${statusFilter ? `?status=${statusFilter}` : ""}`,
+    ),
+  updateBookingStatus: (
+    bookingId: string,
+    status: BookingStatus,
+    price?: number,
+  ) =>
+    request<Booking>(`/api/bookings/${bookingId}/status`, {
+      method: "PATCH",
+      body: JSON.stringify(
+        price !== undefined ? { status, price } : { status },
+      ),
+    }),
   // Этап 4 — one fresh GPS fix from lib/useLocationSharing.ts's foreground
   // watch. Fire-and-forget from the caller's point of view: the backend
   // stores it unconditionally (app/main.py's update_my_location), whether

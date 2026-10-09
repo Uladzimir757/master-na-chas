@@ -124,7 +124,7 @@ class Provider(Base):
     rating_count: Mapped[int] = mapped_column(Integer, default=0)
 
     working_hours: Mapped[list["WorkingHours"]] = relationship(back_populates="provider")
-    master_user: Mapped["MasterUser | None"] = relationship(back_populates="provider", uselist=False)
+    master_users: Mapped[list["MasterUser"]] = relationship(back_populates="provider")
 
 
 class Service(Base):
@@ -272,6 +272,9 @@ class Booking(Base):
         default=BookingStatus.pending,
     )
     notes: Mapped[str | None] = mapped_column(Text)
+    # Итоговая цена работы — мастер/сотрудник вводит при завершении; нужна
+    # аналитике по работам. NULL = не указана (в выручку не входит).
+    price: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
 
 
 class MasterUser(Base):
@@ -287,10 +290,13 @@ class MasterUser(Base):
     # nullable, filled only by the /telegram/webhook deep-link handshake —
     # never set by hand, never in config. See TelegramLinkToken below.
     telegram_chat_id: Mapped[str | None] = mapped_column(String)
+    # Роли/права (app/permissions.py): у провайдера может быть несколько
+    # сотрудников; permissions NULL = права роли по умолчанию.
+    name: Mapped[str | None] = mapped_column(String)
+    role: Mapped[str] = mapped_column(String, default="owner", server_default="owner")
+    permissions: Mapped[list | None] = mapped_column(JSONB)
 
-    provider: Mapped["Provider"] = relationship(back_populates="master_user")
-
-    __table_args__ = (UniqueConstraint("provider_id"),)
+    provider: Mapped["Provider"] = relationship(back_populates="master_users")
 
 
 class TelegramLinkToken(Base):

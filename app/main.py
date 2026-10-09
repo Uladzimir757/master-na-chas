@@ -51,6 +51,7 @@ import logging
 import secrets
 import uuid
 from contextlib import asynccontextmanager
+from decimal import Decimal
 from datetime import date, datetime, time, timedelta, timezone
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
@@ -82,6 +83,12 @@ from app.models import (
 )
 from app.notifications import notify_client_sms, notify_master, reply_telegram, run_in_background
 from app.schemas import (
+    AnalyticsOut,
+    RolesMetaOut,
+    ServiceStatOut,
+    StaffCreate,
+    StaffOut,
+    StaffUpdate,
     AdminLoginRequest,
     AdminMasterUpdate,
     AvailabilityQuery,
@@ -123,6 +130,7 @@ from app.schemas import (
     WorkingHoursSlot,
     WorkingHoursUpdate,
 )
+from app.permissions import PERMISSIONS, ROLE_DEFAULTS, ROLE_OWNER, ROLES, effective_permissions
 from app.security import hash_password, require_master_user_id, verify_password
 from app.slot_engine import (
     BUSINESS_TZ,
@@ -421,14 +429,28 @@ async def create_booking(request: Request, payload: BookingCreate, db: AsyncSess
     return booking
 
 
+async def _notify_staff(db: AsyncSession, provider_id: uuid.UUID, purpose: str, facts: dict) -> None:
+    """Уведомление хозяину и менеджерам (кто управляет бронями). Best-effort."""
+    staff = (await db.execute(select(MasterUser).where(MasterUser.provider_id == provider_id))).scalars().all()
+    recipients = [u for u in staff if "bookings_status" in effective_permissions(u.role, u.permissions)]
+    for master_user in recipients:
+        subs = (
+            await db.execute(select(WebPushSubscription).where(WebPushSubscription.master_user_id == master_user.id))
+        ).scalars().all()
+        run_in_background(
+            notify_master(
+                telegram_chat_id=master_user.telegram_chat_id,
+                push_subscriptions=[{"endpoint": s.endpoint, "p256dh": s.p256dh, "auth": s.auth} for s in subs],
+                purpose=purpose,
+                facts=facts,
+            )
+        )
+
+
 async def _notify_new_booking(db: AsyncSession, booking: Booking, service: Service) -> None:
     """Best-effort — never raises into the request (see notifications.py docstring).
     Текст пишет LLM (app/llm_text.py) в фоне; здесь только собираются факты —
     plain-значения, а не ORM-объекты, потому что сессия живёт недолго."""
-    master_user = (
-        await db.execute(select(MasterUser).where(MasterUser.provider_id == booking.provider_id))
-    ).scalar_one_or_none()
-
     start_local = booking.start_at.astimezone(BUSINESS_TZ)
     when = {
         "date": start_local.date().isoformat(),
@@ -436,25 +458,17 @@ async def _notify_new_booking(db: AsyncSession, booking: Booking, service: Servi
         "time": start_local.strftime("%H:%M"),
     }
 
-    if master_user is not None:
-        subs = (
-            await db.execute(
-                select(WebPushSubscription).where(WebPushSubscription.master_user_id == master_user.id)
-            )
-        ).scalars().all()
-        run_in_background(
-            notify_master(
-                telegram_chat_id=master_user.telegram_chat_id,
-                push_subscriptions=[{"endpoint": s.endpoint, "p256dh": s.p256dh, "auth": s.auth} for s in subs],
-                purpose="Tell the master that a client has just booked a new job and give the job, the time and how to reach the client.",
-                facts={
-                    "service": service.name,
-                    **when,
-                    "client_name": booking.client_name,
-                    "client_phone": booking.client_phone,
-                },
-            )
-        )
+    await _notify_staff(
+        db,
+        booking.provider_id,
+        "Tell the master that a client has just booked a new job and give the job, the time and how to reach the client.",
+        {
+            "service": service.name,
+            **when,
+            "client_name": booking.client_name,
+            "client_phone": booking.client_phone,
+        },
+    )
 
     if booking.client_phone:
         run_in_background(
@@ -500,12 +514,14 @@ async def update_booking_status(
     # id. Same 404 for "doesn't exist" and "exists but isn't yours": telling
     # the two apart would confirm that some other provider's booking id is
     # real.
-    provider = await _get_own_provider(master_user_id, db)
+    provider = await _get_own_provider(master_user_id, db, "bookings_status")
     booking = await db.get(Booking, booking_id)
     if booking is None or booking.provider_id != provider.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Booking not found")
     was_completed = booking.status == BookingStatus.completed
     booking.status = payload.status
+    if payload.price is not None:
+        booking.price = payload.price
     await db.commit()
     await db.refresh(booking)
 
@@ -533,7 +549,7 @@ async def create_manual_booking(
     against landing on top of an existing booking (the same EXCLUDE
     constraint + 409 translation as create_booking) or his own declared
     block (overlaps_any_provider_block)."""
-    provider = await _get_own_provider(master_user_id, db)
+    provider = await _get_own_provider(master_user_id, db, "bookings_create")
     service = await db.get(Service, payload.service_id)
     if service is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Service not found")
@@ -579,7 +595,7 @@ async def reschedule_booking(
     same ownership check as update_booking_status (404, not 403, for
     someone else's booking, so a guessed id doesn't even confirm it
     exists), same overlap guards as create_manual_booking."""
-    provider = await _get_own_provider(master_user_id, db)
+    provider = await _get_own_provider(master_user_id, db, "bookings_create")
     booking = await db.get(Booking, booking_id)
     if booking is None or booking.provider_id != provider.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Booking not found")
@@ -624,8 +640,16 @@ async def logout(request: Request) -> dict:
 
 
 @app.get("/auth/me")
-async def whoami(master_user_id: str = Depends(require_master_user_id)) -> dict:
-    return {"master_user_id": master_user_id}
+async def whoami(master_user_id: str = Depends(require_master_user_id), db: AsyncSession = Depends(get_db)) -> dict:
+    user = await db.get(MasterUser, uuid.UUID(master_user_id))
+    if user is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not logged in")
+    return {
+        "master_user_id": master_user_id,
+        "name": user.name,
+        "role": user.role,
+        "permissions": effective_permissions(user.role, user.permissions),
+    }
 
 
 @app.post("/auth/change-password")
@@ -657,10 +681,14 @@ async def change_password(
 # ============================================================================
 
 
-async def _get_own_provider(master_user_id: str, db: AsyncSession) -> Provider:
+async def _get_own_provider(master_user_id: str, db: AsyncSession, perm: str | None = None) -> Provider:
+    """Провайдер текущего сотрудника. perm — ключ права из app/permissions.py;
+    без права -> 403 (роль по умолчанию + чекбоксы сотрудника)."""
     master_user = await db.get(MasterUser, uuid.UUID(master_user_id))
     if master_user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Master not found")
+    if perm is not None and perm not in effective_permissions(master_user.role, master_user.permissions):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not allowed for your role")
     provider = await db.get(Provider, master_user.provider_id)
     if provider is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Provider not found")
@@ -714,7 +742,7 @@ async def update_my_provider_settings(
     master_user_id: str = Depends(require_master_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> ProviderSettingsOut:
-    provider = await _get_own_provider(master_user_id, db)
+    provider = await _get_own_provider(master_user_id, db, "settings_edit")
     provider.requires_booking_confirmation = payload.requires_booking_confirmation
     provider.call_out_fee = payload.call_out_fee
     provider.share_location = payload.share_location
@@ -736,7 +764,7 @@ async def update_my_location(
     (harmless: _resolve_provider_location still won't surface it publicly),
     so flipping the toggle back on doesn't have to wait for a brand new fix
     if a recent-enough one is already on file."""
-    provider = await _get_own_provider(master_user_id, db)
+    provider = await _get_own_provider(master_user_id, db, "settings_edit")
     provider.location_lat = payload.lat
     provider.location_lng = payload.lng
     provider.location_updated_at = datetime.now(timezone.utc)
@@ -758,7 +786,7 @@ async def start_busy(
     master_user_id: str = Depends(require_master_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> ProviderBusyOut:
-    provider = await _get_own_provider(master_user_id, db)
+    provider = await _get_own_provider(master_user_id, db, "bookings_status")
     if provider.busy_started_at is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Already marked busy")
     provider.busy_started_at = datetime.now(timezone.utc)
@@ -779,7 +807,7 @@ async def update_busy_estimate(
     already busy — see start_busy above; 409 rather than silently no-op'ing
     the value so the cabinet can't end up showing an estimate attached to no
     active busy session."""
-    provider = await _get_own_provider(master_user_id, db)
+    provider = await _get_own_provider(master_user_id, db, "bookings_status")
     if provider.busy_started_at is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Not currently marked busy")
     provider.busy_estimated_minutes = payload.estimated_minutes
@@ -793,7 +821,7 @@ async def finish_busy(
     master_user_id: str = Depends(require_master_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> ProviderBusyOut:
-    provider = await _get_own_provider(master_user_id, db)
+    provider = await _get_own_provider(master_user_id, db, "bookings_status")
     if provider.busy_started_at is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Not currently marked busy")
     provider.busy_started_at = None
@@ -864,7 +892,7 @@ async def update_my_services(
     checklist save); the response reflects exactly what was actually
     applied, so the client always ends up rendering truth, not what it
     optimistically posted."""
-    provider = await _get_own_provider(master_user_id, db)
+    provider = await _get_own_provider(master_user_id, db, "services_edit")
 
     valid_service_ids = {
         row[0]
@@ -966,7 +994,7 @@ async def update_my_working_hours(
     provider is dropped and replaced with exactly what's posted. Per-date
     overrides (WorkingHoursException) are untouched by this — see the
     dedicated .../exceptions endpoints below."""
-    provider = await _get_own_provider(master_user_id, db)
+    provider = await _get_own_provider(master_user_id, db, "hours_edit")
     await db.execute(delete(WorkingHours).where(WorkingHours.provider_id == provider.id))
     for slot in payload.slots:
         db.add(
@@ -993,7 +1021,7 @@ async def upsert_working_hours_exception(
     working_hours_exception matches this exactly, so posting again for a
     date already overridden simply replaces it rather than needing a
     separate edit path."""
-    provider = await _get_own_provider(master_user_id, db)
+    provider = await _get_own_provider(master_user_id, db, "hours_edit")
     existing = (
         await db.execute(
             select(WorkingHoursException).where(
@@ -1030,7 +1058,7 @@ async def delete_working_hours_exception(
     weekly template says. 404 if there was nothing to delete (scoped to the
     caller's own provider, same as every .../me/* endpoint, so this can
     never touch another master's exception)."""
-    provider = await _get_own_provider(master_user_id, db)
+    provider = await _get_own_provider(master_user_id, db, "hours_edit")
     result = await db.execute(
         delete(WorkingHoursException).where(
             WorkingHoursException.provider_id == provider.id,
@@ -1064,7 +1092,7 @@ async def get_my_calendar(
     if (date_to - date_from).days > MAX_CALENDAR_RANGE_DAYS:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"range too large, max {MAX_CALENDAR_RANGE_DAYS} days")
 
-    provider = await _get_own_provider(master_user_id, db)
+    provider = await _get_own_provider(master_user_id, db, "calendar_view")
     range_start = datetime.combine(date_from, time.min, tzinfo=BUSINESS_TZ)
     range_end = datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=BUSINESS_TZ)
 
@@ -1107,7 +1135,7 @@ async def create_provider_block(
     master_user_id: str = Depends(require_master_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> ProviderBlock:
-    provider = await _get_own_provider(master_user_id, db)
+    provider = await _get_own_provider(master_user_id, db, "blocks_manage")
 
     overlapping_booking = (
         await db.execute(
@@ -1144,7 +1172,7 @@ async def update_provider_block(
 ) -> ProviderBlock:
     """Move or resize an existing block (drag-and-drop) — same 404-not-403
     ownership check as every other .../me/* mutation in this file."""
-    provider = await _get_own_provider(master_user_id, db)
+    provider = await _get_own_provider(master_user_id, db, "blocks_manage")
     block = await db.get(ProviderBlock, block_id)
     if block is None or block.provider_id != provider.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Block not found")
@@ -1176,7 +1204,7 @@ async def delete_provider_block(
     master_user_id: str = Depends(require_master_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    provider = await _get_own_provider(master_user_id, db)
+    provider = await _get_own_provider(master_user_id, db, "blocks_manage")
     result = await db.execute(delete(ProviderBlock).where(ProviderBlock.id == block_id, ProviderBlock.provider_id == provider.id))
     await db.commit()
     if result.rowcount == 0:
@@ -1396,6 +1424,197 @@ async def list_provider_reviews(
 # call itself — see require_admin's docstring above. The X-Admin-Secret
 # header keeps working unchanged for curl/scripts.
 # ============================================================================
+# Staff (roles + permission checkboxes) and per-service analytics
+# ============================================================================
+
+
+def _staff_out(u: MasterUser) -> StaffOut:
+    return StaffOut(
+        id=u.id, name=u.name, email=u.email, role=u.role, permissions=effective_permissions(u.role, u.permissions)
+    )
+
+
+def _clean_perms(perms: list[str] | None) -> list[str] | None:
+    if perms is None:
+        return None
+    bad = [p for p in perms if p not in PERMISSIONS]
+    if bad:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Unknown permissions: {bad}")
+    return [p for p in PERMISSIONS if p in perms]
+
+
+@app.get("/api/providers/me/roles", response_model=RolesMetaOut)
+async def get_roles_meta(master_user_id: str = Depends(require_master_user_id)) -> RolesMetaOut:
+    return RolesMetaOut(roles=ROLE_DEFAULTS, permissions=list(PERMISSIONS))
+
+
+@app.get("/api/providers/me/staff", response_model=list[StaffOut])
+async def list_staff(
+    master_user_id: str = Depends(require_master_user_id), db: AsyncSession = Depends(get_db)
+) -> list[StaffOut]:
+    provider = await _get_own_provider(master_user_id, db, "staff_manage")
+    rows = (
+        await db.execute(select(MasterUser).where(MasterUser.provider_id == provider.id).order_by(MasterUser.email))
+    ).scalars().all()
+    return [_staff_out(u) for u in rows]
+
+
+@app.post("/api/providers/me/staff", response_model=StaffOut, status_code=status.HTTP_201_CREATED)
+async def create_staff(
+    payload: StaffCreate,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> StaffOut:
+    provider = await _get_own_provider(master_user_id, db, "staff_manage")
+    if payload.role not in ROLES:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown role")
+    user = MasterUser(
+        id=uuid.uuid4(),
+        provider_id=provider.id,
+        name=payload.name,
+        email=payload.email,
+        password_hash=hash_password(payload.password),
+        role=payload.role,
+        permissions=None if payload.role == ROLE_OWNER else _clean_perms(payload.permissions),
+    )
+    db.add(user)
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "A user with this email already exists") from exc
+    return _staff_out(user)
+
+
+async def _owner_count(db: AsyncSession, provider_id: uuid.UUID) -> int:
+    return (
+        await db.execute(
+            select(func.count()).select_from(MasterUser).where(
+                MasterUser.provider_id == provider_id, MasterUser.role == ROLE_OWNER
+            )
+        )
+    ).scalar_one()
+
+
+async def _get_staff_member(db: AsyncSession, provider: Provider, staff_id: uuid.UUID) -> MasterUser:
+    user = await db.get(MasterUser, staff_id)
+    if user is None or user.provider_id != provider.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Staff member not found")
+    return user
+
+
+@app.patch("/api/providers/me/staff/{staff_id}", response_model=StaffOut)
+async def update_staff(
+    staff_id: uuid.UUID,
+    payload: StaffUpdate,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> StaffOut:
+    provider = await _get_own_provider(master_user_id, db, "staff_manage")
+    user = await _get_staff_member(db, provider, staff_id)
+    if payload.name is not None:
+        user.name = payload.name
+    if payload.role is not None:
+        if payload.role not in ROLES:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown role")
+        if user.role == ROLE_OWNER and payload.role != ROLE_OWNER and await _owner_count(db, provider.id) <= 1:
+            raise HTTPException(status.HTTP_409_CONFLICT, "Cannot demote the last owner")
+        if payload.role != user.role:
+            user.role = payload.role
+            user.permissions = None  # смена роли = права новой роли по умолчанию
+    if payload.reset_permissions:
+        user.permissions = None
+    elif payload.permissions is not None and user.role != ROLE_OWNER:
+        user.permissions = _clean_perms(payload.permissions)
+    if payload.new_password is not None:
+        user.password_hash = hash_password(payload.new_password)
+    await db.commit()
+    await db.refresh(user)
+    return _staff_out(user)
+
+
+@app.delete("/api/providers/me/staff/{staff_id}")
+async def delete_staff(
+    staff_id: uuid.UUID,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    provider = await _get_own_provider(master_user_id, db, "staff_manage")
+    user = await _get_staff_member(db, provider, staff_id)
+    if str(user.id) == master_user_id:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Cannot delete yourself")
+    if user.role == ROLE_OWNER and await _owner_count(db, provider.id) <= 1:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Cannot delete the last owner")
+    await db.delete(user)
+    await db.commit()
+    return {"ok": True}
+
+
+@app.get("/api/providers/me/analytics", response_model=AnalyticsOut)
+async def get_my_analytics(
+    date_from: date,
+    date_to: date,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> AnalyticsOut:
+    """Цифры по каждой работе (услуге) за период: сколько выполнено, часы,
+    средняя длительность, выручка и средний чек (по броням с указанной
+    итоговой ценой), плюс отмены/неявки."""
+    if date_to < date_from:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "date_to must be >= date_from")
+    if (date_to - date_from).days > 366:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "range too large, max 366 days")
+    provider = await _get_own_provider(master_user_id, db, "analytics_view")
+    range_start = datetime.combine(date_from, time.min, tzinfo=BUSINESS_TZ)
+    range_end = datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=BUSINESS_TZ)
+    rows = (
+        await db.execute(
+            select(Booking, Service.name)
+            .join(Service, Service.id == Booking.service_id)
+            .where(
+                Booking.provider_id == provider.id,
+                Booking.start_at >= range_start,
+                Booking.start_at < range_end,
+                Booking.status.in_([BookingStatus.completed, BookingStatus.cancelled, BookingStatus.no_show]),
+            )
+        )
+    ).all()
+    acc: dict[uuid.UUID, dict] = {}
+    for b, name in rows:
+        a = acc.setdefault(
+            b.service_id,
+            {"name": name, "completed": 0, "cancelled": 0, "no_show": 0, "minutes": 0, "revenue": Decimal(0), "priced": 0},
+        )
+        if b.status == BookingStatus.completed:
+            a["completed"] += 1
+            a["minutes"] += int((b.end_at - b.start_at).total_seconds() // 60)
+            if b.price is not None:
+                a["revenue"] += b.price
+                a["priced"] += 1
+        elif b.status == BookingStatus.cancelled:
+            a["cancelled"] += 1
+        else:
+            a["no_show"] += 1
+    out = [
+        ServiceStatOut(
+            service_id=sid,
+            name=a["name"],
+            completed=a["completed"],
+            cancelled=a["cancelled"],
+            no_show=a["no_show"],
+            total_minutes=a["minutes"],
+            avg_minutes=round(a["minutes"] / a["completed"], 1) if a["completed"] else 0.0,
+            revenue=a["revenue"],
+            priced_jobs=a["priced"],
+            avg_price=(a["revenue"] / a["priced"]).quantize(Decimal("0.01")) if a["priced"] else None,
+        )
+        for sid, a in acc.items()
+    ]
+    out.sort(key=lambda x: (-x.completed, x.name))
+    return AnalyticsOut(date_from=date_from, date_to=date_to, services=out)
+
+
+# ============================================================================
 
 
 @app.post("/admin/login")
@@ -1427,7 +1646,10 @@ async def admin_whoami() -> dict:
 async def list_masters(db: AsyncSession = Depends(get_db)) -> list[MasterOut]:
     rows = (
         await db.execute(
-            select(MasterUser, Provider).join(Provider, Provider.id == MasterUser.provider_id).order_by(Provider.name)
+            select(MasterUser, Provider)
+            .join(Provider, Provider.id == MasterUser.provider_id)
+            .where(MasterUser.role == "owner")
+            .order_by(Provider.name)
         )
     ).all()
     return [
@@ -1540,6 +1762,7 @@ async def create_master(
         provider_id=provider.id,
         email=payload.email,
         password_hash=hash_password(payload.password),
+        role="owner",
     )
     db.add(master_user)
     try:

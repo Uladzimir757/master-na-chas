@@ -400,12 +400,15 @@ export function EventDetailsModal({
   const startHm = businessHourMinute(event.start_at);
   const endHm = businessHourMinute(event.end_at);
 
-  const handleStatus = async (status: BookingStatus) => {
+  const [price, setPrice] = useState("");
+  const [completing, setCompleting] = useState(false);
+
+  const handleStatus = async (status: BookingStatus, jobPrice?: number) => {
     if (event.kind !== "booking") return;
     setBusy(true);
     setError(null);
     try {
-      await api.updateBookingStatus(event.id, status);
+      await api.updateBookingStatus(event.id, status, jobPrice);
       onChanged();
     } catch {
       setError(t.bookingActionError);
@@ -473,6 +476,41 @@ export function EventDetailsModal({
               >
                 {t.confirmBookingButton}
               </CompactButton>
+            )}
+            {event.status === "confirmed" && !completing && (
+              <CompactButton
+                disabled={busy}
+                onClick={() => setCompleting(true)}
+              >
+                {t.completeJobButton}
+              </CompactButton>
+            )}
+            {completing && (
+              <div className="flex w-full items-end gap-2">
+                <label className="flex-1 text-xs text-ink/70">
+                  {t.jobPriceLabel}
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    className={`${inputClass} mt-1`}
+                  />
+                </label>
+                <CompactButton
+                  disabled={busy}
+                  onClick={() =>
+                    handleStatus(
+                      "completed",
+                      price.trim() === "" ? undefined : Number(price),
+                    )
+                  }
+                >
+                  {t.completeJobButton}
+                </CompactButton>
+              </div>
             )}
             {(event.status === "pending" || event.status === "confirmed") && (
               <CompactButton variant="secondary" disabled={busy} onClick={() => handleStatus("cancelled")}>

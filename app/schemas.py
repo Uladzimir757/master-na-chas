@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime, time
+from decimal import Decimal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
@@ -51,6 +52,7 @@ class BookingOut(BaseModel):
     start_at: datetime
     end_at: datetime
     status: BookingStatus
+    price: Decimal | None = None
 
     class Config:
         from_attributes = True
@@ -58,6 +60,8 @@ class BookingOut(BaseModel):
 
 class BookingStatusUpdate(BaseModel):
     status: BookingStatus
+    # итоговая цена работы — при завершении (аналитика)
+    price: Decimal | None = Field(default=None, ge=0, le=1_000_000)
 
 
 class ManualBookingCreate(BaseModel):
@@ -621,3 +625,56 @@ class ReviewOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ---- Staff / roles / analytics ----------------------------------------------
+
+
+class StaffOut(BaseModel):
+    id: uuid.UUID
+    name: str | None
+    email: str
+    role: str
+    permissions: list[str]  # эффективные (с учётом роли)
+
+
+class StaffCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    email: str = Field(min_length=3, max_length=200)
+    password: str = Field(min_length=8, max_length=200)
+    role: str
+    permissions: list[str] | None = None
+
+
+class StaffUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    role: str | None = None
+    permissions: list[str] | None = None
+    reset_permissions: bool = False  # true -> вернуть права роли по умолчанию
+    new_password: str | None = Field(default=None, min_length=8, max_length=200)
+
+
+class RolesMetaOut(BaseModel):
+    roles: dict[str, list[str]]
+    permissions: list[str]
+
+
+class ServiceStatOut(BaseModel):
+    service_id: uuid.UUID
+    name: str
+    completed: int
+    cancelled: int
+    no_show: int
+    total_minutes: int
+    avg_minutes: float
+    revenue: Decimal
+    priced_jobs: int
+    avg_price: Decimal | None
+
+
+class AnalyticsOut(BaseModel):
+    date_from: date
+    date_to: date
+    services: list[ServiceStatOut]
+
+

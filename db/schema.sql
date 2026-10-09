@@ -222,6 +222,7 @@ CREATE TABLE booking (
     end_at        timestamptz NOT NULL CHECK (end_at > start_at),
     status        booking_status NOT NULL DEFAULT 'pending',
     notes         text,
+    price         numeric(10,2),         -- итоговая цена работы (аналитика)
     created_at    timestamptz NOT NULL DEFAULT now(),
 
     -- THE important line: Postgres itself refuses to let two active bookings
@@ -239,15 +240,18 @@ CREATE INDEX idx_booking_client ON booking (client_id) WHERE client_id IS NOT NU
 
 -- ----------------------------------------------------------------------------
 -- master_user — login for a provider (mvp-task.md #4). Deliberately minimal:
--- no roles, no permission table — two people, cookie session, not JWT.
+-- roles live in app/permissions.py; several staff per provider.
 -- telegram_chat_id is filled by the deep-link flow below, never by hand.
 -- ----------------------------------------------------------------------------
 CREATE TABLE master_user (
     id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    provider_id        uuid NOT NULL UNIQUE REFERENCES provider(id) ON DELETE CASCADE,
+    provider_id        uuid NOT NULL REFERENCES provider(id) ON DELETE CASCADE,
     email              text NOT NULL UNIQUE,
     password_hash      text NOT NULL,
     telegram_chat_id   text,              -- nullable, filled via telegram_link_token flow
+    name               text,
+    role               text NOT NULL DEFAULT 'owner',  -- worker_limited | worker | manager | owner
+    permissions        jsonb,             -- NULL = права роли по умолчанию (app/permissions.py)
     created_at         timestamptz NOT NULL DEFAULT now()
 );
 

@@ -397,28 +397,58 @@ function _cabinetBookingDefaults(): CabinetBookingFixture {
   };
 }
 
-/** GET /auth/me — whether the session cookie (if any) is still valid. */
-export async function mockAuthMe(page: Page, opts: { loggedIn: boolean }) {
+// Те же id, что в app/permissions.py: владелец получает все права.
+export const ALL_PERMISSIONS = [
+  "calendar_view",
+  "bookings_status",
+  "bookings_create",
+  "blocks_manage",
+  "services_edit",
+  "hours_edit",
+  "settings_edit",
+  "analytics_view",
+  "staff_manage",
+];
+
+/** GET /auth/me — whether the session cookie (if any) is still valid.
+ * Залогиненный — владелец со всеми правами (как отдаёт реальный бэкенд);
+ * `permissions` позволяет сыграть сотрудника с урезанной ролью. */
+export async function mockAuthMe(
+  page: Page,
+  opts: { loggedIn: boolean; role?: string; permissions?: string[] },
+) {
   await page.route("**/auth/me", (route) =>
     route.fulfill(
       opts.loggedIn
-        ? { status: 200, contentType: "application/json", body: JSON.stringify({ master_user_id: "master-1" }) }
+        ? {
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              master_user_id: "master-1",
+              name: null,
+              role: opts.role ?? "owner",
+              permissions: opts.permissions ?? ALL_PERMISSIONS,
+            }),
+          }
         : { status: 401, contentType: "application/json", body: JSON.stringify({ detail: "Not authenticated" }) },
     ),
   );
 }
 
 /** POST /auth/login. Defaults to success; pass a non-200 status to simulate
- * wrong credentials (401) or a server error (500). */
+ * wrong credentials (401) or a server error (500). После успешного входа
+ * сессия «появляется»: дашборд сам запрашивает /auth/me за правами, и он
+ * должен отвечать как залогиненный (как реальный бэкенд). */
 export async function mockLogin(page: Page, opts?: { status?: number }) {
   const status = opts?.status ?? 200;
-  await page.route("**/auth/login", (route) =>
-    route.fulfill(
+  await page.route("**/auth/login", async (route) => {
+    if (status === 200) await mockAuthMe(page, { loggedIn: true });
+    await route.fulfill(
       status === 200
         ? { status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }
         : { status, contentType: "application/json", body: JSON.stringify({ detail: "boom" }) },
-    ),
-  );
+    );
+  });
 }
 
 /** POST /auth/logout — always succeeds, Cabinet.tsx treats it as best-effort

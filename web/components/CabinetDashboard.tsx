@@ -15,12 +15,21 @@ import {
   type LocationSharingStatus,
 } from "@/lib/useLocationSharing";
 import type { Translations } from "@/lib/i18n";
-import { Card, Centered, CompactButton, inputClass, Tabs } from "@/components/ui";
+import AnalyticsPanel from "@/components/AnalyticsPanel";
+import StaffManager from "@/components/StaffManager";
+import {
+  Card,
+  Centered,
+  CompactButton,
+  inputClass,
+  Tabs,
+} from "@/components/ui";
 import { PasswordInput } from "@/components/PasswordInput";
 import WorkingHoursEditor from "@/components/WorkingHoursEditor";
 import MasterCalendar from "@/components/MasterCalendar";
 
-type CabinetTab = "calendar" | "services" | "settings" | "password";
+type CabinetTab =
+  "calendar" | "services" | "settings" | "analytics" | "team" | "password";
 
 function locationStatusText(
   status: LocationSharingStatus,
@@ -42,10 +51,49 @@ function locationStatusText(
   }
 }
 
-export default function CabinetDashboard({ onLogout }: { onLogout: () => void }) {
+const TAB_PERMISSION: Record<string, string> = {
+  calendar: "calendar_view",
+  services: "services_edit",
+  settings: "settings_edit",
+  analytics: "analytics_view",
+  team: "staff_manage",
+};
+
+// Запрошенная вкладка может быть недоступна сотруднику — тогда показываем
+// первую доступную. Считается при рендере, а не эффектом с setState.
+function effectiveTab(
+  requested: CabinetTab,
+  perms: string[] | null,
+): CabinetTab {
+  if (perms === null || requested === "password") return requested;
+  const allowed = (k: CabinetTab) =>
+    perms.includes(TAB_PERMISSION[k]) ||
+    (k === "settings" && perms.includes("hours_edit"));
+  if (allowed(requested)) return requested;
+  return (
+    (Object.keys(TAB_PERMISSION) as CabinetTab[]).find(allowed) ?? "password"
+  );
+}
+
+export default function CabinetDashboard({
+  onLogout,
+}: {
+  onLogout: () => void;
+}) {
   const { locale, t, ready } = useLocale();
 
-  const [tab, setTab] = useState<CabinetTab>("calendar");
+  const [requestedTab, setTab] = useState<CabinetTab>("calendar");
+  // права текущего сотрудника (роль + чекбоксы) -> какие вкладки показывать;
+  // сервер всё равно проверяет каждое действие (403), это только UI.
+  const [perms, setPerms] = useState<string[] | null>(null);
+  useEffect(() => {
+    api
+      .me()
+      .then((m) => setPerms(m.permissions))
+      .catch(() => setPerms([]));
+  }, []);
+  const can = (p: string) => perms === null || perms.includes(p);
+  const tab = effectiveTab(requestedTab, perms);
 
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -401,16 +449,30 @@ export default function CabinetDashboard({ onLogout }: { onLogout: () => void })
 
       <Tabs
         tabs={[
-          { id: "calendar", label: t.calendarTitle },
-          { id: "services", label: t.servicesOfferedTitle },
-          { id: "settings", label: t.settingsTitle },
-          { id: "password", label: t.changePasswordTitle },
+          ...(can("calendar_view")
+            ? [{ id: "calendar" as const, label: t.calendarTitle }]
+            : []),
+          ...(can("services_edit")
+            ? [{ id: "services" as const, label: t.servicesOfferedTitle }]
+            : []),
+          ...(can("settings_edit") || can("hours_edit")
+            ? [{ id: "settings" as const, label: t.settingsTitle }]
+            : []),
+          ...(can("analytics_view")
+            ? [{ id: "analytics" as const, label: t.tabAnalytics }]
+            : []),
+          ...(can("staff_manage")
+            ? [{ id: "team" as const, label: t.tabTeam }]
+            : []),
+          { id: "password" as const, label: t.changePasswordTitle },
         ]}
         active={tab}
         onChange={setTab}
       />
 
       {tab === "calendar" && <MasterCalendar />}
+      {tab === "analytics" && <AnalyticsPanel />}
+      {tab === "team" && <StaffManager />}
 
       {tab === "services" && (
         <section>

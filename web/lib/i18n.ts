@@ -198,6 +198,48 @@ export interface Translations {
   calendarNextLabel: string;
   calendarTodayButton: string;
   calendarAddLabel: string;
+  completeJobButton: string;
+  jobPriceLabel: string;
+  jobPriceShort: string;
+  tabTeam: string;
+  tabAnalytics: string;
+  staffAddTitle: string;
+  staffNameLabel: string;
+  staffEmailLabel: string;
+  staffPasswordLabel: string;
+  staffRoleLabel: string;
+  staffPermissionsLabel: string;
+  staffResetPerms: string;
+  staffCreateButton: string;
+  staffDeleteButton: string;
+  staffSaveError: string;
+  staffOwnerFixed: string;
+  roleWorkerLimited: string;
+  roleWorker: string;
+  roleManager: string;
+  roleOwner: string;
+  permCalendarView: string;
+  permBookingsStatus: string;
+  permBookingsCreate: string;
+  permBlocksManage: string;
+  permServicesEdit: string;
+  permHoursEdit: string;
+  permSettingsEdit: string;
+  permAnalyticsView: string;
+  permStaffManage: string;
+  analyticsTitle: string;
+  analyticsFrom: string;
+  analyticsTo: string;
+  analyticsEmpty: string;
+  analyticsColJob: string;
+  analyticsColDone: string;
+  analyticsColCancelled: string;
+  analyticsColNoShow: string;
+  analyticsColHours: string;
+  analyticsColAvgTime: string;
+  analyticsColRevenue: string;
+  analyticsColAvgCheck: string;
+  analyticsNote: string;
   calendarMoreEvents: (n: number) => string;
   calendarLoadError: string;
   calendarChooseActionTitle: string;
@@ -461,6 +503,48 @@ export function buildTranslations(map: TranslationMap): Translations {
     calendarNextLabel: pick(map, "calendarNextLabel"),
     calendarTodayButton: pick(map, "calendarTodayButton"),
     calendarAddLabel: pick(map, "calendarAddLabel"),
+    completeJobButton: pick(map, "completeJobButton"),
+    jobPriceLabel: pick(map, "jobPriceLabel"),
+    jobPriceShort: pick(map, "jobPriceShort"),
+    tabTeam: pick(map, "tabTeam"),
+    tabAnalytics: pick(map, "tabAnalytics"),
+    staffAddTitle: pick(map, "staffAddTitle"),
+    staffNameLabel: pick(map, "staffNameLabel"),
+    staffEmailLabel: pick(map, "staffEmailLabel"),
+    staffPasswordLabel: pick(map, "staffPasswordLabel"),
+    staffRoleLabel: pick(map, "staffRoleLabel"),
+    staffPermissionsLabel: pick(map, "staffPermissionsLabel"),
+    staffResetPerms: pick(map, "staffResetPerms"),
+    staffCreateButton: pick(map, "staffCreateButton"),
+    staffDeleteButton: pick(map, "staffDeleteButton"),
+    staffSaveError: pick(map, "staffSaveError"),
+    staffOwnerFixed: pick(map, "staffOwnerFixed"),
+    roleWorkerLimited: pick(map, "roleWorkerLimited"),
+    roleWorker: pick(map, "roleWorker"),
+    roleManager: pick(map, "roleManager"),
+    roleOwner: pick(map, "roleOwner"),
+    permCalendarView: pick(map, "permCalendarView"),
+    permBookingsStatus: pick(map, "permBookingsStatus"),
+    permBookingsCreate: pick(map, "permBookingsCreate"),
+    permBlocksManage: pick(map, "permBlocksManage"),
+    permServicesEdit: pick(map, "permServicesEdit"),
+    permHoursEdit: pick(map, "permHoursEdit"),
+    permSettingsEdit: pick(map, "permSettingsEdit"),
+    permAnalyticsView: pick(map, "permAnalyticsView"),
+    permStaffManage: pick(map, "permStaffManage"),
+    analyticsTitle: pick(map, "analyticsTitle"),
+    analyticsFrom: pick(map, "analyticsFrom"),
+    analyticsTo: pick(map, "analyticsTo"),
+    analyticsEmpty: pick(map, "analyticsEmpty"),
+    analyticsColJob: pick(map, "analyticsColJob"),
+    analyticsColDone: pick(map, "analyticsColDone"),
+    analyticsColCancelled: pick(map, "analyticsColCancelled"),
+    analyticsColNoShow: pick(map, "analyticsColNoShow"),
+    analyticsColHours: pick(map, "analyticsColHours"),
+    analyticsColAvgTime: pick(map, "analyticsColAvgTime"),
+    analyticsColRevenue: pick(map, "analyticsColRevenue"),
+    analyticsColAvgCheck: pick(map, "analyticsColAvgCheck"),
+    analyticsNote: pick(map, "analyticsNote"),
     calendarMoreEvents: (n) =>
       interpolate(pick(map, "calendarMoreEvents"), { n }),
     calendarLoadError: pick(map, "calendarLoadError"),
