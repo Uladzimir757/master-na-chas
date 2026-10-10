@@ -31,13 +31,18 @@ export function MonthView({
   return (
     <div className="grid grid-cols-7 gap-px overflow-hidden rounded-md border border-line bg-line/60 text-xs">
       {t.weekdayLabels.map((label) => (
-        <div key={label} className="bg-line/20 px-1 py-1.5 text-center font-medium text-ink/60">
-          {label}
+        <div
+          key={label}
+          className="bg-line/20 px-0.5 py-1.5 text-center sm:px-1 font-medium text-ink/60"
+        >
+          <span className="sm:hidden">{Array.from(label)[0]}</span>
+          <span className="hidden sm:inline">{label}</span>
         </div>
       ))}
       {dayStrs.map((dateStr) => {
         const dayEvents = eventsOnDay(events, dateStr);
-        const inMonth = new Date(`${dateStr}T00:00:00Z`).getUTCMonth() === anchor.getMonth();
+        const inMonth =
+          new Date(`${dateStr}T00:00:00Z`).getUTCMonth() === anchor.getMonth();
         const isToday = dateStr === todayStr;
         return (
           <button
@@ -49,19 +54,31 @@ export function MonthView({
           >
             <span
               className={`text-[11px] ${
-                isToday ? "rounded-full bg-accent px-1.5 font-medium text-bg" : "text-ink/60"
+                isToday
+                  ? "rounded-full bg-accent px-1.5 font-medium text-bg"
+                  : "text-ink/60"
               }`}
             >
               {Number(dateStr.slice(8, 10))}
             </span>
             {dayEvents.slice(0, 2).map((e) => (
-              <span key={e.id} className="w-full truncate rounded bg-ink/5 px-1 text-[10px] text-ink">
-                {timeToHhmm(businessHourMinute(e.start_at).hour, businessHourMinute(e.start_at).minute)}{" "}
-                {e.kind === "booking" ? e.client_name : (e.reason ?? t.calendarBlockDetailsTitle)}
+              <span
+                key={e.id}
+                className="w-full truncate rounded bg-ink/5 px-1 text-[10px] text-ink"
+              >
+                {timeToHhmm(
+                  businessHourMinute(e.start_at).hour,
+                  businessHourMinute(e.start_at).minute,
+                )}{" "}
+                {e.kind === "booking"
+                  ? e.client_name
+                  : (e.reason ?? t.calendarBlockDetailsTitle)}
               </span>
             ))}
             {dayEvents.length > 2 && (
-              <span className="text-[10px] text-ink/40">{t.calendarMoreEvents(dayEvents.length - 2)}</span>
+              <span className="text-[10px] text-ink/40">
+                {t.calendarMoreEvents(dayEvents.length - 2)}
+              </span>
             )}
           </button>
         );

@@ -303,22 +303,17 @@ export default function MasterCalendar() {
             className="flex"
             style={{ minWidth: view === "week" ? 700 : undefined }}
           >
-            <div className="w-6 shrink-0 border-r border-line sm:w-12">
+            <div className="w-9 shrink-0 border-r border-line sm:w-12">
               <div className="h-6 border-b border-line/60" />
               {Array.from({
                 length: gridBounds.endHour - gridBounds.startHour,
               }).map((_, i) => (
                 <div
                   key={i}
-                  className="pr-0.5 text-right text-[12px] text-ink/40 sm:pr-0 sm:text-[10px]"
+                  className="pl-0.5 text-left text-[12px] text-ink/40 sm:pl-0 sm:text-right sm:text-[10px]"
                   style={{ height: 60 }}
                 >
-                  <span className="sm:hidden">
-                    {pad2(gridBounds.startHour + i)}
-                  </span>
-                  <span className="hidden sm:inline">
-                    {pad2(gridBounds.startHour + i)}:00
-                  </span>
+                  {pad2(gridBounds.startHour + i)}:00
                 </div>
               ))}
             </div>
