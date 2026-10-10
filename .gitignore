@@ -8,3 +8,7 @@ __pycache__/
 *.egg-info/
 .mypy_cache/
 .ruff_cache/
+
+# генерируются next dev
+web/AGENTS.md
+web/CLAUDE.md
