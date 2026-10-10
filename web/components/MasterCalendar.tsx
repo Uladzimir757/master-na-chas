@@ -234,7 +234,7 @@ export default function MasterCalendar() {
         : `${weekdayHeaderLabel(toDateParam(range.from), locale)} – ${weekdayHeaderLabel(toDateParam(range.to), locale)}`;
 
   return (
-    <section className="pb-24 sm:pb-0">
+    <section className="pb-24">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex w-full flex-wrap items-center gap-1 sm:w-auto">
           <CompactButton
@@ -303,17 +303,22 @@ export default function MasterCalendar() {
             className="flex"
             style={{ minWidth: view === "week" ? 700 : undefined }}
           >
-            <div className="w-12 shrink-0 border-r border-line">
+            <div className="w-6 shrink-0 border-r border-line sm:w-12">
               <div className="h-6 border-b border-line/60" />
               {Array.from({
                 length: gridBounds.endHour - gridBounds.startHour,
               }).map((_, i) => (
                 <div
                   key={i}
-                  className="text-right text-[10px] text-ink/40"
+                  className="pr-0.5 text-right text-[12px] text-ink/40 sm:pr-0 sm:text-[10px]"
                   style={{ height: 60 }}
                 >
-                  {pad2(gridBounds.startHour + i)}:00
+                  <span className="sm:hidden">
+                    {pad2(gridBounds.startHour + i)}
+                  </span>
+                  <span className="hidden sm:inline">
+                    {pad2(gridBounds.startHour + i)}:00
+                  </span>
                 </div>
               ))}
             </div>
@@ -342,7 +347,7 @@ export default function MasterCalendar() {
         </div>
       )}
 
-      <div className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg sm:hidden">
+      <div className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg">
         <div className="flex items-stretch gap-1 px-2 py-2">
           <button
             type="button"
@@ -365,7 +370,7 @@ export default function MasterCalendar() {
                   ref={isSel ? selectedChipRef : undefined}
                   type="button"
                   onClick={() => setAnchor(new Date(`${ds}T12:00:00`))}
-                  className={`flex w-12 shrink-0 flex-col items-center rounded-lg py-1.5 text-xs transition ${
+                  className={`flex w-12 shrink-0 flex-col items-center rounded-lg py-1.5 text-xs transition sm:w-14 ${
                     isSel
                       ? "bg-accent text-white"
                       : isToday
