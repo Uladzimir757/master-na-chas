@@ -287,3 +287,80 @@ async def test_delete_master_blocked_when_bookings_exist(
     # nothing was actually removed
     listing = await client.get("/admin/masters", headers={"x-admin-secret": TEST_SECRET})
     assert any(row["master_user_id"] == str(master_user.id) for row in listing.json())
+
+
+# ----------------------------------------------------------------------------
+# GET /admin/analytics — сводка по мастерам и по работам для суперадмина.
+# ----------------------------------------------------------------------------
+
+
+async def _seed_analytics(db_session: AsyncSession, provider: Provider, service: Service):
+    from datetime import time
+
+    from app.models import BookingStatus
+    from tests.conftest import NEXT_MONDAY
+
+    other = Provider(id=uuid.uuid4(), tenant_id=provider.tenant_id, name="Другой мастер", travel_buffer_minutes=0)
+    db_session.add(other)
+    await db_session.flush()
+    start = datetime.combine(NEXT_MONDAY, time(9, 0), tzinfo=BUSINESS_TZ)
+    rows = [
+        (provider, BookingStatus.completed, 100),
+        (provider, BookingStatus.completed, 200),
+        (provider, BookingStatus.cancelled, None),
+        (other, BookingStatus.completed, 50),
+        (other, BookingStatus.no_show, None),
+    ]
+    for i, (p, st, price) in enumerate(rows):
+        s = start + timedelta(hours=i)
+        db_session.add(
+            Booking(
+                id=uuid.uuid4(), tenant_id=p.tenant_id, provider_id=p.id, service_id=service.id,
+                client_name="K", start_at=s, end_at=s + timedelta(minutes=60), status=st, price=price,
+            )
+        )
+    await db_session.commit()
+    return other, NEXT_MONDAY.isoformat()
+
+
+async def test_admin_analytics_requires_admin(client: AsyncClient):
+    d = "2030-01-01"
+    resp = await client.get(f"/admin/analytics?date_from={d}&date_to={d}")
+    assert resp.status_code == 403
+
+
+async def test_admin_analytics_aggregates_all_masters(
+    client: AsyncClient, db_session: AsyncSession, provider: Provider, service: Service
+):
+    other, d = await _seed_analytics(db_session, provider, service)
+    resp = await client.get(
+        f"/admin/analytics?date_from={d}&date_to={d}", headers={"x-admin-secret": TEST_SECRET}
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    (svc,) = body["services"]
+    assert svc["completed"] == 3 and svc["cancelled"] == 1 and svc["no_show"] == 1
+    assert float(svc["revenue"]) == 350.0
+    by_id = {m["provider_id"]: m for m in body["masters"]}
+    assert by_id[str(provider.id)]["completed"] == 2
+    assert float(by_id[str(provider.id)]["revenue"]) == 300.0
+    assert by_id[str(other.id)]["completed"] == 1 and by_id[str(other.id)]["no_show"] == 1
+
+
+async def test_admin_analytics_filters_by_master(
+    client: AsyncClient, db_session: AsyncSession, provider: Provider, service: Service
+):
+    other, d = await _seed_analytics(db_session, provider, service)
+    resp = await client.get(
+        f"/admin/analytics?date_from={d}&date_to={d}&provider_id={other.id}",
+        headers={"x-admin-secret": TEST_SECRET},
+    )
+    body = resp.json()
+    assert [m["provider_id"] for m in body["masters"]] == [str(other.id)]
+    assert body["services"][0]["completed"] == 1
+
+
+async def test_admin_analytics_validates_dates(client: AsyncClient):
+    h = {"x-admin-secret": TEST_SECRET}
+    assert (await client.get("/admin/analytics?date_from=2030-02-01&date_to=2030-01-01", headers=h)).status_code == 400
+    assert (await client.get("/admin/analytics?date_from=2020-01-01&date_to=2030-01-01", headers=h)).status_code == 400

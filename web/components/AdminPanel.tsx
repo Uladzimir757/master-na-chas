@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, type AdminMaster } from "@/lib/api";
 import { Card, Centered, Button } from "@/components/ui";
+import AdminAnalyticsPanel from "@/components/AdminAnalytics";
 import { PasswordInput } from "@/components/PasswordInput";
 
 type AuthState = "checking" | "anon" | "authed";
@@ -363,6 +364,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           <p className="mt-2 text-sm text-danger">{deleteError}</p>
         )}
       </Card>
+
+      <AdminAnalyticsPanel masters={masters} />
 
       <CreateMasterForm onCreated={load} />
     </div>

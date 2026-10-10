@@ -207,6 +207,25 @@ export interface Analytics {
   services: ServiceStat[];
 }
 
+export interface MasterStat {
+  provider_id: string;
+  name: string;
+  completed: number;
+  cancelled: number;
+  no_show: number;
+  total_minutes: number;
+  revenue: string;
+  priced_jobs: number;
+  avg_price: string | null;
+}
+
+export interface AdminAnalytics {
+  date_from: string;
+  date_to: string;
+  services: ServiceStat[];
+  masters: MasterStat[];
+}
+
 export interface ProviderSettings {
   id: string;
   name: string;
@@ -649,6 +668,12 @@ export const api = {
     }
   },
   adminMe: () => request<{ is_admin: true }>("/admin/me"),
+  adminAnalytics: (from: string, to: string, providerId?: string) =>
+    request<AdminAnalytics>(
+      `/admin/analytics?date_from=${from}&date_to=${to}${
+        providerId ? `&provider_id=${providerId}` : ""
+      }`,
+    ),
   listMasters: () => request<AdminMaster[]>("/admin/masters"),
   createMaster: (payload: CreateMasterPayload) =>
     request<{ provider_id: string; master_user_id: string }>("/admin/masters", {

@@ -83,6 +83,8 @@ from app.models import (
 )
 from app.notifications import notify_client_sms, notify_master, reply_telegram, run_in_background
 from app.schemas import (
+    AdminAnalyticsOut,
+    MasterStatOut,
     MyBookingHistoryItem,
     MyBookingOut,
     MyBookingReschedule,
@@ -1776,6 +1778,78 @@ async def delete_staff(
     return {"ok": True}
 
 
+async def _collect_analytics(
+    db: AsyncSession, date_from: date, date_to: date, provider_id: uuid.UUID | None
+) -> tuple[list[ServiceStatOut], list[MasterStatOut]]:
+    """Общий подсчёт для кабинета мастера (provider_id задан) и суперадминки
+    (provider_id=None — по всем мастерам или по одному). Возвращает статистику
+    по работам и по мастерам за период."""
+    range_start = datetime.combine(date_from, time.min, tzinfo=BUSINESS_TZ)
+    range_end = datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=BUSINESS_TZ)
+    conds = [
+        Booking.start_at >= range_start,
+        Booking.start_at < range_end,
+        Booking.status.in_([BookingStatus.completed, BookingStatus.cancelled, BookingStatus.no_show]),
+    ]
+    if provider_id is not None:
+        conds.append(Booking.provider_id == provider_id)
+    rows = (
+        await db.execute(
+            select(Booking, Service.name, Provider.name)
+            .join(Service, Service.id == Booking.service_id)
+            .join(Provider, Provider.id == Booking.provider_id)
+            .where(*conds)
+        )
+    ).all()
+
+    def blank(name: str) -> dict:
+        return {"name": name, "completed": 0, "cancelled": 0, "no_show": 0, "minutes": 0, "revenue": Decimal(0), "priced": 0}
+
+    by_service: dict[uuid.UUID, dict] = {}
+    by_master: dict[uuid.UUID, dict] = {}
+    for b, service_name, provider_name in rows:
+        for acc, key, name in (
+            (by_service, b.service_id, service_name),
+            (by_master, b.provider_id, provider_name),
+        ):
+            a = acc.setdefault(key, blank(name))
+            if b.status == BookingStatus.completed:
+                a["completed"] += 1
+                a["minutes"] += int((b.end_at - b.start_at).total_seconds() // 60)
+                if b.price is not None:
+                    a["revenue"] += b.price
+                    a["priced"] += 1
+            elif b.status == BookingStatus.cancelled:
+                a["cancelled"] += 1
+            else:
+                a["no_show"] += 1
+
+    def avg_price(a: dict) -> Decimal | None:
+        return (a["revenue"] / a["priced"]).quantize(Decimal("0.01")) if a["priced"] else None
+
+    def avg_min(a: dict) -> float:
+        return round(a["minutes"] / a["completed"], 1) if a["completed"] else 0.0
+
+    services = [
+        ServiceStatOut(
+            service_id=sid, name=a["name"], completed=a["completed"], cancelled=a["cancelled"], no_show=a["no_show"],
+            total_minutes=a["minutes"], avg_minutes=avg_min(a), revenue=a["revenue"], priced_jobs=a["priced"],
+            avg_price=avg_price(a),
+        )
+        for sid, a in by_service.items()
+    ]
+    services.sort(key=lambda x: (-x.completed, x.name))
+    masters = [
+        MasterStatOut(
+            provider_id=pid, name=a["name"], completed=a["completed"], cancelled=a["cancelled"], no_show=a["no_show"],
+            total_minutes=a["minutes"], revenue=a["revenue"], priced_jobs=a["priced"], avg_price=avg_price(a),
+        )
+        for pid, a in by_master.items()
+    ]
+    masters.sort(key=lambda x: (-x.completed, x.name))
+    return services, masters
+
+
 @app.get("/api/providers/me/analytics", response_model=AnalyticsOut)
 async def get_my_analytics(
     date_from: date,
@@ -1791,53 +1865,8 @@ async def get_my_analytics(
     if (date_to - date_from).days > 366:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "range too large, max 366 days")
     provider = await _get_own_provider(master_user_id, db, "analytics_view")
-    range_start = datetime.combine(date_from, time.min, tzinfo=BUSINESS_TZ)
-    range_end = datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=BUSINESS_TZ)
-    rows = (
-        await db.execute(
-            select(Booking, Service.name)
-            .join(Service, Service.id == Booking.service_id)
-            .where(
-                Booking.provider_id == provider.id,
-                Booking.start_at >= range_start,
-                Booking.start_at < range_end,
-                Booking.status.in_([BookingStatus.completed, BookingStatus.cancelled, BookingStatus.no_show]),
-            )
-        )
-    ).all()
-    acc: dict[uuid.UUID, dict] = {}
-    for b, name in rows:
-        a = acc.setdefault(
-            b.service_id,
-            {"name": name, "completed": 0, "cancelled": 0, "no_show": 0, "minutes": 0, "revenue": Decimal(0), "priced": 0},
-        )
-        if b.status == BookingStatus.completed:
-            a["completed"] += 1
-            a["minutes"] += int((b.end_at - b.start_at).total_seconds() // 60)
-            if b.price is not None:
-                a["revenue"] += b.price
-                a["priced"] += 1
-        elif b.status == BookingStatus.cancelled:
-            a["cancelled"] += 1
-        else:
-            a["no_show"] += 1
-    out = [
-        ServiceStatOut(
-            service_id=sid,
-            name=a["name"],
-            completed=a["completed"],
-            cancelled=a["cancelled"],
-            no_show=a["no_show"],
-            total_minutes=a["minutes"],
-            avg_minutes=round(a["minutes"] / a["completed"], 1) if a["completed"] else 0.0,
-            revenue=a["revenue"],
-            priced_jobs=a["priced"],
-            avg_price=(a["revenue"] / a["priced"]).quantize(Decimal("0.01")) if a["priced"] else None,
-        )
-        for sid, a in acc.items()
-    ]
-    out.sort(key=lambda x: (-x.completed, x.name))
-    return AnalyticsOut(date_from=date_from, date_to=date_to, services=out)
+    services, _ = await _collect_analytics(db, date_from, date_to, provider.id)
+    return AnalyticsOut(date_from=date_from, date_to=date_to, services=services)
 
 
 # ============================================================================
@@ -1866,6 +1895,23 @@ async def admin_whoami() -> dict:
 # ============================================================================
 # Admin — master management (superadmin-only)
 # ============================================================================
+
+
+@app.get("/admin/analytics", response_model=AdminAnalyticsOut, dependencies=[Depends(require_admin)])
+async def admin_analytics(
+    date_from: date,
+    date_to: date,
+    provider_id: uuid.UUID | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> AdminAnalyticsOut:
+    """Аналитика суперадмина: по каждой работе и по каждому мастеру за период;
+    provider_id сужает до одного мастера."""
+    if date_to < date_from:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "date_to must be >= date_from")
+    if (date_to - date_from).days > 366:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "range too large, max 366 days")
+    services, masters = await _collect_analytics(db, date_from, date_to, provider_id)
+    return AdminAnalyticsOut(date_from=date_from, date_to=date_to, services=services, masters=masters)
 
 
 @app.get("/admin/masters", response_model=list[MasterOut], dependencies=[Depends(require_admin)])

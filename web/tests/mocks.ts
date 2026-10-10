@@ -890,12 +890,28 @@ export async function mockAdminLogout(page: Page) {
  * "create then see it in the table" flow works without a page reload,
  * same as the real backend. `createStatus` simulates a duplicate-email
  * (409) or validation (422) failure instead. */
+export async function mockAdminAnalytics(
+  page: Page,
+  report: { masters: unknown[]; services: unknown[] },
+  opts?: { status?: number },
+) {
+  await page.route("**/admin/analytics?**", (route) =>
+    route.fulfill({
+      status: opts?.status ?? 200,
+      contentType: "application/json",
+      body: JSON.stringify({ date_from: "2026-09-11", date_to: "2026-10-10", ...report }),
+    }),
+  );
+}
+
 export async function mockAdminMasters(
   page: Page,
   initial: AdminMasterFixture[] = [],
   opts?: { createStatus?: number },
 ) {
   let current = [...initial];
+  // блок «Аналитика» в панели всегда запрашивает отчёт; по умолчанию — пустой период
+  await mockAdminAnalytics(page, { masters: [], services: [] });
   await page.route("**/admin/masters", (route) => {
     if (route.request().method() === "GET") {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(current) });

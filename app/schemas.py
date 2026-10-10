@@ -684,6 +684,25 @@ class ServiceStatOut(BaseModel):
     avg_price: Decimal | None
 
 
+class MasterStatOut(BaseModel):
+    provider_id: uuid.UUID
+    name: str
+    completed: int
+    cancelled: int
+    no_show: int
+    total_minutes: int
+    revenue: Decimal
+    priced_jobs: int
+    avg_price: Decimal | None
+
+
+class AdminAnalyticsOut(BaseModel):
+    date_from: date
+    date_to: date
+    services: list[ServiceStatOut]
+    masters: list[MasterStatOut]
+
+
 class AnalyticsOut(BaseModel):
     date_from: date
     date_to: date
