@@ -327,6 +327,25 @@ class WebPushSubscription(Base):
     auth: Mapped[str] = mapped_column(String)
 
 
+class DevicePushToken(Base):
+    """FCM-токен нативного приложения (docs/mobile-app-task.md §4) — отдельно
+    от web_push_subscription: другой транспорт (FCM HTTP v1, а не VAPID) и
+    другой адресат. Ровно одно из двух: master_user_id (вошедший мастер)
+    или client_phone (клиент открыл в приложении «мою запись» по ссылке из
+    SMS — у клиентов нет аккаунтов, телефон и есть их идентичность, как в
+    истории записей). Токен уникален: устройство, перешедшее к другому
+    владельцу, переписывает строку, а не плодит вторую."""
+
+    __tablename__ = "device_push_token"
+
+    id: Mapped[uuid.UUID] = _uuid_col(primary_key=True)
+    master_user_id: Mapped[uuid.UUID | None] = _uuid_col(fk="master_user.id")
+    client_phone: Mapped[str | None] = mapped_column(String)
+    platform: Mapped[str] = mapped_column(String)
+    fcm_token: Mapped[str] = mapped_column(Text, unique=True)
+    updated_at: Mapped[datetime] = mapped_column(TZDateTime)
+
+
 class TranslationEntry(Base):
     """UI-string translations (Этап 3, docs/ai-and-reviews.md §1) —
     deliberately NOT in-code dictionaries: that's the exact trap already hit

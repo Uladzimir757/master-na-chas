@@ -24,7 +24,7 @@ import { getToken, kindForPath, setToken } from "@/lib/authToken";
 // would silently break local login even though every request still connects
 // fine. See app/config.py's SESSION_COOKIE_SAME_SITE for the production side
 // of this (a real cross-origin case, unlike local dev).
-const API_URL =
+export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ??
   (process.env.NODE_ENV === "production"
     ? (() => {
@@ -571,6 +571,29 @@ export const api = {
     request<{ ok: true }>("/api/providers/me/location", {
       method: "PUT",
       body: JSON.stringify({ lat, lng }),
+    }),
+
+  // FCM-токен нативного приложения (lib/native.ts). Мастер — по входу,
+  // клиент — по ссылке «моя запись» (manage_token), отписка — при выходе.
+  registerDeviceToken: (fcmToken: string, platform: "android" | "ios") =>
+    request<{ ok: true }>("/api/push/device-token", {
+      method: "PUT",
+      body: JSON.stringify({ fcm_token: fcmToken, platform }),
+    }),
+  registerClientDeviceToken: (
+    bookingId: string,
+    token: string,
+    fcmToken: string,
+    platform: "android" | "ios",
+  ) =>
+    request<{ ok: true }>(
+      `/api/my-booking/${bookingId}/device-token?token=${encodeURIComponent(token)}`,
+      { method: "PUT", body: JSON.stringify({ fcm_token: fcmToken, platform }) },
+    ),
+  unregisterDeviceToken: (fcmToken: string) =>
+    request<{ ok: true }>("/api/push/device-token/unregister", {
+      method: "POST",
+      body: JSON.stringify({ fcm_token: fcmToken }),
     }),
 
   // "Занят сейчас" — a general override, not tied to any specific booking

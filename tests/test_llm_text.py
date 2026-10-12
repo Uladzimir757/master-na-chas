@@ -309,7 +309,7 @@ def sent(monkeypatch: pytest.MonkeyPatch):
 async def test_sms_disabled_never_calls_the_llm(sent, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(settings, "SMS_ENABLED", False)
 
-    await notifications.notify_client_sms(phone="+48501234567", purpose="p")
+    await notifications.notify_client(phone="+48501234567", purpose="p")
 
     assert sent.composed == [] and sent.sms == []
 
@@ -317,7 +317,7 @@ async def test_sms_disabled_never_calls_the_llm(sent, monkeypatch: pytest.Monkey
 async def test_sms_enabled_composes_in_phone_language_and_sends(sent, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(settings, "SMS_ENABLED", True)
 
-    await notifications.notify_client_sms(phone="+44 7700 900123", purpose="p", must_include=LINK)
+    await notifications.notify_client(phone="+44 7700 900123", purpose="p", must_include=LINK)
 
     assert sent.composed[0]["language"] == "English"
     assert sent.composed[0]["must_include"] == LINK
@@ -332,7 +332,7 @@ async def test_sms_not_sent_when_llm_returns_nothing(sent, monkeypatch: pytest.M
 
     monkeypatch.setattr(notifications, "compose_message", nothing)
 
-    await notifications.notify_client_sms(phone="+48501234567", purpose="p")
+    await notifications.notify_client(phone="+48501234567", purpose="p")
 
     assert sent.sms == []
 
@@ -393,7 +393,7 @@ _NOTIFY_CALLS = {
     "send_sms",
     "send_telegram_message",
     "send_web_push",
-    "notify_client_sms",
+    "notify_client",
     "notify_master",
     "reply_telegram",
 }

@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime, time
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
@@ -210,6 +211,17 @@ class PushSubscribeRequest(BaseModel):
     auth: str
 
 
+class DeviceTokenRequest(BaseModel):
+    """FCM-токен нативного приложения (docs/mobile-app-task.md §4)."""
+
+    fcm_token: str = Field(min_length=10, max_length=4096)
+    platform: Literal["android", "ios"]
+
+
+class DeviceTokenUnregister(BaseModel):
+    fcm_token: str = Field(min_length=10, max_length=4096)
+
+
 class ServiceOut(BaseModel):
     """Public — what a client picks from on the booking page. No tenant_id
     (single-tenant, docs/decisions.md) and no is_active (only active ones
@@ -298,6 +310,17 @@ class ProviderLocationUpdate(BaseModel):
 
     lat: float = Field(ge=-90, le=90)
     lng: float = Field(ge=-180, le=180)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_native_plugin_shape(cls, data):
+        """В нативном приложении координаты POST'ит сам
+        @capgo/background-geolocation (StartOptions.url) — своим телом
+        Location: latitude/longitude (+accuracy, time, source…; лишнее
+        игнорируется). Принимаем и его, чтобы не держать второй эндпоинт."""
+        if isinstance(data, dict) and "lat" not in data and "latitude" in data:
+            return {"lat": data.get("latitude"), "lng": data.get("longitude")}
+        return data
 
 
 class ProviderBusyOut(BaseModel):

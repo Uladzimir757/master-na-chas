@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ZR</string>
+    <string name="title_activity_main">ZR</string>
+    <string name="package_name">pl.zr.app</string>
+    <string name="custom_url_scheme">pl.zr.app</string>
+    <!-- Канал уведомления фонового сервиса геолокации (@capgo/background-geolocation) -->
+    <string name="capacitor_background_geolocation_notification_channel_name">Udostępnianie lokalizacji</string>
+</resources>

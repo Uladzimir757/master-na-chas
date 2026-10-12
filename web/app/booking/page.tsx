@@ -16,6 +16,7 @@ import {
   type Slot,
 } from "@/lib/api";
 import { toDateParam, addDays } from "@/lib/format";
+import { registerNativePush } from "@/lib/native";
 import { useLocale } from "@/lib/LocaleContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import ProviderMap from "@/components/ProviderMap";
@@ -82,6 +83,9 @@ export default function MyBookingPage() {
         return;
       }
       void load(bid, tok);
+      // В приложении — пуши об этой и следующих записях на этот телефон
+      // (no-op в браузере; неверная ссылка просто отклоняется сервером).
+      void registerNativePush({ kind: "client", bookingId: bid, token: tok });
       api
         .myBookingHistory(bid, tok)
         .then(setHistory)

@@ -1,13 +1,16 @@
 """Best-effort notification senders. Every function here MUST swallow its own
-errors and log them — a failed SMS/Telegram/push must never roll back or
+errors and log them — a failed SMS/Telegram/push/FCM must never roll back or
 block booking creation (see docs/mvp-task.md #5, #6: "не должна ронять сам
 POST /api/bookings")."""
 
 from __future__ import annotations
 
 import asyncio
+import base64
+import json
 import logging
-from collections.abc import Coroutine
+import time
+from collections.abc import Awaitable, Callable, Coroutine
 from typing import Any
 
 import httpx
@@ -79,6 +82,98 @@ async def send_sms(*, to_phone: str, text: str) -> None:
         logger.exception("sms_send_failed to=%s", to_phone)
 
 
+# --- FCM (нативное приложение, docs/mobile-app-task.md §4) ------------------
+# HTTP v1 API с OAuth-токеном сервисного аккаунта. JWT подписывается здесь же
+# через cryptography (уже есть — её тянет pywebpush), без firebase-admin/
+# google-auth ради одного запроса.
+
+FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
+_fcm_access_token: tuple[str, float] | None = None  # (токен, истекает в monotonic-секундах)
+
+# Колбэк удаления мёртвых токенов (приложение удалено/переустановлено):
+# notifications.py про БД не знает, main.py передаёт свой.
+DeadTokensCallback = Callable[[list[str]], Awaitable[None]]
+
+
+def _b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+async def _get_fcm_access_token(client: httpx.AsyncClient, info: dict) -> str:
+    global _fcm_access_token
+    if _fcm_access_token and _fcm_access_token[1] > time.monotonic():
+        return _fcm_access_token[0]
+
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import padding
+
+    token_uri = info.get("token_uri", "https://oauth2.googleapis.com/token")
+    now = int(time.time())
+    header = _b64url(json.dumps({"alg": "RS256", "typ": "JWT"}).encode())
+    claims = _b64url(
+        json.dumps(
+            {"iss": info["client_email"], "scope": FCM_SCOPE, "aud": token_uri, "iat": now, "exp": now + 3600}
+        ).encode()
+    )
+    key = serialization.load_pem_private_key(info["private_key"].encode(), password=None)
+    signature = key.sign(f"{header}.{claims}".encode(), padding.PKCS1v15(), hashes.SHA256())
+    response = await client.post(
+        token_uri,
+        data={
+            "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            "assertion": f"{header}.{claims}.{_b64url(signature)}",
+        },
+    )
+    response.raise_for_status()
+    body = response.json()
+    _fcm_access_token = (body["access_token"], time.monotonic() + int(body.get("expires_in", 3600)) - 60)
+    return _fcm_access_token[0]
+
+
+async def send_fcm(*, token: str, title: str, body: str, data: dict[str, str] | None = None) -> bool:
+    """Шлёт один пуш. False — только когда FCM ответил, что токена больше нет
+    (404 UNREGISTERED): вызывающий удаляет его. Любая другая ошибка
+    логируется и считается временной — токен остаётся."""
+    if not settings.FCM_ENABLED:
+        logger.info("fcm_disabled, skipping send")
+        return True
+    try:
+        info = json.loads(settings.FCM_SERVICE_ACCOUNT_JSON)
+        message: dict[str, Any] = {
+            "token": token,
+            "notification": {"title": title, "body": body},
+            "android": {"priority": "high"},
+            "apns": {"payload": {"aps": {"sound": "default"}}},
+        }
+        if data:
+            message["data"] = data
+        async with httpx.AsyncClient(timeout=10) as client:
+            access_token = await _get_fcm_access_token(client, info)
+            response = await client.post(
+                f"https://fcm.googleapis.com/v1/projects/{info['project_id']}/messages:send",
+                headers={"Authorization": f"Bearer {access_token}"},
+                json={"message": message},
+            )
+        if response.status_code == 404:
+            logger.info("fcm_token_unregistered token=%s", token[:16])
+            return False
+        response.raise_for_status()
+    except Exception:
+        logger.exception("fcm_send_failed token=%s", token[:16])
+    return True
+
+
+async def _send_fcm_all(
+    tokens: list[str], *, title: str, body: str, data: dict[str, str] | None, on_dead: DeadTokensCallback | None
+) -> None:
+    dead = [t for t in tokens if not await send_fcm(token=t, title=title, body=body, data=data)]
+    if dead and on_dead is not None:
+        try:
+            await on_dead(dead)
+        except Exception:
+            logger.exception("fcm_prune_failed")
+
+
 def run_in_background(coro: Coroutine[Any, Any, None]) -> None:
     """Уведомление не должно задерживать ответ клиенту: текст пишет LLM (секунды),
     поэтому compose+send уходят в отдельную задачу. Ссылка на задачу держится
@@ -88,11 +183,22 @@ def run_in_background(coro: Coroutine[Any, Any, None]) -> None:
     task.add_done_callback(_background_tasks.discard)
 
 
-async def notify_client_sms(
-    *, phone: str, purpose: str, facts: dict | None = None, must_include: str | None = None
+async def notify_client(
+    *,
+    phone: str,
+    purpose: str,
+    facts: dict | None = None,
+    must_include: str | None = None,
+    fcm_tokens: list[str] | None = None,
+    on_dead_fcm_tokens: DeadTokensCallback | None = None,
 ) -> None:
-    if not settings.SMS_ENABLED:
-        logger.info("sms_disabled: skipping send to %s", phone)
+    """Один текст на SMS и пуш в приложение (если клиент открывал в нём «мою
+    запись» с этого телефона). Ссылка must_include уходит в пуш ещё и как
+    data.url — тап по уведомлению открывает её в приложении."""
+    sms_on = settings.SMS_ENABLED
+    fcm_on = bool(fcm_tokens and settings.FCM_ENABLED)
+    if not (sms_on or fcm_on):
+        logger.info("client_notification_skipped: no active channel for %s", phone)
         return
     text = await compose_message(
         recipient="client",
@@ -102,8 +208,18 @@ async def notify_client_sms(
         max_chars=SMS_MAX_CHARS,
         must_include=must_include,
     )
-    if text:
+    if not text:
+        return
+    if sms_on:
         await send_sms(to_phone=phone, text=text)
+    if fcm_on:
+        await _send_fcm_all(
+            fcm_tokens,
+            title=settings.PUSH_APP_TITLE,
+            body=text,
+            data={"url": must_include} if must_include else None,
+            on_dead=on_dead_fcm_tokens,
+        )
 
 
 async def notify_master(
@@ -112,12 +228,15 @@ async def notify_master(
     push_subscriptions: list[dict],
     purpose: str,
     facts: dict | None = None,
+    fcm_tokens: list[str] | None = None,
+    on_dead_fcm_tokens: DeadTokensCallback | None = None,
 ) -> None:
-    """Один текст на оба канала: первая строка — заголовок пуша, Telegram
-    получает сообщение целиком."""
+    """Один текст на все каналы: первая строка — заголовок пуша (web push и
+    FCM), Telegram получает сообщение целиком."""
     telegram_on = bool(telegram_chat_id and settings.TELEGRAM_BOT_TOKEN)
     push_on = bool(push_subscriptions and settings.WEB_PUSH_ENABLED)
-    if not (telegram_on or push_on):
+    fcm_on = bool(fcm_tokens and settings.FCM_ENABLED)
+    if not (telegram_on or push_on or fcm_on):
         logger.info("master_notification_skipped: no active channel")
         return
     text = await compose_message(
@@ -132,15 +251,20 @@ async def notify_master(
         return
     if telegram_on:
         await send_telegram_message(telegram_chat_id, text)
+    title, _, body = text.partition("\n")
+    title, body = title.strip(), body.strip() or title.strip()
     if push_on:
-        title, _, body = text.partition("\n")
         for sub in push_subscriptions:
             await send_web_push(
                 endpoint=sub["endpoint"],
                 p256dh=sub["p256dh"],
                 auth=sub["auth"],
-                payload={"title": title.strip(), "body": body.strip() or title.strip()},
+                payload={"title": title, "body": body},
             )
+    if fcm_on:
+        await _send_fcm_all(
+            fcm_tokens, title=title, body=body, data={"url": "/cabinet/"}, on_dead=on_dead_fcm_tokens
+        )
 
 
 async def reply_telegram(*, chat_id: str, purpose: str) -> None:

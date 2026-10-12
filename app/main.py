@@ -20,6 +20,7 @@ Routes:
   PUT   /api/providers/me/working-hours/exceptions/{date}    (logged-in master only — upsert a day override)
   DELETE /api/providers/me/working-hours/exceptions/{date}   (logged-in master only)
   PUT   /api/providers/me/location            (logged-in master only — foreground GPS ping, Этап 4)
+  POST  /api/providers/me/location            (same — native background-geolocation POST, mobile app)
   POST  /api/providers/me/busy/start          (logged-in master only — "занят сейчас" on)
   PATCH /api/providers/me/busy                (logged-in master only — set/clear estimate)
   POST  /api/providers/me/busy/finish         (logged-in master only — "занят сейчас" off)
@@ -40,6 +41,9 @@ Routes:
   POST  /admin/translations/approve          (ADMIN_SECRET header OR admin session required — the only thing that does)
   POST  /telegram/webhook                     (called by Telegram, not by us)
   POST  /push/subscribe                       (logged-in master only)
+  PUT   /api/push/device-token               (logged-in master only — FCM token of the native app)
+  POST  /api/push/device-token/unregister    (public — knowing the FCM token is enough to drop it)
+  PUT   /api/my-booking/{id}/device-token    (public — token from the SMS link; FCM token of the client's app)
   GET   /api/reviews/invite/{booking_id}       (public — token from the SMS link)
   POST  /api/reviews/invite/{booking_id}       (public — token from the SMS link, submits the review)
   GET   /api/providers/{provider_id}/reviews   (public)
@@ -78,10 +82,11 @@ from app.models import (
     TelegramLinkToken,
     TranslationEntry,
     WebPushSubscription,
+    DevicePushToken,
     WorkingHours,
     WorkingHoursException,
 )
-from app.notifications import notify_client_sms, notify_master, reply_telegram, run_in_background
+from app.notifications import notify_client, notify_master, reply_telegram, run_in_background
 from app.schemas import (
     AdminAnalyticsOut,
     MasterStatOut,
@@ -121,6 +126,8 @@ from app.schemas import (
     ProviderSettingsOut,
     ProviderSettingsUpdate,
     PushSubscribeRequest,
+    DeviceTokenRequest,
+    DeviceTokenUnregister,
     ReviewCreate,
     ReviewInviteOut,
     ReviewOut,
@@ -474,14 +481,36 @@ async def _notify_staff(db: AsyncSession, provider_id: uuid.UUID, purpose: str, 
         subs = (
             await db.execute(select(WebPushSubscription).where(WebPushSubscription.master_user_id == master_user.id))
         ).scalars().all()
+        fcm_tokens = (
+            await db.execute(select(DevicePushToken.fcm_token).where(DevicePushToken.master_user_id == master_user.id))
+        ).scalars().all()
         run_in_background(
             notify_master(
                 telegram_chat_id=master_user.telegram_chat_id,
                 push_subscriptions=[{"endpoint": s.endpoint, "p256dh": s.p256dh, "auth": s.auth} for s in subs],
                 purpose=purpose,
                 facts=facts,
+                fcm_tokens=list(fcm_tokens),
+                on_dead_fcm_tokens=_prune_dead_fcm_tokens,
             )
         )
+
+
+async def _client_fcm_tokens(db: AsyncSession, phone: str | None) -> list[str]:
+    if not phone:
+        return []
+    return list(
+        (await db.execute(select(DevicePushToken.fcm_token).where(DevicePushToken.client_phone == phone))).scalars().all()
+    )
+
+
+async def _prune_dead_fcm_tokens(tokens: list[str]) -> None:
+    """FCM сказал UNREGISTERED (приложение удалено/переустановлено) — токен
+    больше не нужен. Отдельная сессия: запрос, породивший уведомление, уже
+    завершён к моменту фоновой отправки."""
+    async with async_session_factory() as session:
+        await session.execute(delete(DevicePushToken).where(DevicePushToken.fcm_token.in_(tokens)))
+        await session.commit()
 
 
 async def _notify_new_booking(db: AsyncSession, booking: Booking, service: Service) -> None:
@@ -509,8 +538,10 @@ async def _notify_new_booking(db: AsyncSession, booking: Booking, service: Servi
 
     if booking.client_phone:
         run_in_background(
-            notify_client_sms(
+            notify_client(
                 phone=booking.client_phone,
+                fcm_tokens=await _client_fcm_tokens(db, booking.client_phone),
+                on_dead_fcm_tokens=_prune_dead_fcm_tokens,
                 purpose="Confirm to the client that the booking request was received for the given service and time, and give the link to view, cancel or reschedule it.",
                 facts={"service": service.name, **when},
                 must_include=f"{settings.WEB_PUBLIC_URL}/booking/?id={booking.id}&token={booking.manage_token}",
@@ -794,13 +825,18 @@ async def update_my_provider_settings(
 
 
 @app.put("/api/providers/me/location")
+@app.post("/api/providers/me/location")
 async def update_my_location(
     payload: ProviderLocationUpdate,
     master_user_id: str = Depends(require_master_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Called roughly every 30s by the cabinet's foreground geolocation
-    watch (web/lib/useLocationSharing.ts) while share_location is on — see
+    watch (web/lib/useLocationSharing.ts) while share_location is on — or,
+    in the native app, POSTed straight from native code by
+    @capgo/background-geolocation (its own body shape, latitude/longitude —
+    see ProviderLocationUpdate), which keeps working with the screen locked.
+    Same storage, same publication gates either way — see
     Provider.share_location's docstring in app/models.py. Stores the fix
     unconditionally, even if share_location happens to be off right now
     (harmless: _resolve_provider_location still won't surface it publicly),
@@ -1530,8 +1566,10 @@ async def _issue_review_invite(db: AsyncSession, booking: Booking, provider: Pro
     # the query string instead.
     link = f"{settings.WEB_PUBLIC_URL}/review/?booking_id={booking.id}&token={token}"
     run_in_background(
-        notify_client_sms(
+        notify_client(
             phone=booking.client_phone,
+            fcm_tokens=await _client_fcm_tokens(db, booking.client_phone),
+            on_dead_fcm_tokens=_prune_dead_fcm_tokens,
             purpose="Tell the client the job is done and invite them to rate the work using the link.",
             facts={"master": provider.name, "service": service.name if service else None},
             must_include=link,
@@ -2233,6 +2271,65 @@ async def push_subscribe(
         )
     )
     await db.commit()
+    return {"ok": True}
+
+
+# ============================================================================
+# FCM device tokens — нативное приложение (docs/mobile-app-task.md §4)
+# ============================================================================
+
+
+async def _upsert_device_token(
+    db: AsyncSession, payload: DeviceTokenRequest, *, master_user_id: uuid.UUID | None, client_phone: str | None
+) -> None:
+    """Токен уникален: то же устройство под другим владельцем (выход/вход
+    другим мастером, клиентская ссылка на том же телефоне) переписывает
+    строку."""
+    row = (
+        await db.execute(select(DevicePushToken).where(DevicePushToken.fcm_token == payload.fcm_token))
+    ).scalar_one_or_none()
+    if row is None:
+        row = DevicePushToken(id=uuid.uuid4(), fcm_token=payload.fcm_token)
+        db.add(row)
+    row.master_user_id = master_user_id
+    row.client_phone = client_phone
+    row.platform = payload.platform
+    row.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+
+
+@app.put("/api/push/device-token")
+async def register_master_device_token(
+    payload: DeviceTokenRequest,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    await _upsert_device_token(db, payload, master_user_id=uuid.UUID(master_user_id), client_phone=None)
+    return {"ok": True}
+
+
+@app.post("/api/push/device-token/unregister")
+@limiter.limit("20/minute")
+async def unregister_device_token(
+    request: Request, payload: DeviceTokenUnregister, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Выход из кабинета в приложении. Без авторизации: к этому моменту
+    Bearer-токен уже стёрт, а сам FCM-токен — секрет устройства, знающий его
+    может разве что отписать это же устройство."""
+    await db.execute(delete(DevicePushToken).where(DevicePushToken.fcm_token == payload.fcm_token))
+    await db.commit()
+    return {"ok": True}
+
+
+@app.put("/api/my-booking/{booking_id}/device-token")
+@limiter.limit("10/minute")
+async def register_client_device_token(
+    request: Request, booking_id: uuid.UUID, token: str, payload: DeviceTokenRequest, db: AsyncSession = Depends(get_db)
+) -> dict:
+    booking = await _get_booking_by_token(db, booking_id, token)
+    if not booking.client_phone:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Booking has no phone number to attach notifications to")
+    await _upsert_device_token(db, payload, master_user_id=None, client_phone=booking.client_phone)
     return {"ok": True}
 
 

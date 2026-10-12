@@ -68,6 +68,16 @@ class Settings(BaseSettings):
     WEB_PUSH_SUBJECT: str = "mailto:admin@example.com"
     WEB_PUSH_ENABLED: bool = False
 
+    # FCM — push в нативное приложение (docs/mobile-app-task.md §4): Android
+    # напрямую, iOS через APNs-ключ, загруженный в тот же Firebase-проект.
+    # FCM_SERVICE_ACCOUNT_JSON — содержимое JSON-ключа сервисного аккаунта
+    # Firebase целиком (Render env var, одной строкой); project_id берётся
+    # из него же.
+    FCM_SERVICE_ACCOUNT_JSON: str = ""
+    FCM_ENABLED: bool = False
+    # Заголовок пуша клиенту (мастеру заголовок пишет LLM). Временный бренд.
+    PUSH_APP_TITLE: str = "ZR"
+
     # Twilio — platform account credentials + the Alphanumeric Sender ID
     # (see docs/mvp-task.md #6 for why Twilio, not a Polish SMS gateway, for now)
     TWILIO_ACCOUNT_SID: str = ""

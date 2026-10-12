@@ -7,15 +7,26 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "playwright test"
+    "test": "playwright test",
+    "cap:sync": "cap sync",
+    "android:bundle": "cap sync android && cd android && gradlew bundleRelease",
+    "android:apk": "cap sync android && cd android && gradlew assembleDebug"
   },
   "dependencies": {
+    "@capacitor-firebase/messaging": "^8.5.2",
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/ios": "^8.5.3",
+    "@capgo/background-geolocation": "^8.4.11",
+    "firebase": "^12.19.0",
     "leaflet": "^1.9.4",
     "next": "16.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.3",
     "@playwright/test": "^1.48.0",
     "@tailwindcss/postcss": "^4",
     "@types/leaflet": "^1.9.22",

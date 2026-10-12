@@ -28,3 +28,14 @@ UPDATE service SET category = 'repair' WHERE category IS NULL AND name IN (
   'Покраска стены/двери (небольшая площадь)');
 UPDATE service SET category = 'other' WHERE category IS NULL;
 ALTER TABLE booking ADD COLUMN IF NOT EXISTS manage_token text UNIQUE;
+CREATE TABLE IF NOT EXISTS device_push_token (
+    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    master_user_id  uuid REFERENCES master_user(id) ON DELETE CASCADE,
+    client_phone    text,
+    platform        text NOT NULL CHECK (platform IN ('android', 'ios')),
+    fcm_token       text NOT NULL UNIQUE,
+    updated_at      timestamptz NOT NULL DEFAULT now(),
+    CHECK ((master_user_id IS NULL) <> (client_phone IS NULL))
+);
+CREATE INDEX IF NOT EXISTS idx_device_push_master ON device_push_token (master_user_id);
+CREATE INDEX IF NOT EXISTS idx_device_push_client_phone ON device_push_token (client_phone);

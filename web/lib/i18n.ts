@@ -104,6 +104,13 @@ export interface Translations {
   locationSharingDenied: string;
   locationSharingUnsupported: string;
   locationSharingError: string;
+  // Нативное приложение (lib/useLocationSharing.ts): фоновая передача.
+  shareLocationHintApp: string;
+  locationSharingDeniedApp: string;
+  locationNotificationTitle: string;
+  locationNotificationText: string;
+  locationAlwaysHint: string;
+  locationAlwaysButton: string;
   masterLocationTitle: string;
   masterLocationJustNow: string;
   masterLocationMinutesAgo: (n: number) => string;
@@ -430,6 +437,12 @@ export function buildTranslations(map: TranslationMap): Translations {
     locationSharingDenied: pick(map, "locationSharingDenied"),
     locationSharingUnsupported: pick(map, "locationSharingUnsupported"),
     locationSharingError: pick(map, "locationSharingError"),
+    shareLocationHintApp: pick(map, "shareLocationHintApp"),
+    locationSharingDeniedApp: pick(map, "locationSharingDeniedApp"),
+    locationNotificationTitle: pick(map, "locationNotificationTitle"),
+    locationNotificationText: pick(map, "locationNotificationText"),
+    locationAlwaysHint: pick(map, "locationAlwaysHint"),
+    locationAlwaysButton: pick(map, "locationAlwaysButton"),
     masterLocationTitle: pick(map, "masterLocationTitle"),
     masterLocationJustNow: pick(map, "masterLocationJustNow"),
     masterLocationMinutesAgo: (n) =>

@@ -1,0 +1,73 @@
+# iOS-сборка нативного приложения (docs/mobile-app-task.md §3) — Codemagic,
+# т.к. своего Mac нет. Android собирается локально (web/android, gradlew);
+# GitHub Actions (.github/workflows/tests.yml) остаётся для тестов —
+# Codemagic стоит рядом и ничего там не заменяет.
+#
+# Что настроить один раз в UI Codemagic (подробно — docs/mobile-app-handoff.md):
+#   * Teams → Integrations → Developer Portal: API-ключ App Store Connect,
+#     имя интеграции = APP_STORE_CONNECT_INTEGRATION ниже;
+#   * Code signing identities: сертификат Apple Distribution (Codemagic
+#     может сам создать его по API-ключу) и App Store-профиль для pl.zr.app
+#     с включённой Push Notifications capability;
+#   * Environment variables, группа "firebase": GOOGLE_SERVICE_INFO_PLIST —
+#     содержимое GoogleService-Info.plist из Firebase-консоли, base64
+#     (отмечено Secure — не потому что секрет, а чтобы не светилось в логах).
+
+workflows:
+  ios-release:
+    name: iOS → TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: APP_STORE_CONNECT_INTEGRATION
+    environment:
+      groups:
+        - firebase
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: pl.zr.app
+      node: 22
+      xcode: latest
+      vars:
+        XCODE_PROJECT: web/ios/App/App.xcodeproj
+        XCODE_SCHEME: App
+        APP_STORE_APPLE_ID: "" # числовой Apple ID приложения из App Store Connect (после создания записи)
+    triggering:
+      # Только вручную/по тегу — не на каждый пуш в main: 500 бесплатных
+      # минут в месяц, iOS-сборка ~15-20 мин.
+      events:
+        - tag
+      tag_patterns:
+        - pattern: "ios-v*"
+    scripts:
+      - name: npm ci
+        script: cd web && npm ci
+      - name: Firebase-конфиг (GoogleService-Info.plist)
+        script: |
+          if [ -z "$GOOGLE_SERVICE_INFO_PLIST" ]; then
+            echo "GOOGLE_SERVICE_INFO_PLIST не задан (группа firebase) — без него push на iOS не заработает" >&2
+            exit 1
+          fi
+          echo "$GOOGLE_SERVICE_INFO_PLIST" | base64 --decode > web/ios/App/App/GoogleService-Info.plist
+      - name: Capacitor sync (iOS)
+        # На Windows symlink для SwiftPM не создаётся (EPERM), поэтому
+        # Package.swift и web/ios/App/CapApp-SPM/symlinks пересобираются здесь.
+        script: cd web && npx cap sync ios
+      - name: Code signing
+        script: xcode-project use-profiles
+      - name: Номер сборки = последний в TestFlight + 1
+        script: |
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" || echo 0)
+          cd web/ios/App && agvtool new-version -all $((LATEST + 1))
+      - name: Сборка .ipa
+        script: |
+          xcode-project build-ipa \
+            --project "$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true

@@ -162,6 +162,29 @@ ENTRIES: list[tuple[str, str, str]] = [
         "Punkt na mapie widzą klienci tylko wtedy, gdy ta strona jest otwarta w Twojej przeglądarce i trwają Twoje godziny pracy.",
         "Clients only see the map point while this page is open in your browser and it's currently your working hours.",
     ),
+    # Нативное приложение (web/lib/useLocationSharing.ts) — фоновая геолокация.
+    (
+        "shareLocationHintApp",
+        "Klienci widzą punkt na mapie w Twoich godzinach pracy — także przy zablokowanym telefonie. Aby to działało, zezwól aplikacji na lokalizację „Zawsze”.",
+        "Clients see the map point during your working hours — even with your phone locked. For this, allow the app to use location \"Always\".",
+    ),
+    (
+        "locationSharingDeniedApp",
+        "Brak dostępu do lokalizacji — zezwól na nią („Zawsze”) w ustawieniach telefonu dla tej aplikacji.",
+        "No access to location — allow it (\"Always\") for this app in your phone settings.",
+    ),
+    ("locationNotificationTitle", "Udostępniasz lokalizację", "Sharing your location"),
+    (
+        "locationNotificationText",
+        "Klienci widzą, kiedy dojedziesz. Wyłącz w kabinecie.",
+        "Clients can see when you'll arrive. Turn off in the cabinet.",
+    ),
+    (
+        "locationAlwaysHint",
+        "Żeby punkt był widoczny także po zamknięciu aplikacji, zezwól na lokalizację „Zawsze”.",
+        "To keep the point visible even after the app is closed, allow location \"Always\".",
+    ),
+    ("locationAlwaysButton", "Zezwól „Zawsze”", "Allow \"Always\""),
     ("locationSharingActive", "Lokalizacja jest udostępniana", "Location is being shared"),
     ("locationSharingWaiting", "Ustalamy Twoją lokalizację…", "Determining your location…"),
     (

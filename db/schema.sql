@@ -287,6 +287,27 @@ CREATE TABLE web_push_subscription (
 CREATE INDEX idx_web_push_master ON web_push_subscription (master_user_id);
 
 -- ----------------------------------------------------------------------------
+-- device_push_token — FCM token of the native app (Capacitor, docs/
+-- mobile-app-task.md §4). Separate from web_push_subscription: different
+-- transport (FCM HTTP v1, not VAPID) and the recipient may be a client, not
+-- only a master. Exactly one owner: a logged-in master, or a client phone
+-- (clients have no accounts — the phone from the SMS-linked "my booking" page
+-- is their identity, same as the booking history there).
+-- ----------------------------------------------------------------------------
+CREATE TABLE device_push_token (
+    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    master_user_id  uuid REFERENCES master_user(id) ON DELETE CASCADE,
+    client_phone    text,
+    platform        text NOT NULL CHECK (platform IN ('android', 'ios')),
+    fcm_token       text NOT NULL UNIQUE,
+    updated_at      timestamptz NOT NULL DEFAULT now(),
+    CHECK ((master_user_id IS NULL) <> (client_phone IS NULL))
+);
+
+CREATE INDEX idx_device_push_master ON device_push_token (master_user_id);
+CREATE INDEX idx_device_push_client_phone ON device_push_token (client_phone);
+
+-- ----------------------------------------------------------------------------
 -- translation_entry — UI-string translations (Этап 3, docs/ai-and-reviews.md
 -- §1). Only status='approved' rows are ever served to a visitor, via the
 -- in-memory TranslationCache in app/translations.py — populated at app

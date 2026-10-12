@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { isNativeApp } from "@/lib/native";
 import { useLocale } from "@/lib/LocaleContext";
 import { Button } from "@/components/ui";
 
@@ -57,7 +58,11 @@ export function InstallPrompt() {
     // prerender), and react-hooks/set-state-in-effect flags direct setState
     // statements in an effect body regardless.
     (() => {
-      setStandalone(window.matchMedia("(display-mode: standalone)").matches);
+      // внутри нативного приложения (Capacitor) ставить уже нечего
+      setStandalone(
+        isNativeApp() ||
+          window.matchMedia("(display-mode: standalone)").matches,
+      );
       setDismissed(readDismissed());
       setIsIos(/iphone|ipad|ipod/i.test(window.navigator.userAgent));
     })();

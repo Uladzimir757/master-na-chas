@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
   ApiError,
@@ -15,6 +15,7 @@ import {
   type LocationSharingStatus,
 } from "@/lib/useLocationSharing";
 import type { Translations } from "@/lib/i18n";
+import { isNativeApp, registerNativePush } from "@/lib/native";
 import ClosedPeriods from "@/components/ClosedPeriods";
 import AnalyticsPanel from "@/components/AnalyticsPanel";
 import StaffManager from "@/components/StaffManager";
@@ -35,6 +36,7 @@ type CabinetTab =
 function locationStatusText(
   status: LocationSharingStatus,
   t: Translations,
+  native: boolean,
 ): string | null {
   switch (status) {
     case "idle":
@@ -44,7 +46,7 @@ function locationStatusText(
     case "active":
       return t.locationSharingActive;
     case "denied":
-      return t.locationSharingDenied;
+      return native ? t.locationSharingDeniedApp : t.locationSharingDenied;
     case "unsupported":
       return t.locationSharingUnsupported;
     case "error":
@@ -92,6 +94,15 @@ export default function CabinetDashboard({
       .me()
       .then((m) => setPerms(m.permissions))
       .catch(() => setPerms([]));
+    // В приложении — FCM-токен этого устройства к вошедшему мастеру
+    // (no-op в браузере, lib/native.ts).
+    void registerNativePush({ kind: "master" });
+  }, []);
+  // isNativeApp() — константа на всё время жизни страницы, но на сервере
+  // (статический экспорт) false; читаем после монтирования.
+  const [native, setNative] = useState(false);
+  useEffect(() => {
+    (() => setNative(isNativeApp()))();
   }, []);
   const can = (p: string) => perms === null || perms.includes(p);
   const tab = effectiveTab(requestedTab, perms);
@@ -457,7 +468,21 @@ export default function CabinetDashboard({
   // on (see lib/useLocationSharing.ts's own docstring for why this is
   // foreground-only). Called unconditionally (Rules of Hooks) even before
   // `settings` has loaded — `?? false` just means "not sharing yet".
-  const locationStatus = useLocationSharing(settings?.share_location ?? false);
+  const locationNotification = useMemo(
+    () => ({
+      title: t.locationNotificationTitle,
+      message: t.locationNotificationText,
+    }),
+    [t],
+  );
+  const {
+    status: locationStatus,
+    needsAlways: locationNeedsAlways,
+    requestAlways: requestLocationAlways,
+  } = useLocationSharing(
+    settings?.share_location ?? false,
+    locationNotification,
+  );
 
   if (!ready) {
     return <Centered>…</Centered>;
@@ -761,14 +786,31 @@ export default function CabinetDashboard({
                     {t.shareLocationLabel}
                   </span>
                   <span className="block text-sm text-ink/60">
-                    {t.shareLocationHint}
+                    {native ? t.shareLocationHintApp : t.shareLocationHint}
                   </span>
                   {settings.share_location &&
-                    locationStatusText(locationStatus, t) && (
+                    locationStatusText(locationStatus, t, native) && (
                       <span className="mt-1 block text-sm text-ink/60">
-                        {locationStatusText(locationStatus, t)}
+                        {locationStatusText(locationStatus, t, native)}
                       </span>
                     )}
+                  {settings.share_location && locationNeedsAlways && (
+                    <span className="mt-2 block text-sm">
+                      <span className="block text-ink/60">
+                        {t.locationAlwaysHint}
+                      </span>
+                      <CompactButton
+                        className="mt-1"
+                        onClick={(e) => {
+                          // кнопка внутри <label> — не переключать чекбокс
+                          e.preventDefault();
+                          requestLocationAlways();
+                        }}
+                      >
+                        {t.locationAlwaysButton}
+                      </CompactButton>
+                    </span>
+                  )}
                 </span>
               </label>
             </div>
