@@ -26,6 +26,7 @@
  * stopping the watch: the freshness gate hides the dot by itself.
  */
 
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { API_URL, api } from "@/lib/api";
 import { getToken } from "@/lib/authToken";
@@ -74,14 +75,47 @@ function runNative<T>(job: (plugin: BackgroundGeolocationPlugin) => Promise<T>):
   return next;
 }
 
+// Android-only native flag "the master is sharing location"
+// (android/app/src/main/java/pl/zr/app/GeoRestartPlugin.java). The app's
+// BootReceiver and MainActivity.onResume read it to bring the plugin's
+// service back after the process was killed — the plugin itself doesn't
+// (docs/geo-service-restart-task.md).
+const ZrGeoRestart = registerPlugin<{
+  setShouldShare(options: { value: boolean }): Promise<void>;
+}>("ZrGeoRestart");
+
+async function setShouldShare(value: boolean): Promise<void> {
+  if (Capacitor.getPlatform() !== "android") return;
+  await ZrGeoRestart.setShouldShare({ value }).catch(() => {});
+}
+
+/**
+ * Explicit end of sharing in the native app — the master turned the toggle
+ * off or logged out. Stops the service and clears the restart flag, so
+ * neither a reboot nor reopening the app brings it back.
+ */
+export function stopNativeLocationSharing(): Promise<void> {
+  if (!isNativeApp()) return Promise.resolve();
+  return runNative(async (BackgroundGeolocation) => {
+    await setShouldShare(false);
+    await BackgroundGeolocation.stop().catch(() => {});
+  }).catch(() => {});
+}
+
 async function checkNeedsAlways(): Promise<boolean> {
   const { BackgroundGeolocation } = await import("@capgo/background-geolocation");
   const perm = await BackgroundGeolocation.checkPermissions();
   return perm.backgroundLocation !== undefined && perm.backgroundLocation !== "granted";
 }
 
+/**
+ * @param enabled ProviderSettings.share_location, or null while settings
+ *     haven't loaded yet. The distinction matters in the native app, where
+ *     false *stops* the background service — it must not be mistaken for
+ *     "not known yet" on every cabinet open.
+ */
 export function useLocationSharing(
-  enabled: boolean,
+  enabled: boolean | null,
   notification: BackgroundNotificationText,
 ): LocationSharing {
   const [status, setStatus] = useState<LocationSharingStatus>("idle");
@@ -113,7 +147,7 @@ export function useLocationSharing(
       }
     })();
 
-    if (!enabled || !supported) return undefined;
+    if ((!enabled && !native) || !supported) return undefined;
 
     const sendFromJs = (lat: number, lng: number) => {
       const now = Date.now();
@@ -127,6 +161,11 @@ export function useLocationSharing(
     };
 
     if (native) {
+      if (enabled === null) return undefined;
+      if (!enabled) {
+        void stopNativeLocationSharing();
+        return undefined;
+      }
       let cancelled = false;
       const bearer = getToken("master");
       void runNative(async (BackgroundGeolocation) => {
@@ -168,12 +207,18 @@ export function useLocationSharing(
             if (!bearer) sendFromJs(location.latitude, location.longitude);
           },
         );
+        // Only native delivery (url) survives without the WebView, so only
+        // then is a native restart meaningful.
+        await setShouldShare(Boolean(bearer));
       }).catch(() => {
         if (!cancelled) setStatus("error");
       });
+      // No stop() on unmount: in the app the service is meant to outlive the
+      // cabinet page (the master browses elsewhere, the app is backgrounded).
+      // Only an explicit off — enabled turning false, or logout
+      // (stopNativeLocationSharing) — ends it.
       return () => {
         cancelled = true;
-        void runNative((BackgroundGeolocation) => BackgroundGeolocation.stop()).catch(() => {});
       };
     }
 
@@ -204,5 +249,5 @@ export function useLocationSharing(
     })().catch(() => {});
   }, []);
 
-  return { status, needsAlways: enabled && needsAlways, requestAlways };
+  return { status, needsAlways: Boolean(enabled) && needsAlways, requestAlways };
 }

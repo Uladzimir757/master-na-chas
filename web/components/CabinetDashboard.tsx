@@ -480,7 +480,7 @@ export default function CabinetDashboard({
     needsAlways: locationNeedsAlways,
     requestAlways: requestLocationAlways,
   } = useLocationSharing(
-    settings?.share_location ?? false,
+    settings ? settings.share_location : null,
     locationNotification,
   );
 

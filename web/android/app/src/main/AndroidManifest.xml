@@ -24,6 +24,18 @@
 
         </activity>
 
+        <!-- Поднимает фоновую геолокацию после перезагрузки/обновления, если
+             мастер ею делился (docs/geo-service-restart-task.md). -->
+        <receiver
+            android:name=".BootReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -44,4 +56,5 @@
          манифестов плагинов (@capgo/background-geolocation,
          @capacitor-firebase/messaging). -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 </manifest>

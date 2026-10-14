@@ -7,6 +7,7 @@ import { Card, Centered } from "@/components/ui";
 import { PasswordInput } from "@/components/PasswordInput";
 import CabinetDashboard from "@/components/CabinetDashboard";
 import { unregisterNativePush } from "@/lib/native";
+import { stopNativeLocationSharing } from "@/lib/useLocationSharing";
 
 type AuthState = "checking" | "anon" | "authed";
 
@@ -68,6 +69,7 @@ export default function Cabinet() {
   const handleLogout = useCallback(async () => {
     // Best-effort — even if the network call fails, dropping back to the
     // login form is the right UI outcome either way.
+    await stopNativeLocationSharing();
     await unregisterNativePush();
     await api.logout().catch(() => {});
     setAuthState("anon");
