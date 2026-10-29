@@ -62,7 +62,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, sta
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.sessions import SessionMiddleware
@@ -126,6 +126,9 @@ from app.schemas import (
     ProviderSettingsOut,
     ProviderSettingsUpdate,
     PushSubscribeRequest,
+    OwnServiceCreate,
+    OwnServiceUpdate,
+    RemovedServiceOut,
     DeviceTokenRequest,
     DeviceTokenUnregister,
     ReviewCreate,
@@ -271,7 +274,11 @@ def _resolve_service_name(service: Service, lang: str) -> str:
 @app.get("/api/services", response_model=list[ServiceOut])
 async def list_services(lang: str = Query(default=DEFAULT_LANG), db: AsyncSession = Depends(get_db)) -> list[ServiceOut]:
     lang = _resolve_lang(lang)
-    stmt = select(Service).where(Service.is_active.is_(True)).order_by(Service.name)
+    stmt = (
+        select(Service)
+        .where(Service.is_active.is_(True), Service.owner_provider_id.is_(None))
+        .order_by(Service.name)
+    )
     services = (await db.execute(stmt)).scalars().all()
     return [
         ServiceOut(
@@ -915,30 +922,14 @@ async def get_my_services(
     master_user_id: str = Depends(require_master_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> list[ServiceToggleOut]:
-    """Every active tenant service, each tagged with whether *this* provider
-    currently offers it — the source for the cabinet's checklist. Services
-    the tenant has fully retired (Service.is_active=False) don't appear at
-    all; that's an admin-only decision, not something a master toggles."""
+    """The cabinet's services checklist: every active standard service this
+    master hasn't removed from his list, plus his own services — each tagged
+    with whether he currently offers it. Standard services the tenant has
+    fully retired (Service.is_active=False) don't appear at all; that's an
+    admin-only decision, not something a master toggles."""
     lang = _resolve_lang(lang)
     provider = await _get_own_provider(master_user_id, db)
-
-    services = (
-        (await db.execute(select(Service).where(Service.is_active.is_(True)).order_by(Service.name)))
-        .scalars()
-        .all()
-    )
-    # Every link this provider has ever had for a service (not just active
-    # ones) — a previously-set price/description should still prefill the
-    # form even for a service currently toggled off, see ProviderService's
-    # docstring in app/models.py.
-    links_by_service = {
-        row.service_id: row
-        for row in (
-            await db.execute(select(ProviderService).where(ProviderService.provider_id == provider.id))
-        )
-        .scalars()
-        .all()
-    }
+    services, links_by_service = await _my_visible_services(db, provider)
     result = []
     for s in services:
         link = links_by_service.get(s.id)
@@ -951,9 +942,45 @@ async def get_my_services(
                 price_max=link.price_max if link and link.price_max is not None else s.price_max,
                 description=link.description if link else None,
                 is_offered=bool(link and link.is_active),
+                is_custom=s.owner_provider_id is not None,
+                category=s.category,
             )
         )
     return result
+
+
+async def _my_links(db: AsyncSession, provider: Provider) -> dict[uuid.UUID, ProviderService]:
+    """Every link this provider has ever had for a service (not just active
+    ones) — a previously-set price/description should still prefill the
+    form even for a service currently toggled off, see ProviderService's
+    docstring in app/models.py."""
+    rows = (await db.execute(select(ProviderService).where(ProviderService.provider_id == provider.id))).scalars()
+    return {row.service_id: row for row in rows.all()}
+
+
+async def _my_visible_services(
+    db: AsyncSession, provider: Provider
+) -> tuple[list[Service], dict[uuid.UUID, ProviderService]]:
+    """What this master's cabinet list consists of: active standard services
+    he hasn't removed + his own active services (Service.owner_provider_id).
+    Another master's own services are never visible here."""
+    links = await _my_links(db, provider)
+    services = (
+        (
+            await db.execute(
+                select(Service)
+                .where(
+                    Service.is_active.is_(True),
+                    or_(Service.owner_provider_id.is_(None), Service.owner_provider_id == provider.id),
+                )
+                .order_by(Service.name)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    visible = [s for s in services if not (links.get(s.id) and links[s.id].is_removed)]
+    return visible, links
 
 
 def _own_duration(value: int | None, service: Service) -> int | None:
@@ -977,20 +1004,11 @@ async def update_my_services(
     optimistically posted."""
     provider = await _get_own_provider(master_user_id, db, "services_edit")
 
-    services_by_id = {
-        s.id: s for s in (await db.execute(select(Service).where(Service.is_active.is_(True)))).scalars().all()
-    }
-    valid_service_ids = set(services_by_id)
-    desired_items = {item.service_id: item for item in payload.services if item.service_id in valid_service_ids}
-
-    existing_links = {
-        row.service_id: row
-        for row in (
-            await db.execute(select(ProviderService).where(ProviderService.provider_id == provider.id))
-        )
-        .scalars()
-        .all()
-    }
+    # Only what this master's own list shows: no removed standard services,
+    # no other master's own services.
+    visible, existing_links = await _my_visible_services(db, provider)
+    services_by_id = {s.id: s for s in visible}
+    desired_items = {item.service_id: item for item in payload.services if item.service_id in services_by_id}
 
     for service_id, item in desired_items.items():
         link = existing_links.get(service_id)
@@ -1017,6 +1035,186 @@ async def update_my_services(
         if service_id not in desired_items and link.is_active:
             link.is_active = False
 
+    await db.commit()
+    return await get_my_services(lang=lang, master_user_id=master_user_id, db=db)
+
+
+# ----------------------------------------------------------------------------
+# Свои услуги мастера: создать, переименовать, удалить; стандартные услуги
+# каталога у каждого мастера есть всегда, но он может переименовать (это
+# создаёт его собственную копию) или убрать их из своего списка — каталог
+# для остальных мастеров не меняется, убранное можно вернуть.
+# ----------------------------------------------------------------------------
+
+
+async def _get_my_listed_service(db: AsyncSession, provider: Provider, service_id: uuid.UUID) -> Service:
+    """A service in this master's list (standard or his own), else 404."""
+    visible, _ = await _my_visible_services(db, provider)
+    service = next((s for s in visible if s.id == service_id), None)
+    if service is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Service not found")
+    return service
+
+
+@app.post(
+    "/api/providers/me/services/custom", response_model=list[ServiceToggleOut], status_code=status.HTTP_201_CREATED
+)
+async def create_my_service(
+    payload: OwnServiceCreate,
+    lang: str = Query(default=DEFAULT_LANG),
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> list[ServiceToggleOut]:
+    provider = await _get_own_provider(master_user_id, db, "services_edit")
+    service = Service(
+        id=uuid.uuid4(),
+        tenant_id=provider.tenant_id,
+        name=payload.name,
+        duration_minutes=payload.duration_minutes,
+        category=payload.category,
+        owner_provider_id=provider.id,
+        is_active=True,
+    )
+    db.add(service)
+    await db.flush()
+    db.add(
+        ProviderService(
+            provider_id=provider.id,
+            service_id=service.id,
+            is_active=True,
+            price_min=payload.price_min,
+            price_max=payload.price_max,
+            description=payload.description,
+        )
+    )
+    await db.commit()
+    return await get_my_services(lang=lang, master_user_id=master_user_id, db=db)
+
+
+@app.patch("/api/providers/me/services/{service_id}", response_model=list[ServiceToggleOut])
+async def update_my_service(
+    service_id: uuid.UUID,
+    payload: OwnServiceUpdate,
+    lang: str = Query(default=DEFAULT_LANG),
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> list[ServiceToggleOut]:
+    """Own service — edited in place. Standard service — the catalog row is
+    shared by every master, so it's forked instead: a copy owned by this
+    master with the new name, carrying over his price/duration/description
+    and offered state, while the standard one is removed from his list
+    (restorable). Past bookings keep pointing at whichever row they used."""
+    provider = await _get_own_provider(master_user_id, db, "services_edit")
+    service = await _get_my_listed_service(db, provider, service_id)
+    if service.owner_provider_id == provider.id:
+        service.name = payload.name
+        if payload.category is not None:
+            service.category = payload.category
+        await db.commit()
+        return await get_my_services(lang=lang, master_user_id=master_user_id, db=db)
+
+    links = await _my_links(db, provider)
+    old_link = links.get(service.id)
+    copy = Service(
+        id=uuid.uuid4(),
+        tenant_id=service.tenant_id,
+        name=payload.name,
+        duration_minutes=service.duration_minutes,
+        price_min=service.price_min,
+        price_max=service.price_max,
+        category=payload.category or service.category,
+        owner_provider_id=provider.id,
+        is_active=True,
+    )
+    db.add(copy)
+    await db.flush()
+    db.add(
+        ProviderService(
+            provider_id=provider.id,
+            service_id=copy.id,
+            is_active=bool(old_link and old_link.is_active),
+            price_min=old_link.price_min if old_link else None,
+            price_max=old_link.price_max if old_link else None,
+            description=old_link.description if old_link else None,
+            duration_minutes=old_link.duration_minutes if old_link else None,
+        )
+    )
+    _mark_removed(db, provider, service, old_link)
+    await db.commit()
+    return await get_my_services(lang=lang, master_user_id=master_user_id, db=db)
+
+
+def _mark_removed(db: AsyncSession, provider: Provider, service: Service, link: ProviderService | None) -> None:
+    if link is None:
+        db.add(ProviderService(provider_id=provider.id, service_id=service.id, is_active=False, is_removed=True))
+    else:
+        link.is_active = False
+        link.is_removed = True
+
+
+@app.delete("/api/providers/me/services/{service_id}", response_model=list[ServiceToggleOut])
+async def delete_my_service(
+    service_id: uuid.UUID,
+    lang: str = Query(default=DEFAULT_LANG),
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> list[ServiceToggleOut]:
+    """Own service — retired (Service.is_active=False, not deleted: past
+    bookings still reference it). Standard service — only removed from this
+    master's list; restorable via .../removed and .../restore."""
+    provider = await _get_own_provider(master_user_id, db, "services_edit")
+    service = await _get_my_listed_service(db, provider, service_id)
+    links = await _my_links(db, provider)
+    if service.owner_provider_id == provider.id:
+        service.is_active = False
+        if service.id in links:
+            links[service.id].is_active = False
+    else:
+        _mark_removed(db, provider, service, links.get(service.id))
+    await db.commit()
+    return await get_my_services(lang=lang, master_user_id=master_user_id, db=db)
+
+
+@app.get("/api/providers/me/services/removed", response_model=list[RemovedServiceOut])
+async def list_my_removed_services(
+    lang: str = Query(default=DEFAULT_LANG),
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> list[RemovedServiceOut]:
+    """Standard services this master removed from his list (still active in
+    the catalog) — the cabinet offers to bring each one back."""
+    lang = _resolve_lang(lang)
+    provider = await _get_own_provider(master_user_id, db)
+    rows = (
+        await db.execute(
+            select(Service)
+            .join(ProviderService, ProviderService.service_id == Service.id)
+            .where(
+                ProviderService.provider_id == provider.id,
+                ProviderService.is_removed.is_(True),
+                Service.is_active.is_(True),
+                Service.owner_provider_id.is_(None),
+            )
+            .order_by(Service.name)
+        )
+    ).scalars().all()
+    return [RemovedServiceOut(service_id=s.id, name=_resolve_service_name(s, lang)) for s in rows]
+
+
+@app.post("/api/providers/me/services/{service_id}/restore", response_model=list[ServiceToggleOut])
+async def restore_my_service(
+    service_id: uuid.UUID,
+    lang: str = Query(default=DEFAULT_LANG),
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> list[ServiceToggleOut]:
+    """Back into the list, not offered — he ticks it on himself if he wants
+    it bookable again (his old price/description are still there)."""
+    provider = await _get_own_provider(master_user_id, db, "services_edit")
+    link = (await _my_links(db, provider)).get(service_id)
+    if link is None or not link.is_removed:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Service not found")
+    link.is_removed = False
     await db.commit()
     return await get_my_services(lang=lang, master_user_id=master_user_id, db=db)
 

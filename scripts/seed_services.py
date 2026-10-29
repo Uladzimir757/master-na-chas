@@ -328,7 +328,11 @@ async def main() -> None:
         created, updated = 0, 0
         for item in CATALOG:
             service = (
-                await db.execute(select(Service).where(Service.tenant_id == tenant.id, Service.name == item["ru"]))
+                await db.execute(
+                    select(Service).where(
+                        Service.tenant_id == tenant.id, Service.name == item["ru"], Service.owner_provider_id.is_(None)
+                    )
+                )
             ).scalar_one_or_none()
             if service is None:
                 db.add(

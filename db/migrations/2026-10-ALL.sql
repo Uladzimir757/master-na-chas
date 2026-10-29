@@ -39,3 +39,6 @@ CREATE TABLE IF NOT EXISTS device_push_token (
 );
 CREATE INDEX IF NOT EXISTS idx_device_push_master ON device_push_token (master_user_id);
 CREATE INDEX IF NOT EXISTS idx_device_push_client_phone ON device_push_token (client_phone);
+ALTER TABLE service ADD COLUMN IF NOT EXISTS owner_provider_id uuid REFERENCES provider(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS idx_service_owner ON service (owner_provider_id);
+ALTER TABLE provider_service ADD COLUMN IF NOT EXISTS is_removed boolean NOT NULL DEFAULT false;

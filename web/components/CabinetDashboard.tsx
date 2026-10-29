@@ -28,6 +28,11 @@ import {
 } from "@/components/ui";
 import { PasswordInput } from "@/components/PasswordInput";
 import WorkingHoursEditor from "@/components/WorkingHoursEditor";
+import {
+  AddOwnService,
+  RemovedServices,
+  ServiceRowActions,
+} from "@/components/OwnServices";
 import MasterCalendar from "@/components/MasterCalendar";
 
 type CabinetTab =
@@ -122,6 +127,13 @@ export default function CabinetDashboard({
 
   const [savingServices, setSavingServices] = useState(false);
   const [servicesError, setServicesError] = useState<string | null>(null);
+  // bumps after a create/rename/delete/restore (components/OwnServices.tsx),
+  // so the "removed standard services" list re-fetches
+  const [servicesVersion, setServicesVersion] = useState(0);
+  const handleServicesReplaced = useCallback((updated: ServiceToggle[]) => {
+    setServiceToggles(updated);
+    setServicesVersion((v) => v + 1);
+  }, []);
 
   const [savingBusy, setSavingBusy] = useState(false);
   const [busyError, setBusyError] = useState<string | null>(null);
@@ -549,21 +561,35 @@ export default function CabinetDashboard({
                   key={svc.service_id}
                   className="rounded-md border border-line p-3"
                 >
-                  <label className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={svc.is_offered}
-                      disabled={savingServices}
-                      onChange={() => handleToggleService(svc.service_id)}
-                      className="mt-1"
-                    />
-                    <span>
-                      <span className="block font-medium">{svc.name}</span>
-                      <span className="block text-sm text-ink/60">
-                        {t.durationMinutes(svc.duration_minutes)}
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <label className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={svc.is_offered}
+                        disabled={savingServices}
+                        onChange={() => handleToggleService(svc.service_id)}
+                        className="mt-1"
+                      />
+                      <span>
+                        <span className="block font-medium">
+                          {svc.name}
+                          {svc.is_custom && (
+                            <span className="ml-2 inline-block whitespace-nowrap rounded bg-accent/10 px-1.5 py-0.5 text-xs font-normal text-accent">
+                              {t.serviceCustomBadge}
+                            </span>
+                          )}
+                        </span>
+                        <span className="block text-sm text-ink/60">
+                          {t.durationMinutes(svc.duration_minutes)}
+                        </span>
                       </span>
-                    </span>
-                  </label>
+                    </label>
+                    <ServiceRowActions
+                      svc={svc}
+                      disabled={savingServices}
+                      onUpdated={handleServicesReplaced}
+                    />
+                  </div>
 
                   {svc.is_offered && (
                     <div className="mt-3 flex flex-col gap-2 pl-7">
@@ -657,6 +683,15 @@ export default function CabinetDashboard({
           {servicesError && (
             <p className="mt-2 text-sm text-danger">{servicesError}</p>
           )}
+          <AddOwnService
+            disabled={savingServices}
+            onUpdated={handleServicesReplaced}
+          />
+          <RemovedServices
+            refreshKey={servicesVersion}
+            disabled={savingServices}
+            onUpdated={handleServicesReplaced}
+          />
         </section>
       )}
 

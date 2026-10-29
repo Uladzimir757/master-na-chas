@@ -360,6 +360,10 @@ class ServiceToggleOut(BaseModel):
     price_max: float | None = None
     description: str | None = None
     is_offered: bool
+    # A master's own service (created or forked by renaming a standard one)
+    # rather than a standard catalog one — see Service.owner_provider_id.
+    is_custom: bool = False
+    category: str | None = None
 
 
 class ProviderServiceUpdateItem(BaseModel):
@@ -373,6 +377,52 @@ class ProviderServiceUpdateItem(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
     # свой срок выполнения (мин); None = по умолчанию для услуги
     duration_minutes: int | None = Field(default=None, gt=0, le=1440)
+
+
+ServiceCategory = Literal["electric", "plumbing", "assembly", "repair", "other"]
+
+
+class OwnServiceCreate(BaseModel):
+    """POST /api/providers/me/services/custom — a master's own service. It is
+    offered (bookable) right away, same as ticking a standard one on."""
+
+    name: str = Field(min_length=1, max_length=200)
+    duration_minutes: int = Field(gt=0, le=1440)
+    price_min: float | None = Field(default=None, ge=0)
+    price_max: float | None = Field(default=None, ge=0)
+    description: str | None = Field(default=None, max_length=2000)
+    category: ServiceCategory = "other"
+
+    @field_validator("name")
+    @classmethod
+    def _strip_name(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("name must not be blank")
+        return v
+
+
+class OwnServiceUpdate(BaseModel):
+    """PATCH /api/providers/me/services/{id} — rename / recategorize. Price,
+    duration and description keep going through the PUT checklist save."""
+
+    name: str = Field(min_length=1, max_length=200)
+    category: ServiceCategory | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _strip_name(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("name must not be blank")
+        return v
+
+
+class RemovedServiceOut(BaseModel):
+    """A standard service this master removed from his list — restorable."""
+
+    service_id: uuid.UUID
+    name: str
 
 
 class ProviderServicesUpdate(BaseModel):

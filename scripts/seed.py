@@ -42,7 +42,11 @@ async def main() -> None:
             print(f"tenant already exists: {tenant.id}")
 
         service = (
-            await db.execute(select(Service).where(Service.tenant_id == tenant.id, Service.name == "Сборка мебели"))
+            await db.execute(
+                select(Service).where(
+                    Service.tenant_id == tenant.id, Service.name == "Сборка мебели", Service.owner_provider_id.is_(None)
+                )
+            )
         ).scalar_one_or_none()
         if service is None:
             service = Service(

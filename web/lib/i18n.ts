@@ -89,6 +89,21 @@ export interface Translations {
   servicesOfferedHint: string;
   noActiveServices: string;
   servicesSaveError: string;
+  // Свои услуги мастера (components/CabinetDashboard.tsx, вкладка «Moje usługi»).
+  serviceEditButton: string;
+  serviceDeleteButton: string;
+  serviceDeleteConfirm: string;
+  serviceNameLabel: string;
+  serviceCategoryLabel: string;
+  serviceSaveButton: string;
+  serviceCancelButton: string;
+  serviceCustomBadge: string;
+  serviceRenameStandardHint: string;
+  serviceAddTitle: string;
+  serviceAddButton: string;
+  serviceAddError: string;
+  servicesRemovedTitle: string;
+  serviceRestoreButton: string;
   bookingsTitle: string;
   noBookings: string;
   bookingStatusLabel: Record<string, string>;
@@ -417,6 +432,20 @@ export function buildTranslations(map: TranslationMap): Translations {
     servicesOfferedHint: pick(map, "servicesOfferedHint"),
     noActiveServices: pick(map, "noActiveServices"),
     servicesSaveError: pick(map, "servicesSaveError"),
+    serviceEditButton: pick(map, "serviceEditButton"),
+    serviceDeleteButton: pick(map, "serviceDeleteButton"),
+    serviceDeleteConfirm: pick(map, "serviceDeleteConfirm"),
+    serviceNameLabel: pick(map, "serviceNameLabel"),
+    serviceCategoryLabel: pick(map, "serviceCategoryLabel"),
+    serviceSaveButton: pick(map, "serviceSaveButton"),
+    serviceCancelButton: pick(map, "serviceCancelButton"),
+    serviceCustomBadge: pick(map, "serviceCustomBadge"),
+    serviceRenameStandardHint: pick(map, "serviceRenameStandardHint"),
+    serviceAddTitle: pick(map, "serviceAddTitle"),
+    serviceAddButton: pick(map, "serviceAddButton"),
+    serviceAddError: pick(map, "serviceAddError"),
+    servicesRemovedTitle: pick(map, "servicesRemovedTitle"),
+    serviceRestoreButton: pick(map, "serviceRestoreButton"),
     bookingsTitle: pick(map, "bookingsTitle"),
     noBookings: pick(map, "noBookings"),
     bookingStatusLabel: {

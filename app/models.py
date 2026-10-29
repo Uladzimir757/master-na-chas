@@ -161,6 +161,11 @@ class Service(Base):
     # app/translations.py) but their columns/data stay, unused, rather than
     # being dropped.
     name_en: Mapped[str | None] = mapped_column(String)
+    # NULL = standard catalog service (every master sees it in his cabinet).
+    # Set = a master's own service — created in his cabinet, or forked from a
+    # standard one when he renamed it there. Visible/bookable only for him;
+    # never listed in the public /api/services catalog.
+    owner_provider_id: Mapped[uuid.UUID | None] = _uuid_col(fk="provider.id")
 
 
 class ProviderService(Base):
@@ -197,6 +202,9 @@ class ProviderService(Base):
     description: Mapped[str | None] = mapped_column(Text)
     # Свой срок выполнения у мастера; NULL = срок услуги по умолчанию (Service.duration_minutes).
     duration_minutes: Mapped[int | None] = mapped_column(Integer)
+    # Мастер удалил стандартную услугу из своего списка (в каталоге она
+    # остаётся для остальных, вернуть можно). Всегда вместе с is_active=False.
+    is_removed: Mapped[bool] = mapped_column(default=False)
 
 
 class WorkingHours(Base):

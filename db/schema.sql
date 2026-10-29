@@ -104,10 +104,17 @@ CREATE TABLE service (
     -- en (this segment) — ru/uk are turned off (SUPPORTED_LANGS in
     -- app/translations.py) but kept, unused, rather than dropped.
     name_en           text,
+    -- NULL = standard catalog service (seeded, every master sees it).
+    -- Set = a master's own service, created from his cabinet — visible and
+    -- bookable only for that master (docs: «редактирование, выбрать и
+    -- удалить услуги»). Also the result of a master renaming a standard
+    -- service: that forks a copy owned by him.
+    owner_provider_id uuid REFERENCES provider(id) ON DELETE CASCADE,
     created_at        timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_service_tenant ON service (tenant_id);
+CREATE INDEX idx_service_owner ON service (owner_provider_id);
 
 -- which providers can perform which services (a shop mechanic might only do
 -- diesel injection work; a handyman might do everything on the menu).
@@ -125,6 +132,9 @@ CREATE TABLE provider_service (
     price_max    numeric(10,2),
     description  text,
     duration_minutes integer CHECK (duration_minutes > 0),  -- NULL = service default
+    -- This master removed a standard service from his own list (it stays in
+    -- the catalog for everyone else; he can restore it). Always is_active=false.
+    is_removed   boolean NOT NULL DEFAULT false,
     PRIMARY KEY (provider_id, service_id)
 );
 

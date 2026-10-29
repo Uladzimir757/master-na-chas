@@ -301,6 +301,30 @@ export interface ServiceToggle {
   price_max: number | null;
   description: string | null;
   is_offered: boolean;
+  // The master's own service (created by him, or his renamed copy of a
+  // standard one) — see Service.owner_provider_id in app/models.py.
+  is_custom: boolean;
+  category: ServiceCategory | null;
+}
+
+export type ServiceCategory =
+  | "electric"
+  | "plumbing"
+  | "assembly"
+  | "repair"
+  | "other";
+
+export interface NewOwnService {
+  name: string;
+  duration_minutes: number;
+  price_min: number | null;
+  price_max: number | null;
+  category: ServiceCategory;
+}
+
+export interface RemovedService {
+  service_id: string;
+  name: string;
 }
 
 // PUT body for one entry — "цены приблизительные и должны устанавливаться
@@ -547,6 +571,38 @@ export const api = {
         method: "PUT",
         body: JSON.stringify({ services }),
       },
+    ),
+  // Свои услуги мастера: создать, переименовать (стандартная — создаётся
+  // его копия), удалить (стандартная — только из его списка), вернуть
+  // удалённую стандартную. Все, кроме removed, отдают обновлённый список.
+  createMyService: (service: NewOwnService, lang: string) =>
+    request<ServiceToggle[]>(
+      `/api/providers/me/services/custom?lang=${encodeURIComponent(lang)}`,
+      { method: "POST", body: JSON.stringify(service) },
+    ),
+  renameMyService: (
+    serviceId: string,
+    name: string,
+    category: ServiceCategory | null,
+    lang: string,
+  ) =>
+    request<ServiceToggle[]>(
+      `/api/providers/me/services/${serviceId}?lang=${encodeURIComponent(lang)}`,
+      { method: "PATCH", body: JSON.stringify({ name, category }) },
+    ),
+  deleteMyService: (serviceId: string, lang: string) =>
+    request<ServiceToggle[]>(
+      `/api/providers/me/services/${serviceId}?lang=${encodeURIComponent(lang)}`,
+      { method: "DELETE" },
+    ),
+  listMyRemovedServices: (lang: string) =>
+    request<RemovedService[]>(
+      `/api/providers/me/services/removed?lang=${encodeURIComponent(lang)}`,
+    ),
+  restoreMyService: (serviceId: string, lang: string) =>
+    request<ServiceToggle[]>(
+      `/api/providers/me/services/${serviceId}/restore?lang=${encodeURIComponent(lang)}`,
+      { method: "POST" },
     ),
   listMyBookings: (statusFilter?: BookingStatus) =>
     request<Booking[]>(
