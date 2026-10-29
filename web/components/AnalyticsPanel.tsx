@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { api, type Analytics } from "@/lib/api";
 import { addDays, toDateParam } from "@/lib/format";
 import { useLocale } from "@/lib/LocaleContext";
-import { inputClass } from "@/components/ui";
+import { CompactButton, inputClass } from "@/components/ui";
 
 const hours = (min: number) => (min / 60).toFixed(1);
 
@@ -14,14 +14,19 @@ export default function AnalyticsPanel() {
   const { t } = useLocale();
   const [from, setFrom] = useState(() => toDateParam(addDays(new Date(), -29)));
   const [to, setTo] = useState(() => toDateParam(new Date()));
+  // The period actually loaded: changes only on mount (default last 30
+  // days) and on «Zastosuj»/Enter — editing a date field alone doesn't
+  // refetch. A fresh object on every apply, so re-applying the same period
+  // reloads too.
+  const [applied, setApplied] = useState(() => ({ from, to }));
   const [data, setData] = useState<Analytics | null>(null);
   const [error, setError] = useState(false);
+  const canApply = Boolean(from && to && to >= from);
 
   useEffect(() => {
-    if (!from || !to || to < from) return;
     let alive = true;
     api
-      .getAnalytics(from, to)
+      .getAnalytics(applied.from, applied.to)
       .then((d) => {
         if (alive) {
           setData(d);
@@ -32,14 +37,20 @@ export default function AnalyticsPanel() {
     return () => {
       alive = false;
     };
-  }, [from, to]);
+  }, [applied]);
 
   return (
     <section>
       <h2 className="mb-3 text-base font-semibold text-ink">
         {t.analyticsTitle}
       </h2>
-      <div className="mb-4 flex flex-wrap gap-3">
+      <form
+        className="mb-4 flex flex-wrap items-end gap-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (canApply) setApplied({ from, to });
+        }}
+      >
         <label className="text-xs text-ink/70">
           {t.analyticsFrom}
           <input
@@ -58,7 +69,10 @@ export default function AnalyticsPanel() {
             className={`${inputClass} mt-1`}
           />
         </label>
-      </div>
+        <CompactButton type="submit" disabled={!canApply}>
+          {t.analyticsApply}
+        </CompactButton>
+      </form>
       {error && <p className="text-sm text-danger">{t.calendarLoadError}</p>}
       {data && data.services.length === 0 && (
         <p className="text-sm text-ink/60">{t.analyticsEmpty}</p>

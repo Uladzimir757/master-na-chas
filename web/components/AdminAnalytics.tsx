@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import { api, type AdminAnalytics, type AdminMaster } from "@/lib/api";
 import { addDays, toDateParam } from "@/lib/format";
-import { Card } from "@/components/ui";
+import { Card, CompactButton } from "@/components/ui";
 
 const inputClass =
   "w-full rounded-lg border border-line bg-white px-3 py-2 text-ink";
@@ -20,14 +20,17 @@ export default function AdminAnalyticsPanel({
   const [from, setFrom] = useState(() => toDateParam(addDays(new Date(), -29)));
   const [to, setTo] = useState(() => toDateParam(new Date()));
   const [providerId, setProviderId] = useState("");
+  // Loaded filters — change only on mount and on «Применить»/Enter, not on
+  // every field edit (same as components/AnalyticsPanel.tsx).
+  const [applied, setApplied] = useState(() => ({ from, to, providerId }));
   const [data, setData] = useState<AdminAnalytics | null>(null);
   const [error, setError] = useState(false);
+  const canApply = Boolean(from && to && to >= from);
 
   useEffect(() => {
-    if (!from || !to || to < from) return;
     let alive = true;
     api
-      .adminAnalytics(from, to, providerId || undefined)
+      .adminAnalytics(applied.from, applied.to, applied.providerId || undefined)
       .then((d) => {
         if (alive) {
           setData(d);
@@ -38,7 +41,7 @@ export default function AdminAnalyticsPanel({
     return () => {
       alive = false;
     };
-  }, [from, to, providerId]);
+  }, [applied]);
 
   const totalDone = data?.masters.reduce((a, m) => a + m.completed, 0) ?? 0;
   const totalRevenue =
@@ -47,7 +50,13 @@ export default function AdminAnalyticsPanel({
   return (
     <Card>
       <h2 className="mb-3 text-lg font-semibold text-ink">Аналитика</h2>
-      <div className="mb-4 flex flex-wrap gap-3">
+      <form
+        className="mb-4 flex flex-wrap items-end gap-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (canApply) setApplied({ from, to, providerId });
+        }}
+      >
         <label className="text-xs text-ink/70">
           С
           <input
@@ -81,7 +90,10 @@ export default function AdminAnalyticsPanel({
             ))}
           </select>
         </label>
-      </div>
+        <CompactButton type="submit" disabled={!canApply}>
+          Применить
+        </CompactButton>
+      </form>
       {error && (
         <p className="text-sm text-danger">Не удалось загрузить аналитику</p>
       )}

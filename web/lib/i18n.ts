@@ -297,6 +297,7 @@ export interface Translations {
   analyticsTitle: string;
   analyticsFrom: string;
   analyticsTo: string;
+  analyticsApply: string;
   analyticsEmpty: string;
   analyticsColJob: string;
   analyticsColDone: string;
@@ -667,6 +668,7 @@ export function buildTranslations(map: TranslationMap): Translations {
     analyticsTitle: pick(map, "analyticsTitle"),
     analyticsFrom: pick(map, "analyticsFrom"),
     analyticsTo: pick(map, "analyticsTo"),
+    analyticsApply: pick(map, "analyticsApply"),
     analyticsEmpty: pick(map, "analyticsEmpty"),
     analyticsColJob: pick(map, "analyticsColJob"),
     analyticsColDone: pick(map, "analyticsColDone"),

@@ -439,6 +439,7 @@ ENTRIES: list[tuple[str, str, str]] = [
     ("analyticsTitle", "Analityka wykonanych prac", "Completed work analytics"),
     ("analyticsFrom", "Od", "From"),
     ("analyticsTo", "Do", "To"),
+    ("analyticsApply", "Zastosuj", "Apply"),
     ("analyticsEmpty", "Brak prac w tym okresie", "No jobs in this period"),
     ("analyticsColJob", "Praca", "Job"),
     ("analyticsColDone", "Wykonane", "Done"),
