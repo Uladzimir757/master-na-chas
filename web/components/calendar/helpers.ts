@@ -98,7 +98,7 @@ export function eventHeight(e: CalEvent): number {
   return Math.max((endMin - startMin) * PX_PER_MINUTE, 18);
 }
 
-/** Status → color, all drawn from the site's own warm palette (--accent /
+/** Status → color, all drawn from the site's own palette (--accent /
  * --accent-2 / --danger, see app/globals.css) instead of generic Tailwind
  * amber/emerald/red — keeps the calendar visually part of the same site as
  * the booking flow and cabinet, rather than a bolted-on admin widget. */
@@ -107,7 +107,7 @@ export function statusClasses(status: BookingStatus): string {
     case "pending":
       return "bg-accent/15 border border-accent/50 text-ink";
     case "confirmed":
-      return "bg-accent-2 border border-accent-2 text-bg";
+      return "bg-accent-2 border border-accent-2 text-on-accent";
     case "completed":
       return "bg-accent-2/15 border border-accent-2/40 text-ink";
     case "no_show":

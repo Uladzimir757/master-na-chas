@@ -516,7 +516,7 @@ export default function CabinetDashboard({
         </h1>
         <button
           onClick={onLogout}
-          className="text-sm text-ink/60 hover:text-ink"
+          className="text-sm text-ink-2 hover:text-ink"
         >
           {t.logoutButton}
         </button>
@@ -551,9 +551,9 @@ export default function CabinetDashboard({
 
       {tab === "services" && (
         <section>
-          <p className="mb-3 text-sm text-ink/60">{t.servicesOfferedHint}</p>
+          <p className="mb-3 text-sm text-ink-2">{t.servicesOfferedHint}</p>
           {serviceToggles.length === 0 ? (
-            <p className="text-sm text-ink/60">{t.noActiveServices}</p>
+            <p className="text-sm text-ink-2">{t.noActiveServices}</p>
           ) : (
             <ul className="flex flex-col gap-2">
               {serviceToggles.map((svc) => (
@@ -579,7 +579,7 @@ export default function CabinetDashboard({
                             </span>
                           )}
                         </span>
-                        <span className="block text-sm text-ink/60">
+                        <span className="block text-sm text-ink-2">
                           {t.durationMinutes(svc.duration_minutes)}
                         </span>
                       </span>
@@ -594,7 +594,7 @@ export default function CabinetDashboard({
                   {svc.is_offered && (
                     <div className="mt-3 flex flex-col gap-2 pl-7">
                       <div className="flex flex-col gap-2 sm:flex-row">
-                        <label className="flex flex-col gap-1 text-xs text-ink/60">
+                        <label className="flex flex-col gap-1 text-xs text-ink-2">
                           <span>{t.serviceDurationLabel}</span>
                           <input
                             key={`${svc.service_id}-dur-${svc.duration_minutes}`}
@@ -615,7 +615,7 @@ export default function CabinetDashboard({
                             className={`sm:w-28 ${inputClass}`}
                           />
                         </label>
-                        <label className="flex flex-col gap-1 text-xs text-ink/60">
+                        <label className="flex flex-col gap-1 text-xs text-ink-2">
                           <span>{t.servicePriceMinLabel}</span>
                           <input
                             key={`${svc.service_id}-min-${svc.price_min ?? "empty"}`}
@@ -635,7 +635,7 @@ export default function CabinetDashboard({
                             className={`sm:w-32 ${inputClass}`}
                           />
                         </label>
-                        <label className="flex flex-col gap-1 text-xs text-ink/60">
+                        <label className="flex flex-col gap-1 text-xs text-ink-2">
                           <span>{t.servicePriceMaxLabel}</span>
                           <input
                             key={`${svc.service_id}-max-${svc.price_max ?? "empty"}`}
@@ -656,7 +656,7 @@ export default function CabinetDashboard({
                           />
                         </label>
                       </div>
-                      <label className="flex flex-col gap-1 text-xs text-ink/60">
+                      <label className="flex flex-col gap-1 text-xs text-ink-2">
                         <span>{t.serviceDescriptionLabel}</span>
                         <input
                           key={`${svc.service_id}-desc-${svc.description ?? "empty"}`}
@@ -698,7 +698,7 @@ export default function CabinetDashboard({
       {tab === "settings" && (
         <div className="flex flex-col gap-6">
           <section>
-            <h2 className="mb-2 text-sm font-medium text-ink/60">
+            <h2 className="mb-2 text-sm font-medium text-ink-2">
               {t.busyTitle}
             </h2>
             {settings.busy_started_at ? (
@@ -709,11 +709,11 @@ export default function CabinetDashboard({
                   )}
                 </p>
                 {settings.busy_until ? (
-                  <p className="text-sm text-ink/60">
+                  <p className="text-sm text-ink-2">
                     {t.busyUntilText(formatTime(settings.busy_until, locale))}
                   </p>
                 ) : (
-                  <p className="text-sm text-ink/60">{t.busyOpenEndedNote}</p>
+                  <p className="text-sm text-ink-2">{t.busyOpenEndedNote}</p>
                 )}
 
                 <div className="mt-3">
@@ -721,7 +721,7 @@ export default function CabinetDashboard({
                     <span className="block font-medium">
                       {t.busyEstimateLabel}
                     </span>
-                    <span className="mt-1 block text-sm text-ink/60">
+                    <span className="mt-1 block text-sm text-ink-2">
                       {t.busyEstimateHint}
                     </span>
                     <input
@@ -750,7 +750,7 @@ export default function CabinetDashboard({
               </div>
             ) : (
               <div>
-                <p className="mb-2 text-sm text-ink/60">{t.busyHint}</p>
+                <p className="mb-2 text-sm text-ink-2">{t.busyHint}</p>
                 <CompactButton disabled={savingBusy} onClick={handleStartBusy}>
                   {t.startBusyButton}
                 </CompactButton>
@@ -764,7 +764,7 @@ export default function CabinetDashboard({
           <ClosedPeriods />
 
           <section className="border-t border-line pt-5">
-            <h2 className="mb-2 text-sm font-medium text-ink/60">
+            <h2 className="mb-2 text-sm font-medium text-ink-2">
               {t.settingsTitle}
             </h2>
             <label className="flex items-start gap-3">
@@ -779,7 +779,7 @@ export default function CabinetDashboard({
                 <span className="block font-medium">
                   {t.requiresConfirmationLabel}
                 </span>
-                <span className="block text-sm text-ink/60">
+                <span className="block text-sm text-ink-2">
                   {t.requiresConfirmationHint}
                 </span>
               </span>
@@ -788,7 +788,7 @@ export default function CabinetDashboard({
             <div className="mt-4">
               <label className="block">
                 <span className="block font-medium">{t.callOutFeeLabel}</span>
-                <span className="mt-1 block text-sm text-ink/60">
+                <span className="mt-1 block text-sm text-ink-2">
                   {t.callOutFeeHint}
                 </span>
                 <input
@@ -820,18 +820,18 @@ export default function CabinetDashboard({
                   <span className="block font-medium">
                     {t.shareLocationLabel}
                   </span>
-                  <span className="block text-sm text-ink/60">
+                  <span className="block text-sm text-ink-2">
                     {native ? t.shareLocationHintApp : t.shareLocationHint}
                   </span>
                   {settings.share_location &&
                     locationStatusText(locationStatus, t, native) && (
-                      <span className="mt-1 block text-sm text-ink/60">
+                      <span className="mt-1 block text-sm text-ink-2">
                         {locationStatusText(locationStatus, t, native)}
                       </span>
                     )}
                   {settings.share_location && locationNeedsAlways && (
                     <span className="mt-2 block text-sm">
-                      <span className="block text-ink/60">
+                      <span className="block text-ink-2">
                         {t.locationAlwaysHint}
                       </span>
                       <CompactButton

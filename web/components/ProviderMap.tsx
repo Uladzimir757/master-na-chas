@@ -49,7 +49,7 @@ export default function ProviderMap({ lat, lng, className }: Props) {
 
       const icon = L.divIcon({
         className: "",
-        html: '<span class="block h-4 w-4 rounded-full border-2 border-white bg-blue-600 shadow-md"></span>',
+        html: '<span class="block h-4 w-4 rounded-full border-2 border-white bg-accent shadow-md"></span>',
         iconSize: [16, 16],
         iconAnchor: [8, 8],
       });

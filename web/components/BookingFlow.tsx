@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type Provider, type ProviderServiceOffering } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import { Card, Centered } from "@/components/ui";
+import { ChevronRightIcon, IconBadge, WrenchIcon } from "@/components/icons";
 import { PriceLabel } from "@/components/PriceLabel";
 import MasterPicker from "@/components/MasterPicker";
 import SlotPicker from "@/components/SlotPicker";
@@ -125,12 +126,12 @@ export default function BookingFlow() {
     return (
       <Card>
         <button
-          className="mb-3 text-sm text-ink/50 hover:text-accent-2"
+          className="mb-3 min-h-11 text-base text-ink-3 hover:text-accent-2"
           onClick={goBack}
         >
           {t.backToMasters}
         </button>
-        <h1 className="mb-4 text-xl font-extrabold tracking-[-0.01em]">
+        <h1 className="mb-5 text-2xl font-bold tracking-[-0.01em] sm:text-3xl">
           {selectedProvider.name}
         </h1>
 
@@ -146,28 +147,36 @@ export default function BookingFlow() {
         {!servicesError &&
           providerServices !== null &&
           providerServices.length > 0 && (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
               {providerServices.map((s) => (
                 <button
                   key={s.id}
-                  className="rounded-md border border-line px-4 py-4 text-left hover:border-accent-2"
+                  className="flex items-center gap-4 rounded-2xl border border-line-soft bg-surface p-5 text-left shadow-card transition hover:border-accent"
                   onClick={() => pickService(s)}
                 >
-                  <div className="font-medium">{s.name}</div>
-                  <div className="text-sm text-ink/60">
-                    {t.durationMinutes(s.duration_minutes)}
-                    {s.price_min != null || s.price_max != null ? (
-                      <>
-                        {" · "}
-                        <PriceLabel min={s.price_min} max={s.price_max} t={t} />
-                      </>
-                    ) : null}
-                  </div>
-                  {s.description && (
-                    <div className="mt-1 text-sm text-ink/70">
-                      {s.description}
+                  <IconBadge>
+                    <WrenchIcon />
+                  </IconBadge>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-lg font-semibold">{s.name}</div>
+                    <div className="text-base text-ink-2">
+                      {t.durationMinutes(s.duration_minutes)}
+                      {s.price_min != null || s.price_max != null ? (
+                        <>
+                          {" · "}
+                          <PriceLabel min={s.price_min} max={s.price_max} t={t} />
+                        </>
+                      ) : null}
                     </div>
-                  )}
+                    {s.description && (
+                      <div className="mt-1 text-base text-ink-2">
+                        {s.description}
+                      </div>
+                    )}
+                  </div>
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-accent text-on-accent">
+                    <ChevronRightIcon className="h-6 w-6" />
+                  </span>
                 </button>
               ))}
             </div>
@@ -187,7 +196,7 @@ export default function BookingFlow() {
         control; with one (auto-picked) there was no way back at all. */}
       {!multipleServices && (
         <button
-          className="mx-3 mb-2 text-sm text-ink/50 hover:text-accent-2 sm:mx-6"
+          className="mx-3 mb-2 min-h-11 text-base text-ink-3 hover:text-accent-2 sm:mx-6"
           onClick={goBack}
         >
           {t.backToMasters}

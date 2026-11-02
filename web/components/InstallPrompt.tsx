@@ -95,7 +95,7 @@ export function InstallPrompt() {
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-between gap-3 border-t border-line bg-bg px-4 py-3 shadow-[0_-2px_8px_rgba(0,0,0,0.08)]">
+    <div className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-between gap-3 border-t border-line bg-surface px-4 py-3 shadow-[0_-2px_8px_rgba(0,0,0,0.08)]">
       {canShowIos && <p className="text-sm text-ink">{t.installAppIosHint}</p>}
       <div className="flex shrink-0 items-center gap-2">
         {canShowAndroid && (
@@ -107,7 +107,7 @@ export function InstallPrompt() {
           type="button"
           onClick={dismiss}
           aria-label="Zamknij"
-          className="px-2 text-lg leading-none text-ink/60 hover:text-ink"
+          className="px-2 text-lg leading-none text-ink-2 hover:text-ink"
         >
           ×
         </button>

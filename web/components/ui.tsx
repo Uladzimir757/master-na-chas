@@ -1,20 +1,37 @@
 import type { ButtonHTMLAttributes } from "react";
 
-export function Card({ children }: { children: React.ReactNode }) {
-  return <div className="w-full px-3 py-4 sm:px-6">{children}</div>;
+/** The one card shape on the site: soft corners, light shadow. */
+export const surfaceClass =
+  "rounded-2xl border border-line-soft bg-surface p-5 shadow-card sm:p-6";
+
+// `surface` puts the content on a white rounded panel; without it Card is only
+// the page gutter (the cabinet and calendar use the full width).
+export function Card({
+  children,
+  surface = false,
+}: {
+  children: React.ReactNode;
+  surface?: boolean;
+}) {
+  return (
+    <div className="w-full px-3 py-4 sm:px-6">
+      {surface ? <div className={surfaceClass}>{children}</div> : children}
+    </div>
+  );
 }
 
 export function Centered({ children }: { children: React.ReactNode }) {
-  return <div className="py-8 text-center text-ink/60">{children}</div>;
+  return <div className="py-8 text-center text-ink-2">{children}</div>;
 }
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary";
 }
 
-// One shape for every button on the site: 6px radius, no pill effect. Hover
-// is a flat brightness shift (no shadow/motion) — the only intentional
-// motion elsewhere is the slot-chip settle animation in SlotPicker.tsx.
+// One shape for every button on the site: a pill, same as the zlecai
+// dispatcher, at least 48px tall so it's easy to hit on a phone. Hover is a
+// flat brightness shift (no shadow/motion) — the only intentional motion
+// elsewhere is the slot-chip settle animation in SlotPicker.tsx.
 export function Button({
   variant = "primary",
   className = "",
@@ -22,12 +39,12 @@ export function Button({
 }: ButtonProps) {
   const variantClass =
     variant === "primary"
-      ? "bg-accent text-bg hover:brightness-90"
-      : "border border-ink bg-transparent text-ink hover:brightness-90";
+      ? "bg-accent text-on-accent hover:brightness-90"
+      : "border border-accent bg-surface text-accent hover:bg-bg";
 
   return (
     <button
-      className={`rounded-md px-4 py-2 text-sm font-medium transition disabled:opacity-40 ${variantClass} ${className}`}
+      className={`min-h-12 rounded-full px-6 py-2 text-base font-semibold transition disabled:opacity-40 ${variantClass} ${className}`}
       {...props}
     />
   );
@@ -44,12 +61,12 @@ export function CompactButton({
 }: ButtonProps) {
   const variantClass =
     variant === "primary"
-      ? "bg-accent text-bg hover:brightness-90"
-      : "border border-ink bg-transparent text-ink hover:brightness-90";
+      ? "bg-accent text-on-accent hover:brightness-90"
+      : "border border-accent bg-surface text-accent hover:bg-bg";
 
   return (
     <button
-      className={`rounded-md px-3 py-1.5 text-sm font-medium transition disabled:opacity-40 ${variantClass} ${className}`}
+      className={`min-h-10 rounded-full px-4 py-1.5 text-sm font-semibold transition disabled:opacity-40 ${variantClass} ${className}`}
       {...props}
     />
   );
@@ -59,7 +76,7 @@ export function CompactButton({
  * (previously duplicated ad hoc per component, with drifting radius/padding
  * — see components/AdminPanel.tsx's own local `inputClass`). */
 export const inputClass =
-  "w-full rounded-md border border-line bg-bg px-3 py-2 text-sm text-ink placeholder:text-ink/40";
+  "min-h-12 w-full rounded-xl border border-line bg-surface px-4 py-2 text-base text-ink placeholder:text-ink-3";
 
 export interface Tab<T extends string> {
   id: T;
@@ -82,7 +99,7 @@ export function Tabs<T extends string>({
   return (
     <div
       role="tablist"
-      className="mb-5 flex flex-wrap gap-1 rounded-md border border-line bg-line/20 p-1"
+      className="mb-5 flex flex-wrap gap-1 rounded-xl border border-line-soft bg-surface p-1"
     >
       {tabs.map((tab) => (
         <button
@@ -91,10 +108,10 @@ export function Tabs<T extends string>({
           role="tab"
           aria-selected={active === tab.id}
           onClick={() => onChange(tab.id)}
-          className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+          className={`min-h-11 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
             active === tab.id
-              ? "bg-bg text-ink shadow-sm"
-              : "text-ink/60 hover:text-ink"
+              ? "bg-accent text-on-accent"
+              : "text-ink-2 hover:text-ink"
           }`}
         >
           {tab.label}

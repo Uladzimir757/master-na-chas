@@ -159,7 +159,7 @@ export default function ReviewPage() {
         <LanguageSwitcher />
       </div>
 
-      <Card>
+      <Card surface>
         {state.status === "loading" && <Centered>{ready ? t.loading : ""}</Centered>}
 
         {state.status === "error" && (
@@ -171,7 +171,7 @@ export default function ReviewPage() {
             <div>
               <h1 className="text-lg font-bold">{ready ? t.reviewPageTitle : ""}</h1>
               {ready && (
-                <p className="mt-1 text-sm text-ink/60">
+                <p className="mt-1 text-sm text-ink-2">
                   {t.reviewPageSubtitle(state.providerName, state.serviceName, new Date(state.startAt).toLocaleDateString())}
                 </p>
               )}
@@ -214,7 +214,7 @@ export default function ReviewPage() {
                     <button
                       type="button"
                       onClick={() => removePhoto(i)}
-                      className="absolute -right-1 -top-1 rounded-full bg-ink px-1.5 text-xs text-bg"
+                      className="absolute -right-1 -top-1 rounded-full bg-ink px-1.5 text-xs text-on-accent"
                       aria-label={ready ? t.reviewRemovePhoto : "remove"}
                     >
                       ×
@@ -225,7 +225,7 @@ export default function ReviewPage() {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex h-20 w-20 items-center justify-center rounded-md border border-dashed border-line text-2xl text-ink/40"
+                    className="flex h-20 w-20 items-center justify-center rounded-md border border-dashed border-line text-2xl text-ink-3"
                   >
                     +
                   </button>
@@ -239,10 +239,10 @@ export default function ReviewPage() {
                 className="hidden"
                 onChange={(e) => handleFiles(e.target.files)}
               />
-              {photoError && <p className="mt-1 text-sm text-red-600">{photoError}</p>}
+              {photoError && <p className="mt-1 text-sm text-danger">{photoError}</p>}
             </div>
 
-            {submitError && <p className="text-sm text-red-600">{submitError}</p>}
+            {submitError && <p className="text-sm text-danger">{submitError}</p>}
 
             <Button onClick={handleSubmit} disabled={submitting}>
               {ready ? (submitting ? t.reviewSubmitting : t.reviewSubmitButton) : ""}

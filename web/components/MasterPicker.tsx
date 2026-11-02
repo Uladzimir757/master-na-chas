@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import type { Provider } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
-import { Button, Card } from "@/components/ui";
+import { Button, Card, inputClass } from "@/components/ui";
+import { CategoryIcon, IconBadge } from "@/components/icons";
 
 // Список приходит отсортированным по рейтингу (app/main.py list_providers);
 // здесь поиск по имени, фильтр по категории работ и смена сортировки —
@@ -57,15 +58,15 @@ export default function MasterPicker({
   }, [providers, query, category, sort]);
 
   const chip = (active: boolean) =>
-    `rounded-full border px-3 py-1.5 text-sm transition ${
+    `min-h-11 rounded-full border px-4 py-1.5 text-base transition ${
       active
-        ? "border-accent bg-accent text-white"
-        : "border-line text-ink/70 hover:border-accent"
+        ? "border-accent bg-accent text-on-accent"
+        : "border-line bg-surface text-ink-2 hover:border-accent"
     }`;
 
   return (
     <Card>
-      <h1 className="mb-4 text-xl font-extrabold tracking-[-0.01em]">
+      <h1 className="mb-5 text-2xl font-bold tracking-[-0.01em] sm:text-3xl">
         {t.pickMasterTitle}
       </h1>
 
@@ -75,13 +76,13 @@ export default function MasterPicker({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t.pickMasterSearch}
-          className="w-full rounded-md border border-line bg-bg px-3 py-2 text-sm text-ink placeholder:text-ink/40"
+          className={inputClass}
         />
         <select
           aria-label={t.pickMasterSortLabel}
           value={sort}
           onChange={(e) => setSort(e.target.value as SortMode)}
-          className="rounded-md border border-line bg-bg px-3 py-2 text-sm text-ink"
+          className="min-h-12 rounded-xl border border-line bg-surface px-4 py-2 text-base text-ink"
         >
           <option value="rating">{t.pickMasterSortRating}</option>
           <option value="price">{t.pickMasterSortPrice}</option>
@@ -90,7 +91,7 @@ export default function MasterPicker({
       </div>
 
       {allCategories.length > 0 && (
-        <div className="mb-4 flex flex-wrap gap-1.5">
+        <div className="mb-5 flex flex-wrap gap-2">
           <button
             type="button"
             className={chip(category === null)}
@@ -111,26 +112,36 @@ export default function MasterPicker({
         </div>
       )}
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         {shown.length === 0 && (
-          <p className="text-sm text-ink/60">{t.pickMasterNone}</p>
+          <p className="text-base text-ink-2">{t.pickMasterNone}</p>
         )}
         {shown.map((p) => (
           <div
             key={p.id}
-            className="flex items-center justify-between gap-3 rounded-md border border-line px-4 py-4 hover:border-accent-2"
+            className="flex flex-col gap-4 rounded-2xl border border-line-soft bg-surface p-5 shadow-card sm:flex-row sm:items-center"
           >
-            <div>
-              <div className="font-medium">{p.name}</div>
-              <div className="text-sm text-ink/60">
-                {p.rating != null
-                  ? t.ratingValue(p.rating, p.rating_count)
-                  : t.noRatingYet}
-                {p.price_from != null &&
-                  ` · ${t.pickMasterPriceFrom} ${p.price_from} zł`}
+            <div className="flex min-w-0 flex-1 items-center gap-4">
+              <IconBadge>
+                <CategoryIcon category={p.categories?.[0]} />
+              </IconBadge>
+              <div className="min-w-0">
+                <div className="text-lg font-semibold">{p.name}</div>
+                <div className="text-base text-ink-2">
+                  {p.rating != null
+                    ? t.ratingValue(p.rating, p.rating_count)
+                    : t.noRatingYet}
+                  {p.price_from != null &&
+                    ` · ${t.pickMasterPriceFrom} ${p.price_from} zł`}
+                </div>
               </div>
             </div>
-            <Button onClick={() => onSelect(p)}>{t.chooseMasterButton}</Button>
+            <Button
+              className="w-full sm:w-auto sm:min-w-36"
+              onClick={() => onSelect(p)}
+            >
+              {t.chooseMasterButton}
+            </Button>
           </div>
         ))}
       </div>

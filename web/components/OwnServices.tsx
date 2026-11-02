@@ -119,7 +119,7 @@ export function ServiceRowActions({
           <button
             type="button"
             disabled={off}
-            className="text-ink/60 hover:text-ink disabled:opacity-40"
+            className="text-ink-2 hover:text-ink disabled:opacity-40"
             onClick={() => {
               setName(svc.name);
               setCategory(svc.category ?? "other");
@@ -144,7 +144,7 @@ export function ServiceRowActions({
               <button
                 type="button"
                 disabled={off}
-                className="text-ink/60 hover:text-ink"
+                className="text-ink-2 hover:text-ink"
                 onClick={() => setConfirmDelete(false)}
               >
                 {t.serviceCancelButton}
@@ -154,7 +154,7 @@ export function ServiceRowActions({
             <button
               type="button"
               disabled={off}
-              className="text-ink/60 hover:text-danger disabled:opacity-40"
+              className="text-ink-2 hover:text-danger disabled:opacity-40"
               onClick={() => setConfirmDelete(true)}
             >
               {t.serviceDeleteButton}
@@ -173,7 +173,7 @@ export function ServiceRowActions({
             );
           }}
         >
-          <label className="flex flex-col gap-1 text-xs text-ink/60">
+          <label className="flex flex-col gap-1 text-xs text-ink-2">
             <span>{t.serviceNameLabel}</span>
             <input
               type="text"
@@ -185,7 +185,7 @@ export function ServiceRowActions({
               className={inputClass}
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs text-ink/60">
+          <label className="flex flex-col gap-1 text-xs text-ink-2">
             <span>{t.serviceCategoryLabel}</span>
             <CategorySelect
               value={category}
@@ -194,7 +194,7 @@ export function ServiceRowActions({
             />
           </label>
           {!svc.is_custom && (
-            <p className="text-xs text-ink/60">{t.serviceRenameStandardHint}</p>
+            <p className="text-xs text-ink-2">{t.serviceRenameStandardHint}</p>
           )}
           <div className="flex gap-2">
             <CompactButton type="submit" disabled={off || !name.trim()}>
@@ -270,7 +270,7 @@ export function AddOwnService({
       }}
     >
       <h3 className="font-medium">{t.serviceAddTitle}</h3>
-      <label className="flex flex-col gap-1 text-xs text-ink/60">
+      <label className="flex flex-col gap-1 text-xs text-ink-2">
         <span>{t.serviceNameLabel}</span>
         <input
           type="text"
@@ -283,7 +283,7 @@ export function AddOwnService({
         />
       </label>
       <div className="flex flex-col gap-2 sm:flex-row">
-        <label className="flex flex-col gap-1 text-xs text-ink/60">
+        <label className="flex flex-col gap-1 text-xs text-ink-2">
           <span>{t.serviceDurationLabel}</span>
           <input
             type="number"
@@ -297,7 +297,7 @@ export function AddOwnService({
             className={`sm:w-28 ${inputClass}`}
           />
         </label>
-        <label className="flex flex-col gap-1 text-xs text-ink/60">
+        <label className="flex flex-col gap-1 text-xs text-ink-2">
           <span>{t.servicePriceMinLabel}</span>
           <input
             type="number"
@@ -310,7 +310,7 @@ export function AddOwnService({
             className={`sm:w-32 ${inputClass}`}
           />
         </label>
-        <label className="flex flex-col gap-1 text-xs text-ink/60">
+        <label className="flex flex-col gap-1 text-xs text-ink-2">
           <span>{t.servicePriceMaxLabel}</span>
           <input
             type="number"
@@ -324,7 +324,7 @@ export function AddOwnService({
           />
         </label>
       </div>
-      <label className="flex flex-col gap-1 text-xs text-ink/60">
+      <label className="flex flex-col gap-1 text-xs text-ink-2">
         <span>{t.serviceCategoryLabel}</span>
         <CategorySelect
           value={category}
@@ -377,7 +377,7 @@ export function RemovedServices({
 
   return (
     <div className="mt-4">
-      <h3 className="mb-2 text-sm font-medium text-ink/60">
+      <h3 className="mb-2 text-sm font-medium text-ink-2">
         {t.servicesRemovedTitle}
       </h3>
       <ul className="flex flex-col gap-1">
@@ -386,7 +386,7 @@ export function RemovedServices({
             key={r.service_id}
             className="flex items-center justify-between gap-3 text-sm"
           >
-            <span className="text-ink/60">{r.name}</span>
+            <span className="text-ink-2">{r.name}</span>
             <CompactButton
               type="button"
               variant="secondary"

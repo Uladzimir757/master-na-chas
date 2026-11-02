@@ -267,8 +267,8 @@ export default function MasterCalendar() {
               onClick={() => setView(v)}
               className={`rounded-md px-2.5 py-1 font-medium transition ${
                 view === v
-                  ? "bg-bg text-ink shadow-sm"
-                  : "text-ink/60 hover:text-ink"
+                  ? "bg-surface text-ink shadow-sm"
+                  : "text-ink-2 hover:text-ink"
               }`}
             >
               {v === "day"
@@ -285,7 +285,7 @@ export default function MasterCalendar() {
       {dropError && <p className="mb-2 text-sm text-danger">{dropError}</p>}
 
       {!loaded ? (
-        <p className="text-sm text-ink/60">{t.loading}</p>
+        <p className="text-sm text-ink-2">{t.loading}</p>
       ) : view === "month" ? (
         <MonthView
           t={t}
@@ -310,7 +310,7 @@ export default function MasterCalendar() {
               }).map((_, i) => (
                 <div
                   key={i}
-                  className="pl-0.5 text-left text-[12px] text-ink/40 sm:pl-0 sm:text-right sm:text-[10px]"
+                  className="pl-0.5 text-left text-[12px] text-ink-3 sm:pl-0 sm:text-right sm:text-[10px]"
                   style={{ height: 60 }}
                 >
                   {pad2(gridBounds.startHour + i)}:00
@@ -320,7 +320,7 @@ export default function MasterCalendar() {
             <div className="flex flex-1">
               {dayStrs.map((dateStr) => (
                 <div key={dateStr} className="flex flex-1 flex-col">
-                  <div className="h-6 border-b border-line/60 text-center text-xs font-medium capitalize text-ink/70">
+                  <div className="h-6 border-b border-line/60 text-center text-xs font-medium capitalize text-ink-2">
                     {view === "week"
                       ? weekdayHeaderLabel(dateStr, locale)
                       : null}
@@ -342,7 +342,7 @@ export default function MasterCalendar() {
         </div>
       )}
 
-      <div className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg">
+      <div className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface">
         <div className="flex items-stretch gap-1 px-2 py-2">
           <button
             type="button"
@@ -367,10 +367,10 @@ export default function MasterCalendar() {
                   onClick={() => setAnchor(new Date(`${ds}T12:00:00`))}
                   className={`flex w-12 shrink-0 flex-col items-center rounded-lg py-1.5 text-xs transition sm:w-14 ${
                     isSel
-                      ? "bg-accent text-white"
+                      ? "bg-accent text-on-accent"
                       : isToday
                         ? "border border-accent text-accent-2"
-                        : "text-ink/70"
+                        : "text-ink-2"
                   }`}
                 >
                   <span className="uppercase">{wd}</span>
@@ -385,7 +385,7 @@ export default function MasterCalendar() {
         type="button"
         onClick={openComposerNow}
         aria-label={t.calendarAddLabel}
-        className="fixed bottom-24 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-3xl leading-none text-white shadow-lg sm:hidden"
+        className="fixed bottom-24 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-3xl leading-none text-on-accent shadow-lg sm:hidden"
       >
         +
       </button>

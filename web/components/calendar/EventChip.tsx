@@ -99,7 +99,7 @@ export function EventChip({
         cursor: "grab",
       }}
       className={`overflow-hidden rounded-md px-1.5 py-0.5 text-[11px] leading-tight shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing ${
-        event.kind === "booking" ? statusClasses(event.status) : "border border-dashed border-ink/30 bg-ink/5 text-ink/70"
+        event.kind === "booking" ? statusClasses(event.status) : "border border-dashed border-ink/30 bg-ink/5 text-ink-2"
       }`}
     >
       <div className="truncate font-medium">{label}</div>

@@ -1,28 +1,53 @@
 @import "tailwindcss";
 
+/* Palette shared with the zlecai dispatcher (dispatcher/web/app/globals.css).
+   The page itself sits on the dispatcher's --tint rather than its stronger
+   mint --bg: this site is meant to read as near-white. */
 :root {
-  --bg: #eaf3f0;
+  --bg: #f2f8f5;
+  --surface: #ffffff;
   --ink: #1b2e2a;
+  --ink-2: #3f564c;
+  --ink-3: #5c7a70;
+  --kicker: #4f7566;
   --accent: #3f7f72;
   --accent-2: #2f5d52;
-  --line: #cfe3dc;
-  --danger: #b3452f;
+  --on-accent: #ffffff;
+  --line: #bfdad1;
+  --line-soft: #cfe3dc;
+  --danger: #c8322d;
 }
 
 @theme inline {
   --color-bg: var(--bg);
+  --color-surface: var(--surface);
   --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-kicker: var(--kicker);
   --color-accent: var(--accent);
   --color-accent-2: var(--accent-2);
+  --color-on-accent: var(--on-accent);
   --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
   --color-danger: var(--danger);
-  --font-sans: var(--font-manrope);
-  --font-mono: var(--font-jetbrains-mono);
+  --font-sans: var(--font-work-sans), var(--font-manrope), system-ui, sans-serif;
+  --shadow-card: 0 1px 2px rgb(27 46 42 / 0.05), 0 8px 24px rgb(27 46 42 / 0.06);
 }
 
 body {
   background: var(--bg);
   color: var(--ink);
+}
+
+button:not(:disabled),
+select:not(:disabled) {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* The one motion in the UI (see design brief): a selected slot chip in

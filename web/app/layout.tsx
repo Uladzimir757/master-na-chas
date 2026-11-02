@@ -1,21 +1,24 @@
 import type { Metadata, Viewport } from "next";
-import { JetBrains_Mono, Manrope } from "next/font/google";
+import { Manrope, Work_Sans } from "next/font/google";
 import "./globals.css";
 import { LocaleProvider } from "@/lib/LocaleContext";
 import { RegisterServiceWorker } from "@/components/RegisterServiceWorker";
 import { InstallPrompt } from "@/components/InstallPrompt";
 
-// Manrope: UI text and headings — chosen for Cyrillic + Polish-diacritic
-// coverage (pl/ru/uk audience, see docs/decisions.md). JetBrains Mono is used
-// only for slot times and prices (components/SlotPicker.tsx), so it only
-// needs the latin subset those digits render in.
-const manrope = Manrope({
-  subsets: ["latin", "latin-ext", "cyrillic"],
-  variable: "--font-manrope",
+// Work Sans: all UI text and headings, same body font as the zlecai
+// dispatcher. It has no Cyrillic, and the admin panel and some master names
+// do — Manrope's Cyrillic subset covers just those glyphs (unicode-range, so
+// Latin-only pages never download it). adjustFontFallback is off because that
+// fallback is a metrics-tuned Arial, which would claim the Cyrillic first.
+const workSans = Work_Sans({
+  subsets: ["latin", "latin-ext"],
+  adjustFontFallback: false,
+  variable: "--font-work-sans",
 });
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-jetbrains-mono",
+const manrope = Manrope({
+  subsets: ["cyrillic"],
+  preload: false,
+  variable: "--font-manrope",
 });
 
 // Static build-time defaults (Polish — the default locale, see
@@ -74,7 +77,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pl" className={`${manrope.variable} ${jetbrainsMono.variable}`}>
+    <html lang="pl" className={`${workSans.variable} ${manrope.variable}`}>
       <body className="min-h-screen bg-bg font-sans text-ink antialiased">
         <LocaleProvider>
           {children}

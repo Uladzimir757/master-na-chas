@@ -5,7 +5,7 @@
  * dragging individual appointments at month zoom isn't a sensible
  * interaction, Букси itself doesn't offer that either). Split out of
  * MasterCalendar.tsx and restyled to share the day/week grid's own tokens
- * (border-line, bg-bg, text-ink) instead of a separate neutral-gray palette
+ * (border-line, bg-surface, text-ink) instead of a separate neutral-gray palette
  * — the two views read as one calendar now, not two different widgets.
  */
 
@@ -33,7 +33,7 @@ export function MonthView({
       {t.weekdayLabels.map((label) => (
         <div
           key={label}
-          className="bg-line/20 px-0.5 py-1.5 text-center sm:px-1 font-medium text-ink/60"
+          className="bg-line/20 px-0.5 py-1.5 text-center sm:px-1 font-medium text-ink-2"
         >
           <span className="sm:hidden">{Array.from(label)[0]}</span>
           <span className="hidden sm:inline">{label}</span>
@@ -48,15 +48,15 @@ export function MonthView({
           <button
             key={dateStr}
             onClick={() => onSelectDay(dateStr)}
-            className={`flex min-h-16 flex-col items-start gap-0.5 bg-bg p-1 text-left transition hover:bg-ink/[0.03] ${
+            className={`flex min-h-16 flex-col items-start gap-0.5 bg-surface p-1 text-left transition hover:bg-ink/[0.03] ${
               inMonth ? "" : "opacity-40"
             }`}
           >
             <span
               className={`text-[11px] ${
                 isToday
-                  ? "rounded-full bg-accent px-1.5 font-medium text-bg"
-                  : "text-ink/60"
+                  ? "rounded-full bg-accent px-1.5 font-medium text-on-accent"
+                  : "text-ink-2"
               }`}
             >
               {Number(dateStr.slice(8, 10))}
@@ -76,7 +76,7 @@ export function MonthView({
               </span>
             ))}
             {dayEvents.length > 2 && (
-              <span className="text-[10px] text-ink/40">
+              <span className="text-[10px] text-ink-3">
                 {t.calendarMoreEvents(dayEvents.length - 2)}
               </span>
             )}

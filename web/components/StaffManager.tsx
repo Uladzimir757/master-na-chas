@@ -62,8 +62,8 @@ function RoleButtons({
           onClick={() => onPick(r)}
           className={`rounded-full border px-3 py-1.5 text-sm transition ${
             value === r
-              ? "border-accent bg-accent text-white"
-              : "border-line text-ink/70 hover:border-accent"
+              ? "border-accent bg-accent text-on-accent"
+              : "border-line text-ink-2 hover:border-accent"
           }`}
         >
           {roleLabel(t, r)}
@@ -141,7 +141,7 @@ function StaffRow({
           <div className="font-medium text-ink">
             {member.name || member.email}
           </div>
-          <div className="text-xs text-ink/60">{member.email}</div>
+          <div className="text-xs text-ink-2">{member.email}</div>
         </div>
         <button
           type="button"
@@ -162,7 +162,7 @@ function StaffRow({
       />
       <div className="mt-3">
         {isOwner ? (
-          <p className="text-sm text-ink/60">{t.staffOwnerFixed}</p>
+          <p className="text-sm text-ink-2">{t.staffOwnerFixed}</p>
         ) : (
           <>
             <PermChecks
@@ -187,7 +187,7 @@ function StaffRow({
                   api.updateStaff(member.id, { reset_permissions: true }),
                 )
               }
-              className="mt-2 text-xs text-ink/60 underline hover:text-ink"
+              className="mt-2 text-xs text-ink-2 underline hover:text-ink"
             >
               {t.staffResetPerms}
             </button>
@@ -269,7 +269,7 @@ export default function StaffManager() {
     return error ? (
       <p className="text-sm text-danger">{error}</p>
     ) : (
-      <p className="text-sm text-ink/60">{t.loading}</p>
+      <p className="text-sm text-ink-2">{t.loading}</p>
     );
 
   return (
@@ -304,13 +304,13 @@ export default function StaffManager() {
             onChange={(e) => setPassword(e.target.value)}
           />
         </div>
-        <div className="mt-3 text-xs text-ink/60">{t.staffRoleLabel}</div>
+        <div className="mt-3 text-xs text-ink-2">{t.staffRoleLabel}</div>
         <div className="mt-1">
           <RoleButtons value={role} onPick={pickRole} />
         </div>
         {role !== "owner" && (
           <div className="mt-3">
-            <div className="mb-1 text-xs text-ink/60">
+            <div className="mb-1 text-xs text-ink-2">
               {t.staffPermissionsLabel}
             </div>
             <PermChecks

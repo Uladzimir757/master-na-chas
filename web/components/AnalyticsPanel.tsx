@@ -51,7 +51,7 @@ export default function AnalyticsPanel() {
           if (canApply) setApplied({ from, to });
         }}
       >
-        <label className="text-xs text-ink/70">
+        <label className="text-xs text-ink-2">
           {t.analyticsFrom}
           <input
             type="date"
@@ -60,7 +60,7 @@ export default function AnalyticsPanel() {
             className={`${inputClass} mt-1`}
           />
         </label>
-        <label className="text-xs text-ink/70">
+        <label className="text-xs text-ink-2">
           {t.analyticsTo}
           <input
             type="date"
@@ -75,40 +75,40 @@ export default function AnalyticsPanel() {
       </form>
       {error && <p className="text-sm text-danger">{t.calendarLoadError}</p>}
       {data && data.services.length === 0 && (
-        <p className="text-sm text-ink/60">{t.analyticsEmpty}</p>
+        <p className="text-sm text-ink-2">{t.analyticsEmpty}</p>
       )}
       {data && data.services.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-2">
           {data.services.map((s) => (
             <div
               key={s.service_id}
-              className="rounded-lg border border-line bg-white/50 p-4"
+              className="rounded-lg border border-line bg-surface p-4"
             >
               <div className="mb-2 font-semibold text-ink">{s.name}</div>
               <div className="mb-3 text-3xl font-semibold text-accent-2">
                 {s.completed}
               </div>
               <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
-                <dt className="text-ink/60">{t.analyticsColHours}</dt>
+                <dt className="text-ink-2">{t.analyticsColHours}</dt>
                 <dd className="text-right">{hours(s.total_minutes)}</dd>
-                <dt className="text-ink/60">{t.analyticsColAvgTime}</dt>
+                <dt className="text-ink-2">{t.analyticsColAvgTime}</dt>
                 <dd className="text-right">{Math.round(s.avg_minutes)}</dd>
-                <dt className="text-ink/60">{t.analyticsColRevenue}</dt>
+                <dt className="text-ink-2">{t.analyticsColRevenue}</dt>
                 <dd className="text-right">{Number(s.revenue).toFixed(2)}</dd>
-                <dt className="text-ink/60">{t.analyticsColAvgCheck}</dt>
+                <dt className="text-ink-2">{t.analyticsColAvgCheck}</dt>
                 <dd className="text-right">
                   {s.avg_price ? Number(s.avg_price).toFixed(2) : "—"}
                 </dd>
-                <dt className="text-ink/60">{t.analyticsColCancelled}</dt>
+                <dt className="text-ink-2">{t.analyticsColCancelled}</dt>
                 <dd className="text-right">{s.cancelled}</dd>
-                <dt className="text-ink/60">{t.analyticsColNoShow}</dt>
+                <dt className="text-ink-2">{t.analyticsColNoShow}</dt>
                 <dd className="text-right">{s.no_show}</dd>
               </dl>
             </div>
           ))}
         </div>
       )}
-      <p className="mt-4 text-xs text-ink/50">{t.analyticsNote}</p>
+      <p className="mt-4 text-xs text-ink-3">{t.analyticsNote}</p>
     </section>
   );
 }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
-import { Card, Centered } from "@/components/ui";
+import { Card, Centered, inputClass } from "@/components/ui";
 import { PasswordInput } from "@/components/PasswordInput";
 import CabinetDashboard from "@/components/CabinetDashboard";
 import { unregisterNativePush } from "@/lib/native";
@@ -88,36 +88,38 @@ export default function Cabinet() {
   }
 
   return (
-    <Card>
-      <h1 className="mb-4 text-xl font-semibold">{t.cabinetLoginTitle}</h1>
-      <form onSubmit={handleLogin} className="flex flex-col gap-3">
-        <input
-          type="email"
-          required
-          autoComplete="username"
-          placeholder={t.emailPlaceholder}
-          className="rounded-lg border border-neutral-300 px-3 py-2"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <PasswordInput
-          value={password}
-          onChange={setPassword}
-          required
-          autoComplete="current-password"
-          placeholder={t.passwordPlaceholder}
-          showLabel={t.showPassword}
-          hideLabel={t.hidePassword}
-        />
-        {loginError && <p className="text-sm text-red-600">{loginError}</p>}
-        <button
-          type="submit"
-          disabled={loggingIn}
-          className="mt-1 rounded-lg bg-neutral-900 px-5 py-2.5 text-white disabled:opacity-40"
-        >
-          {loggingIn ? t.loggingIn : t.loginButton}
-        </button>
-      </form>
-    </Card>
+    <div className="w-full max-w-md">
+      <Card surface>
+        <h1 className="mb-4 text-2xl font-bold tracking-[-0.01em]">{t.cabinetLoginTitle}</h1>
+        <form onSubmit={handleLogin} className="flex flex-col gap-3">
+          <input
+            type="email"
+            required
+            autoComplete="username"
+            placeholder={t.emailPlaceholder}
+            className={inputClass}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <PasswordInput
+            value={password}
+            onChange={setPassword}
+            required
+            autoComplete="current-password"
+            placeholder={t.passwordPlaceholder}
+            showLabel={t.showPassword}
+            hideLabel={t.hidePassword}
+          />
+          {loginError && <p className="text-sm text-danger">{loginError}</p>}
+          <button
+            type="submit"
+            disabled={loggingIn}
+            className="mt-1 min-h-12 rounded-full bg-accent px-6 py-2 text-base font-semibold text-on-accent transition hover:brightness-90 disabled:opacity-40"
+          >
+            {loggingIn ? t.loggingIn : t.loginButton}
+          </button>
+        </form>
+      </Card>
+    </div>
   );
 }

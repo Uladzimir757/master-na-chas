@@ -9,7 +9,7 @@
  *
  * Styling pass (second round after the initial calendar build): every
  * control here now goes through the site's own `inputClass`/`CompactButton`
- * (components/ui.tsx) instead of one-off `rounded-lg border-neutral-300`
+ * (components/ui.tsx) instead of one-off `rounded-lg border-line`
  * strings, so this matches the rest of the cabinet instead of looking like
  * a separate widget. Paired fields (start/end time, price min/max) stack on
  * narrow viewports (`flex-col sm:flex-row`) instead of a rigid `flex` row —
@@ -53,7 +53,7 @@ export function Modal({
       onClick={onClose}
     >
       <div
-        className="max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-md border border-line bg-bg p-4 shadow-lg sm:p-5"
+        className="max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-md border border-line bg-surface p-4 shadow-lg sm:p-5"
         onClick={(e) => e.stopPropagation()}
       >
         {children}
@@ -86,7 +86,7 @@ export function ChooseActionModal({
       <h3 className="mb-1 text-sm font-medium text-ink">
         {t.calendarChooseActionTitle}
       </h3>
-      <p className="mb-3 text-sm text-ink/60">
+      <p className="mb-3 text-sm text-ink-2">
         {dateStr}, {time}
       </p>
       <div className="flex flex-col gap-2">
@@ -98,7 +98,7 @@ export function ChooseActionModal({
         </CompactButton>
         <button
           onClick={onClose}
-          className="mt-1 text-sm text-ink/60 hover:text-ink"
+          className="mt-1 text-sm text-ink-2 hover:text-ink"
         >
           {t.calendarCloseButton}
         </button>
@@ -174,7 +174,7 @@ export function ManualBookingForm({
         {t.calendarNewBookingTitle}
       </h3>
       {offered.length === 0 ? (
-        <p className="text-sm text-ink/60">{t.noActiveServices}</p>
+        <p className="text-sm text-ink-2">{t.noActiveServices}</p>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1 text-sm">
@@ -453,12 +453,12 @@ export function EventDetailsModal({
           <h3 className="mb-1 text-sm font-medium text-ink">
             {serviceName(event.service_id)}
           </h3>
-          <p className="mb-1 text-sm text-ink/60">
+          <p className="mb-1 text-sm text-ink-2">
             {weekdayHeaderLabel(dateStr, locale)},{" "}
             {timeToHhmm(startHm.hour, startHm.minute)}–
             {timeToHhmm(endHm.hour, endHm.minute)}
           </p>
-          <p className="mb-3 text-sm text-ink/60">
+          <p className="mb-3 text-sm text-ink-2">
             {event.client_name}
             {event.client_phone ? ` · ${event.client_phone}` : ""}
           </p>
@@ -487,7 +487,7 @@ export function EventDetailsModal({
             )}
             {completing && (
               <div className="flex w-full items-end gap-2">
-                <label className="flex-1 text-xs text-ink/70">
+                <label className="flex-1 text-xs text-ink-2">
                   {t.jobPriceLabel}
                   <input
                     type="number"
@@ -530,7 +530,7 @@ export function EventDetailsModal({
             </CompactButton>
             <button
               onClick={onClose}
-              className="ml-auto text-sm text-ink/60 hover:text-ink"
+              className="ml-auto text-sm text-ink-2 hover:text-ink"
             >
               {t.calendarCloseButton}
             </button>
@@ -541,7 +541,7 @@ export function EventDetailsModal({
           <h3 className="mb-1 text-sm font-medium text-ink">
             {t.calendarBlockDetailsTitle}
           </h3>
-          <p className="mb-1 text-sm text-ink/60">
+          <p className="mb-1 text-sm text-ink-2">
             {weekdayHeaderLabel(dateStr, locale)},{" "}
             {timeToHhmm(startHm.hour, startHm.minute)}–
             {timeToHhmm(endHm.hour, endHm.minute)}
@@ -567,7 +567,7 @@ export function EventDetailsModal({
             </CompactButton>
             <button
               onClick={onClose}
-              className="ml-auto text-sm text-ink/60 hover:text-ink"
+              className="ml-auto text-sm text-ink-2 hover:text-ink"
             >
               {t.calendarCloseButton}
             </button>

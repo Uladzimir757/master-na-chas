@@ -19,7 +19,7 @@ import { PasswordInput } from "@/components/PasswordInput";
 type AuthState = "checking" | "anon" | "authed";
 
 const inputClass =
-  "w-full rounded-md border border-line bg-bg px-3 py-2 text-ink placeholder:text-ink/40";
+  "w-full rounded-md border border-line bg-surface px-3 py-2 text-ink placeholder:text-ink-3";
 const passwordClass = `${inputClass} pr-10`;
 
 export default function AdminPanel() {
@@ -249,7 +249,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         {loadError && <p className="mb-3 text-sm text-danger">{loadError}</p>}
         {masters === null && !loadError && <Centered>Загрузка…</Centered>}
         {masters !== null && masters.length === 0 && (
-          <p className="text-sm text-ink/60">Мастеров пока нет</p>
+          <p className="text-sm text-ink-2">Мастеров пока нет</p>
         )}
         {masters !== null && masters.length > 0 && (
           <div className="flex flex-col gap-3">
@@ -260,14 +260,14 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                   <span className="text-base font-medium">{m.name}</span>
-                  <span className="break-all text-ink/60">{m.email}</span>
+                  <span className="break-all text-ink-2">{m.email}</span>
                 </div>
-                <div className="mt-1 text-ink/60">
+                <div className="mt-1 text-ink-2">
                   Буфер выезда: {m.travel_buffer_minutes} мин
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <span className="text-ink/60">Рейтинг</span>
+                  <span className="text-ink-2">Рейтинг</span>
                   <input
                     key={`${m.master_user_id}-rating-${m.rating ?? "empty"}`}
                     type="number"
@@ -280,9 +280,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                     placeholder="—"
                     disabled={savingRatingFor === m.master_user_id}
                     onBlur={(e) => handleRatingBlur(m, e.target.value)}
-                    className="w-20 rounded-md border border-line bg-bg px-2 py-1.5 text-ink"
+                    className="w-20 rounded-md border border-line bg-surface px-2 py-1.5 text-ink"
                   />
-                  <span className="text-ink/40">из</span>
+                  <span className="text-ink-3">из</span>
                   <input
                     key={`${m.master_user_id}-count-${m.rating_count}`}
                     type="number"
@@ -293,14 +293,14 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                     defaultValue={m.rating_count}
                     disabled={savingRatingFor === m.master_user_id}
                     onBlur={(e) => handleRatingCountBlur(m, e.target.value)}
-                    className="w-20 rounded-md border border-line bg-bg px-2 py-1.5 text-ink"
+                    className="w-20 rounded-md border border-line bg-surface px-2 py-1.5 text-ink"
                   />
-                  <span className="text-ink/60">оценок</span>
+                  <span className="text-ink-2">оценок</span>
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <span className="text-ink/60">Telegram: </span>
+                    <span className="text-ink-2">Telegram: </span>
                     {m.telegram_linked ? (
                       "привязан"
                     ) : linkByMaster[m.master_user_id] ? (
@@ -337,7 +337,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                       <button
                         type="button"
                         onClick={() => setConfirmDeleteFor(null)}
-                        className="text-ink/60 underline"
+                        className="text-ink-2 underline"
                       >
                         Отмена
                       </button>
@@ -447,12 +447,12 @@ function CreateMasterForm({ onCreated }: { onCreated: () => void }) {
           showLabel="Показать пароль"
           hideLabel="Скрыть пароль"
         />
-        <label className="flex items-center gap-2 text-sm text-ink/70">
+        <label className="flex items-center gap-2 text-sm text-ink-2">
           Буфер на дорогу между заказами (мин)
           <input
             type="number"
             min={0}
-            className="w-24 rounded-md border border-line bg-bg px-2 py-1 text-ink"
+            className="w-24 rounded-md border border-line bg-surface px-2 py-1 text-ink"
             value={travelBufferMinutes}
             onChange={(e) => setTravelBufferMinutes(e.target.value)}
           />

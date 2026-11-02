@@ -15,8 +15,8 @@ export default function LanguageSwitcher() {
           key={code}
           onClick={() => setLocale(code)}
           aria-current={code === locale}
-          className={`rounded-md px-2 py-1 ${
-            code === locale ? "bg-ink text-bg" : "text-ink/50 hover:text-accent-2"
+          className={`min-h-10 min-w-10 rounded-full px-2 py-1 font-medium ${
+            code === locale ? "bg-accent text-on-accent" : "text-ink-3 hover:text-accent-2"
           }`}
         >
           {LABELS[code]}

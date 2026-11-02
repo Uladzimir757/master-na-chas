@@ -101,10 +101,10 @@ export default function ClosedPeriods() {
 
   return (
     <section className="border-t border-line pt-5">
-      <h2 className="mb-1 text-sm font-medium text-ink/60">
+      <h2 className="mb-1 text-sm font-medium text-ink-2">
         {t.closedPeriodTitle}
       </h2>
-      <p className="mb-3 text-sm text-ink/60">{t.closedPeriodHint}</p>
+      <p className="mb-3 text-sm text-ink-2">{t.closedPeriodHint}</p>
 
       <div className="mb-3 flex flex-wrap gap-2">
         <CompactButton
@@ -131,7 +131,7 @@ export default function ClosedPeriods() {
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">
-        <label className="flex flex-col gap-1 text-xs text-ink/60">
+        <label className="flex flex-col gap-1 text-xs text-ink-2">
           {t.closedPeriodFrom}
           <input
             type="datetime-local"
@@ -141,7 +141,7 @@ export default function ClosedPeriods() {
             className={inputClass}
           />
         </label>
-        <label className="flex flex-col gap-1 text-xs text-ink/60">
+        <label className="flex flex-col gap-1 text-xs text-ink-2">
           {t.closedPeriodTo}
           <input
             type="datetime-local"
@@ -180,7 +180,7 @@ export default function ClosedPeriods() {
               <span>
                 {fmt(b.start_at)} – {fmt(b.end_at)}
                 {b.reason ? (
-                  <span className="text-ink/60"> · {b.reason}</span>
+                  <span className="text-ink-2"> · {b.reason}</span>
                 ) : null}
               </span>
               <button

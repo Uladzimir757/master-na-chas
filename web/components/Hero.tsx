@@ -1,32 +1,70 @@
-import Image from "next/image";
+"use client";
+
+import { useLocale } from "@/lib/LocaleContext";
+import { homeCopy } from "@/lib/homeCopy";
+import { CategoryIcon, IconBadge } from "@/components/icons";
 
 interface Props {
-  title: string;
-  subtitle: string;
+  // The element the call-to-action scrolls to.
+  targetId: string;
 }
 
-// Fixed height, not full-bleed 100vh — services should already be visible
-// on load without scrolling past a hero on a booking-funnel page.
-export default function Hero({ title, subtitle }: Props) {
+// Compact on purpose, not 100vh — masters should already be close on load on a
+// booking-funnel page. Falls back to local copy until translations arrive: the
+// API can take a while to wake on a cold start, and a blank hero looks broken.
+export default function Hero({ targetId }: Props) {
+  const { locale, t, ready } = useLocale();
+  const copy = homeCopy(locale);
+
+  const categories = [
+    { id: "electric", label: t.catElectric },
+    { id: "plumbing", label: t.catPlumbing },
+    { id: "assembly", label: t.catAssembly },
+    { id: "repair", label: t.catRepair },
+  ];
+
   return (
-    <section className="relative flex h-[280px] items-end overflow-hidden sm:h-[420px]">
-      <Image
-        src="/images/hero-workbench.png"
-        alt=""
-        fill
-        priority
-        sizes="100vw"
-        className="object-cover"
-      />
-      {/* --ink at increasing opacity, not black — keeps the shadow warm
-          instead of muddying the amber/wood tones underneath. */}
-      <div
-        className="absolute inset-0"
-        style={{ background: "linear-gradient(180deg, rgba(32,36,43,0.55) 0%, rgba(32,36,43,0.75) 100%)" }}
-      />
-      <div className="relative z-10 px-4 pb-6 sm:px-6 sm:pb-10">
-        <h1 className="max-w-md text-2xl font-extrabold tracking-[-0.01em] text-bg sm:text-4xl">{title}</h1>
-        {subtitle && <p className="mt-2 max-w-md text-sm text-bg sm:text-base">{subtitle}</p>}
+    <section className="border-b border-line-soft bg-surface">
+      <div className="mx-auto grid w-full max-w-5xl gap-8 px-4 py-10 sm:px-6 sm:py-16 md:grid-cols-[1.4fr_1fr] md:items-center md:gap-12">
+        <div>
+          <p className="mb-3 text-sm font-semibold tracking-[0.08em] text-kicker uppercase">
+            {copy.kicker}
+          </p>
+          <h1 className="text-4xl leading-[1.08] font-bold tracking-[-0.02em] sm:text-6xl">
+            {ready ? t.heroTitle : copy.heroTitle}
+          </h1>
+          <p className="mt-4 max-w-xl text-lg leading-relaxed text-ink-2">
+            {ready ? t.heroSubtitle : copy.heroSubtitle}
+          </p>
+          {/* A link, not location.hash: BookingFlow treats popstate as "step
+              back", so this must not add a history entry. */}
+          <a
+            href={`#${targetId}`}
+            onClick={(e) => {
+              e.preventDefault();
+              document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            className="mt-7 inline-flex min-h-14 w-full items-center justify-center rounded-full bg-accent px-8 text-lg font-semibold text-on-accent transition hover:brightness-90 sm:w-auto"
+          >
+            {ready ? t.pickMasterTitle : copy.cta}
+          </a>
+        </div>
+
+        <ul className="grid grid-cols-4 gap-2 md:grid-cols-2 md:gap-3">
+          {categories.map((c) => (
+            <li
+              key={c.id}
+              className="flex flex-col items-center gap-2 rounded-2xl border border-line-soft bg-surface p-2 py-3 text-center shadow-card md:p-5"
+            >
+              <IconBadge>
+                <CategoryIcon category={c.id} />
+              </IconBadge>
+              <span className="min-h-5 text-xs font-medium text-ink-2 sm:text-sm">
+                {ready ? c.label : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );

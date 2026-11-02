@@ -153,7 +153,7 @@ export default function MyBookingPage() {
         <LanguageSwitcher />
       </div>
       <div className="w-full max-w-md">
-        <Card>
+        <Card surface>
           {!ready && <Centered>{""}</Centered>}
           {ready && loadFailed && <Centered>{t.myBookingLoadError}</Centered>}
           {ready && !loadFailed && !booking && <Centered>{t.loading}</Centered>}
@@ -162,11 +162,11 @@ export default function MyBookingPage() {
               <h1 className="text-lg font-bold">{t.myBookingTitle}</h1>
               <div>
                 <div className="font-medium">{booking.service_name}</div>
-                <div className="text-sm text-ink/70">
+                <div className="text-sm text-ink-2">
                   {booking.provider_name} · {fmt(booking.start_at)}–
                   {fmtTime(booking.end_at)}
                 </div>
-                <span className="mt-2 inline-block rounded-full bg-line/60 px-2.5 py-1 text-xs">
+                <span className="mt-2 inline-block rounded-full bg-bg px-2.5 py-1 text-xs">
                   {t.bookingStatusLabel[booking.status] ?? booking.status}
                 </span>
               </div>
@@ -180,7 +180,7 @@ export default function MyBookingPage() {
                     lat={booking.location.lat}
                     lng={booking.location.lng}
                   />
-                  <p className="mt-1 text-xs text-ink/60">
+                  <p className="mt-1 text-xs text-ink-2">
                     {minutesAgo(booking.location.updated_at) < 1
                       ? t.masterLocationJustNow
                       : t.masterLocationMinutesAgo(
@@ -195,7 +195,7 @@ export default function MyBookingPage() {
 
               {booking.can_change && !picking && (
                 <>
-                  <p className="text-xs text-ink/60">
+                  <p className="text-xs text-ink-2">
                     {t.myBookingTooLate} {fmt(booking.change_deadline)}
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -222,7 +222,7 @@ export default function MyBookingPage() {
               {!booking.can_change &&
                 (booking.status === "pending" ||
                   booking.status === "confirmed") && (
-                  <p className="text-sm text-ink/70">
+                  <p className="text-sm text-ink-2">
                     {t.myBookingTooLateCall}
                   </p>
                 )}
@@ -233,15 +233,15 @@ export default function MyBookingPage() {
                     {t.myBookingPickNewTime}
                   </p>
                   {slots === null && (
-                    <p className="text-sm text-ink/60">{t.loading}</p>
+                    <p className="text-sm text-ink-2">{t.loading}</p>
                   )}
                   {slots !== null && slotsByDay.length === 0 && (
-                    <p className="text-sm text-ink/60">{t.myBookingNoSlots}</p>
+                    <p className="text-sm text-ink-2">{t.myBookingNoSlots}</p>
                   )}
                   <div className="flex max-h-72 flex-col gap-3 overflow-y-auto">
                     {slotsByDay.map(([day, list]) => (
                       <div key={day}>
-                        <div className="mb-1 text-xs capitalize text-ink/60">
+                        <div className="mb-1 text-xs capitalize text-ink-2">
                           {new Intl.DateTimeFormat(tag, {
                             weekday: "long",
                             day: "numeric",
@@ -257,7 +257,7 @@ export default function MyBookingPage() {
                               onClick={() => setChosen(s)}
                               className={`rounded-md border px-3 py-1.5 text-sm ${
                                 chosen?.start_at === s.start_at
-                                  ? "border-accent bg-accent text-white"
+                                  ? "border-accent bg-accent text-on-accent"
                                   : "border-line hover:border-accent"
                               }`}
                             >
@@ -298,7 +298,7 @@ export default function MyBookingPage() {
                   {t.myBookingHistoryTitle}
                 </h2>
                 {history.length <= 1 ? (
-                  <p className="text-sm text-ink/60">
+                  <p className="text-sm text-ink-2">
                     {t.myBookingHistoryEmpty}
                   </p>
                 ) : (
@@ -310,7 +310,7 @@ export default function MyBookingPage() {
                           <span>
                             {h.service_name} · {h.provider_name}
                           </span>
-                          <span className="shrink-0 text-ink/60">
+                          <span className="shrink-0 text-ink-2">
                             {fmt(h.start_at)} ·{" "}
                             {t.bookingStatusLabel[h.status] ?? h.status}
                             {h.price

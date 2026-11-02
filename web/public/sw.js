@@ -1,7 +1,7 @@
 // PWA service worker. Placeholder-brand build — bump CACHE_VERSION whenever
 // this file or APP_SHELL changes, so returning visitors drop the old cache
 // instead of running stale logic forever.
-const CACHE_VERSION = "zr-v2";
+const CACHE_VERSION = "zr-v3";
 const APP_SHELL = [
   "/",
   "/cabinet/",

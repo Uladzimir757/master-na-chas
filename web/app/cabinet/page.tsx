@@ -15,7 +15,7 @@ export default function CabinetPage() {
       </div>
       <Cabinet />
       {ready && (
-        <Link href="/" className="text-sm text-neutral-400 hover:text-neutral-700">
+        <Link href="/" className="text-sm text-ink-3 hover:text-ink">
           {t.backToBooking}
         </Link>
       )}

@@ -44,7 +44,7 @@ export function PasswordInput({
         minLength={minLength}
         autoComplete={autoComplete}
         placeholder={placeholder}
-        className={className ?? "w-full rounded-lg border border-neutral-300 px-3 py-2 pr-10"}
+        className={className ?? "min-h-12 w-full rounded-xl border border-line bg-surface px-4 py-2 pr-11 text-base"}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />

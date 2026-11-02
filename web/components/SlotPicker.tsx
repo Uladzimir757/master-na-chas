@@ -19,7 +19,7 @@ import {
 } from "@/lib/format";
 import { useLocale } from "@/lib/LocaleContext";
 import type { Translations } from "@/lib/i18n";
-import { Button, Card, Centered } from "@/components/ui";
+import { Button, Card, Centered, inputClass } from "@/components/ui";
 import { PriceLabel } from "@/components/PriceLabel";
 import ProviderMap from "@/components/ProviderMap";
 
@@ -239,30 +239,30 @@ export default function SlotPicker({
 
   if (booking) {
     return (
-      <Card>
+      <Card surface>
         <div className="flex flex-col items-center gap-3 py-4 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-2/15 text-2xl text-accent-2">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/15 text-2xl text-accent">
             ✓
           </div>
-          <h1 className="text-xl font-extrabold tracking-[-0.01em]">
+          <h1 className="text-2xl font-bold tracking-[-0.01em]">
             {t.bookingCreatedTitle}
           </h1>
-          <p className="text-ink/70">
+          <p className="text-ink-2">
             {service.name} · {providerName(booking.provider_id)}
             <br />
             {formatDayLabel(booking.start_at, locale, t)},{" "}
-            <span className="font-mono">
+            <span className="tabular-nums">
               {formatTime(booking.start_at, locale)}
             </span>
           </p>
-          <p className="text-sm text-ink/60">
+          <p className="text-base text-ink-2">
             {booking.status === "pending"
               ? t.bookingPending
               : t.bookingConfirmed}
           </p>
           {booking.manage_token && (
             <a
-              className="text-sm text-accent-2 underline"
+              className="text-base text-accent underline"
               href={`/booking/?id=${booking.id}&token=${encodeURIComponent(booking.manage_token)}`}
             >
               {t.myBookingTitle}
@@ -278,19 +278,19 @@ export default function SlotPicker({
 
   return (
     <>
-      <Card>
+      <Card surface>
         {showChangeService && (
           <button
-            className="mb-3 text-sm text-ink/50 hover:text-accent-2"
+            className="mb-3 min-h-11 text-base text-ink-3 hover:text-accent-2"
             onClick={onChangeService}
           >
             {t.changeService}
           </button>
         )}
-        <h1 className="mb-1 text-xl font-extrabold tracking-[-0.01em]">
+        <h1 className="mb-1 text-2xl font-bold tracking-[-0.01em]">
           {service.name}
         </h1>
-        <p className="mb-1 text-sm text-ink/60">
+        <p className="mb-1 text-base text-ink-2">
           {t.durationMinutes(service.duration_minutes)}
           {service.price_min != null || service.price_max != null ? (
             <>
@@ -304,7 +304,7 @@ export default function SlotPicker({
           ) : null}
         </p>
         {description && (
-          <p className="mb-4 text-sm text-ink/70">{description}</p>
+          <p className="mb-4 text-base text-ink-2">{description}</p>
         )}
         {!description && <div className="mb-4" />}
 
@@ -322,10 +322,10 @@ export default function SlotPicker({
               {daysWithSlots.map(([key, iso]) => (
                 <button
                   key={key}
-                  className={`shrink-0 rounded-md border px-4 py-2 text-sm whitespace-nowrap ${
+                  className={`min-h-12 shrink-0 rounded-full border px-5 py-2 text-base whitespace-nowrap ${
                     key === selectedDateKey
-                      ? "border-ink bg-ink text-bg"
-                      : "border-line bg-bg text-ink hover:border-accent-2"
+                      ? "border-accent bg-accent text-on-accent"
+                      : "border-line bg-surface text-ink hover:border-accent"
                   }`}
                   onClick={() => setSelectedDateKey(key)}
                 >
@@ -337,7 +337,7 @@ export default function SlotPicker({
             <div className="flex flex-col gap-4">
               {slotsByTimeOfDay.map((bucket) => (
                 <div key={bucket.label}>
-                  <h2 className="mb-2 text-xs font-semibold tracking-wide text-ink/50 uppercase">
+                  <h2 className="mb-2 text-xs font-semibold tracking-wide text-ink-3 uppercase">
                     {bucket.label}
                   </h2>
                   <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
@@ -348,20 +348,20 @@ export default function SlotPicker({
                       return (
                         <button
                           key={`${s.provider_id}-${s.start_at}`}
-                          className={`rounded-md border px-2 py-2 text-sm ${
+                          className={`min-h-12 rounded-xl border px-2 py-2 text-base ${
                             isSelected
-                              ? "chip-settle border-accent bg-accent text-bg"
-                              : "border-line hover:border-accent-2"
+                              ? "chip-settle border-accent bg-accent text-on-accent"
+                              : "border-line bg-surface hover:border-accent"
                           }`}
                           onClick={() => setSelectedSlot(s)}
                         >
-                          <div className="font-mono font-medium">
+                          <div className="tabular-nums font-medium">
                             {formatTime(s.start_at, locale)}
                           </div>
                           {providers.length > 1 && (
                             <div className="mt-1 flex items-center gap-1">
                               <span
-                                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-bg ${providerTagClass(s.provider_id)}`}
+                                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-on-accent ${providerTagClass(s.provider_id)}`}
                               >
                                 {providerName(s.provider_id)
                                   .charAt(0)
@@ -386,19 +386,19 @@ export default function SlotPicker({
             submitBooking() clears selectedSlot in the same breath it sets this,
             so the message would never actually render if it were. */}
         {submitError && (
-          <p className="mt-3 text-sm text-danger">{submitError}</p>
+          <p className="mt-3 text-base text-danger">{submitError}</p>
         )}
 
         {selectedSlot && (
           <div ref={formSectionRef} className="mt-5 border-t border-line pt-4">
-            <p className="mb-3 text-sm text-ink/70">
+            <p className="mb-3 text-base text-ink-2">
               {formatDayLabel(selectedSlot.start_at, locale, t)},{" "}
-              <span className="font-mono">
+              <span className="tabular-nums">
                 {formatTime(selectedSlot.start_at, locale)}
               </span>{" "}
               · {providerName(selectedSlot.provider_id)}
               {providerCallOutFee(selectedSlot.provider_id) ? (
-                <span className="text-ink/60">
+                <span className="text-ink-2">
                   {" "}
                   ·{" "}
                   {t.callOutFeeLine(
@@ -413,14 +413,14 @@ export default function SlotPicker({
               // its own (nothing else here changes every 30s) — see the
               // locationClock tick above.
               <div key={locationClock} className="mb-4">
-                <p className="mb-1.5 text-sm font-medium">
+                <p className="mb-1.5 text-base font-medium">
                   {t.masterLocationTitle}
                 </p>
                 <ProviderMap
                   lat={providerLocation(selectedSlot.provider_id)!.lat}
                   lng={providerLocation(selectedSlot.provider_id)!.lng}
                 />
-                <p className="mt-1 text-xs text-ink/60">
+                <p className="mt-1 text-xs text-ink-2">
                   {formatLocationAgo(
                     providerLocation(selectedSlot.provider_id)!.updated_at,
                     t,
@@ -431,13 +431,13 @@ export default function SlotPicker({
 
             <div className="flex flex-col gap-2">
               <input
-                className="rounded-md border border-line px-4 py-2"
+                className={inputClass}
                 placeholder={t.namePlaceholder}
                 value={clientName}
                 onChange={(e) => setClientName(e.target.value)}
               />
               <input
-                className="rounded-md border border-line px-4 py-2"
+                className={inputClass}
                 placeholder={t.phonePlaceholder}
                 type="tel"
                 value={clientPhone}
@@ -462,10 +462,10 @@ export default function SlotPicker({
           jumps straight to it instead of leaving the visitor to scroll
           past a whole day's grid to notice it appeared. */}
       {selectedSlot && (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-bg px-4 py-3 sm:px-6">
-          <div className="mx-auto flex w-[90%] items-center justify-between gap-4">
-            <span className="truncate text-sm">
-              <span className="font-mono font-medium">
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface px-4 py-3 sm:px-6">
+          <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3">
+            <span className="truncate text-base">
+              <span className="tabular-nums font-medium">
                 {formatTime(selectedSlot.start_at, locale)}
               </span>{" "}
               · {providerName(selectedSlot.provider_id)}

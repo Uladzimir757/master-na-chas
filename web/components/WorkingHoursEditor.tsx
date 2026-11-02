@@ -186,36 +186,36 @@ export default function WorkingHoursEditor() {
 
   if (loadError) {
     return (
-      <section className="mb-6 border-b border-neutral-200 pb-5">
-        <h2 className="mb-2 text-sm font-medium text-neutral-500">{t.workingHoursTitle}</h2>
-        <p className="text-sm text-red-600">{loadError}</p>
+      <section className="mb-6 border-b border-line pb-5">
+        <h2 className="mb-2 text-sm font-medium text-ink-2">{t.workingHoursTitle}</h2>
+        <p className="text-sm text-danger">{loadError}</p>
       </section>
     );
   }
 
   if (!loaded) {
     return (
-      <section className="mb-6 border-b border-neutral-200 pb-5">
-        <h2 className="mb-2 text-sm font-medium text-neutral-500">{t.workingHoursTitle}</h2>
-        <p className="text-sm text-neutral-500">{t.loading}</p>
+      <section className="mb-6 border-b border-line pb-5">
+        <h2 className="mb-2 text-sm font-medium text-ink-2">{t.workingHoursTitle}</h2>
+        <p className="text-sm text-ink-2">{t.loading}</p>
       </section>
     );
   }
 
   return (
-    <section className="mb-6 border-b border-neutral-200 pb-5">
-      <h2 className="mb-1 text-sm font-medium text-neutral-500">{t.workingHoursTitle}</h2>
-      <p className="mb-3 text-sm text-neutral-500">{t.workingHoursHint}</p>
+    <section className="mb-6 border-b border-line pb-5">
+      <h2 className="mb-1 text-sm font-medium text-ink-2">{t.workingHoursTitle}</h2>
+      <p className="mb-3 text-sm text-ink-2">{t.workingHoursHint}</p>
 
       <ul className="flex flex-col gap-3">
         {t.weekdayLabels.map((label, weekday) => {
           const dayIntervals = slots.filter((s) => s.weekday === weekday);
           return (
-            <li key={weekday} className="rounded-lg border border-neutral-200 p-3">
+            <li key={weekday} className="rounded-lg border border-line p-3">
               <div className="mb-2 flex items-center justify-between">
                 <span className="font-medium">{label}</span>
                 {dayIntervals.length === 0 && (
-                  <span className="text-sm text-neutral-500">{t.workingHoursDayOff}</span>
+                  <span className="text-sm text-ink-2">{t.workingHoursDayOff}</span>
                 )}
               </div>
 
@@ -223,25 +223,25 @@ export default function WorkingHoursEditor() {
                 <div className="flex flex-col gap-2">
                   {dayIntervals.map((slot) => (
                     <div key={slot.localId} className="flex flex-wrap items-center gap-2 text-sm">
-                      <span className="text-neutral-500">{t.workingHoursFromLabel}</span>
+                      <span className="text-ink-2">{t.workingHoursFromLabel}</span>
                       <input
                         type="time"
                         value={slot.start_time.slice(0, 5)}
                         onChange={(e) => updateInterval(slot.localId, { start_time: e.target.value })}
-                        className="rounded-lg border border-neutral-300 px-2 py-1"
+                        className="rounded-lg border border-line px-2 py-1"
                       />
-                      <span className="text-neutral-500">{t.workingHoursToLabel}</span>
+                      <span className="text-ink-2">{t.workingHoursToLabel}</span>
                       <input
                         type="time"
                         value={slot.end_time.slice(0, 5)}
                         onChange={(e) => updateInterval(slot.localId, { end_time: e.target.value })}
-                        className="rounded-lg border border-neutral-300 px-2 py-1"
+                        className="rounded-lg border border-line px-2 py-1"
                       />
                       <button
                         type="button"
                         aria-label={t.workingHoursRemoveIntervalLabel}
                         onClick={() => removeInterval(slot.localId)}
-                        className="ml-1 text-neutral-400 hover:text-red-600"
+                        className="ml-1 text-ink-3 hover:text-danger"
                       >
                         ×
                       </button>
@@ -253,7 +253,7 @@ export default function WorkingHoursEditor() {
               <button
                 type="button"
                 onClick={() => addInterval(weekday)}
-                className="mt-2 text-sm text-neutral-500 hover:text-neutral-800"
+                className="mt-2 text-sm text-ink-2 hover:text-ink"
               >
                 {t.workingHoursAddIntervalButton}
               </button>
@@ -262,41 +262,41 @@ export default function WorkingHoursEditor() {
         })}
       </ul>
 
-      <p className="mt-3 text-xs text-neutral-400">{t.workingHoursValidationHint}</p>
-      {templateError && <p className="mt-2 text-sm text-red-600">{templateError}</p>}
+      <p className="mt-3 text-xs text-ink-3">{t.workingHoursValidationHint}</p>
+      {templateError && <p className="mt-2 text-sm text-danger">{templateError}</p>}
       <button
         type="button"
         disabled={savingTemplate}
         onClick={handleSaveTemplate}
-        className="mt-3 rounded-lg bg-neutral-900 px-3 py-1.5 text-sm text-white disabled:opacity-40"
+        className="mt-3 rounded-lg bg-accent px-3 py-1.5 text-sm text-on-accent disabled:opacity-40"
       >
         {savingTemplate ? t.workingHoursSaving : t.workingHoursSaveButton}
       </button>
 
-      <div className="mt-6 border-t border-neutral-200 pt-5">
-        <h3 className="mb-1 text-sm font-medium text-neutral-500">{t.workingHoursExceptionsTitle}</h3>
-        <p className="mb-3 text-sm text-neutral-500">{t.workingHoursExceptionsHint}</p>
+      <div className="mt-6 border-t border-line pt-5">
+        <h3 className="mb-1 text-sm font-medium text-ink-2">{t.workingHoursExceptionsTitle}</h3>
+        <p className="mb-3 text-sm text-ink-2">{t.workingHoursExceptionsHint}</p>
 
-        {deleteError && <p className="mb-2 text-sm text-red-600">{deleteError}</p>}
+        {deleteError && <p className="mb-2 text-sm text-danger">{deleteError}</p>}
 
         {exceptions.length === 0 ? (
-          <p className="mb-4 text-sm text-neutral-500">{t.workingHoursNoExceptions}</p>
+          <p className="mb-4 text-sm text-ink-2">{t.workingHoursNoExceptions}</p>
         ) : (
           <ul className="mb-4 flex flex-col gap-2">
             {exceptions.map((ex) => (
               <li
                 key={ex.id}
-                className="flex items-center justify-between gap-3 rounded-lg border border-neutral-200 p-3"
+                className="flex items-center justify-between gap-3 rounded-lg border border-line p-3"
               >
                 <div>
                   <div className="font-medium">{formatExceptionDate(ex.date, locale)}</div>
-                  <div className="text-sm text-neutral-500">
+                  <div className="text-sm text-ink-2">
                     {ex.is_available && ex.start_time && ex.end_time
                       ? `${ex.start_time.slice(0, 5)}–${ex.end_time.slice(0, 5)}`
                       : t.workingHoursExceptionDayOffLabel}
                   </div>
                   {ex.reason && (
-                    <div className="text-sm text-neutral-500">
+                    <div className="text-sm text-ink-2">
                       {t.workingHoursReasonLabel}: {ex.reason}
                     </div>
                   )}
@@ -305,7 +305,7 @@ export default function WorkingHoursEditor() {
                   type="button"
                   disabled={deletingDate === ex.date}
                   onClick={() => handleDeleteException(ex.date)}
-                  className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm disabled:opacity-40"
+                  className="rounded-lg border border-line px-3 py-1.5 text-sm disabled:opacity-40"
                 >
                   {t.workingHoursDeleteExceptionLabel}
                 </button>
@@ -316,18 +316,18 @@ export default function WorkingHoursEditor() {
 
         <form
           onSubmit={handleAddException}
-          className="flex max-w-sm flex-col gap-3 rounded-lg border border-neutral-200 p-3"
+          className="flex max-w-sm flex-col gap-3 rounded-lg border border-line p-3"
         >
           <h4 className="text-sm font-medium">{t.workingHoursAddExceptionTitle}</h4>
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-neutral-500">{t.workingHoursExceptionDateLabel}</span>
+            <span className="text-ink-2">{t.workingHoursExceptionDateLabel}</span>
             <input
               type="date"
               required
               min={todayDateParam()}
               value={exceptionDate}
               onChange={(e) => setExceptionDate(e.target.value)}
-              className="rounded-lg border border-neutral-300 px-3 py-1.5"
+              className="rounded-lg border border-line px-3 py-1.5"
             />
           </label>
 
@@ -336,7 +336,7 @@ export default function WorkingHoursEditor() {
               type="button"
               onClick={() => setExceptionMode("off")}
               className={`rounded-lg px-3 py-1.5 text-sm ${
-                exceptionMode === "off" ? "bg-neutral-900 text-white" : "border border-neutral-300"
+                exceptionMode === "off" ? "bg-accent text-on-accent" : "border border-line"
               }`}
             >
               {t.workingHoursExceptionDayOffOption}
@@ -345,7 +345,7 @@ export default function WorkingHoursEditor() {
               type="button"
               onClick={() => setExceptionMode("custom")}
               className={`rounded-lg px-3 py-1.5 text-sm ${
-                exceptionMode === "custom" ? "bg-neutral-900 text-white" : "border border-neutral-300"
+                exceptionMode === "custom" ? "bg-accent text-on-accent" : "border border-line"
               }`}
             >
               {t.workingHoursExceptionCustomHoursOption}
@@ -354,21 +354,21 @@ export default function WorkingHoursEditor() {
 
           {exceptionMode === "custom" && (
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-neutral-500">{t.workingHoursFromLabel}</span>
+              <span className="text-ink-2">{t.workingHoursFromLabel}</span>
               <input
                 type="time"
                 required
                 value={exceptionStart}
                 onChange={(e) => setExceptionStart(e.target.value)}
-                className="rounded-lg border border-neutral-300 px-2 py-1"
+                className="rounded-lg border border-line px-2 py-1"
               />
-              <span className="text-neutral-500">{t.workingHoursToLabel}</span>
+              <span className="text-ink-2">{t.workingHoursToLabel}</span>
               <input
                 type="time"
                 required
                 value={exceptionEnd}
                 onChange={(e) => setExceptionEnd(e.target.value)}
-                className="rounded-lg border border-neutral-300 px-2 py-1"
+                className="rounded-lg border border-line px-2 py-1"
               />
             </div>
           )}
@@ -379,15 +379,15 @@ export default function WorkingHoursEditor() {
             placeholder={t.workingHoursExceptionReasonPlaceholder}
             value={exceptionReason}
             onChange={(e) => setExceptionReason(e.target.value)}
-            className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm"
+            className="rounded-lg border border-line px-3 py-1.5 text-sm"
           />
 
-          {exceptionError && <p className="text-sm text-red-600">{exceptionError}</p>}
+          {exceptionError && <p className="text-sm text-danger">{exceptionError}</p>}
 
           <button
             type="submit"
             disabled={savingException}
-            className="self-start rounded-lg bg-neutral-900 px-3 py-1.5 text-sm text-white disabled:opacity-40"
+            className="self-start rounded-lg bg-accent px-3 py-1.5 text-sm text-on-accent disabled:opacity-40"
           >
             {savingException ? t.workingHoursSavingException : t.workingHoursAddExceptionButton}
           </button>
