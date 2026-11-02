@@ -36,9 +36,9 @@ export const DropIcon = (p: IconProps) => (
 // A shelf on two brackets — the assembly/mounting category.
 export const ShelfIcon = (p: IconProps) => (
   <Icon {...p}>
-    <path d="M3 14h18M7 14v6l3-6M17 14v6l-3-6" />
-    <rect x="6" y="6" width="5" height="8" rx="1" />
-    <rect x="13" y="9" width="5" height="5" rx="1" />
+    <path d="M3 14h18M7 14v6M17 14v6" />
+    <rect x="6" y="5" width="5" height="9" rx="1" />
+    <rect x="14" y="9" width="4" height="5" rx="1" />
   </Icon>
 );
 
