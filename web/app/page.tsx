@@ -1,14 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import BookingFlow from "@/components/BookingFlow";
+import BookingFlow, { BOOKING_ID } from "@/components/BookingFlow";
 import Hero from "@/components/Hero";
 import { HowItWorks, TrustBar } from "@/components/HomeSections";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { WrenchIcon } from "@/components/icons";
 import { useLocale } from "@/lib/LocaleContext";
-
-const BOOKING_ID = "masters";
 
 export default function Home() {
   const { t, ready } = useLocale();

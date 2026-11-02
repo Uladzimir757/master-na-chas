@@ -9,6 +9,9 @@ import { PriceLabel } from "@/components/PriceLabel";
 import MasterPicker from "@/components/MasterPicker";
 import SlotPicker from "@/components/SlotPicker";
 
+// The element on the home page that wraps this flow.
+export const BOOKING_ID = "masters";
+
 // Master-first flow (this segment): pick a master (sorted by rating) ->
 // pick one of THAT master's own offered services (his own price +
 // description) -> pick a slot. Previously this started on a flat,
@@ -70,6 +73,13 @@ export default function BookingFlow() {
     // Same rationale as above — t tracked via `locale` already.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProvider, locale, ready]);
+
+  // The hero stays above this flow, so a new step could open out of view on a
+  // phone — bring its top back on screen whenever the step moves forward.
+  useEffect(() => {
+    if (!selectedProvider) return;
+    document.getElementById(BOOKING_ID)?.scrollIntoView({ block: "start" });
+  }, [selectedProvider, selectedService]);
 
   // Each step forward pushes a history entry, so the phone's back gesture /
   // browser back button steps back inside the flow instead of leaving the
