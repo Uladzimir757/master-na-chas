@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import type { Provider } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import { Button, Card, inputClass } from "@/components/ui";
-import { CategoryIcon, IconBadge } from "@/components/icons";
+import { StarIcon } from "@/components/icons";
+import MasterAvatar from "@/components/MasterAvatar";
 
 // Список приходит отсортированным по рейтингу (app/main.py list_providers);
 // здесь поиск по имени, фильтр по категории работ и смена сортировки —
@@ -18,7 +19,11 @@ export default function MasterPicker({
   providers: Provider[];
   onSelect: (p: Provider) => void;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const ratingFmt = new Intl.NumberFormat(locale === "en" ? "en-GB" : "pl-PL", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string | null>(null);
   const [sort, setSort] = useState<SortMode>("rating");
@@ -66,7 +71,7 @@ export default function MasterPicker({
 
   return (
     <Card>
-      <h1 className="mb-5 text-2xl font-bold tracking-[-0.01em] sm:text-3xl">
+      <h1 className="mb-5 text-[1.75rem] leading-tight font-extrabold tracking-[-0.015em] sm:text-4xl">
         {t.pickMasterTitle}
       </h1>
 
@@ -119,29 +124,40 @@ export default function MasterPicker({
         {shown.map((p) => (
           <div
             key={p.id}
-            className="flex flex-col gap-4 rounded-2xl border border-line-soft bg-surface p-5 shadow-card sm:flex-row sm:items-center"
+            className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-5 shadow-card transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_2px_4px_rgb(43_38_34/0.06),0_14px_32px_rgb(43_38_34/0.10)] sm:flex-row sm:items-center"
           >
             <div className="flex min-w-0 flex-1 items-center gap-4">
-              <IconBadge>
-                <CategoryIcon category={p.categories?.[0]} />
-              </IconBadge>
+              <MasterAvatar name={p.name} category={p.categories?.[0]} />
               <div className="min-w-0">
-                <div className="text-lg font-semibold">{p.name}</div>
-                <div className="text-base text-ink-2">
-                  {p.rating != null
-                    ? t.ratingValue(p.rating, p.rating_count)
-                    : t.noRatingYet}
-                  {p.price_from != null &&
-                    ` · ${t.pickMasterPriceFrom} ${p.price_from} zł`}
+                <div className="truncate text-lg font-bold">{p.name}</div>
+                <div className="flex items-center gap-1.5 text-base text-ink-2">
+                  {p.rating != null ? (
+                    <>
+                      <StarIcon className="h-4 w-4 shrink-0 fill-current text-amber" />
+                      <span className="font-semibold text-ink">
+                        {ratingFmt.format(p.rating)}
+                      </span>
+                      <span>· {t.reviewsCount(p.rating_count)}</span>
+                    </>
+                  ) : (
+                    <span>{t.newMaster}</span>
+                  )}
                 </div>
               </div>
             </div>
-            <Button
-              className="w-full sm:w-auto sm:min-w-36"
-              onClick={() => onSelect(p)}
-            >
-              {t.chooseMasterButton}
-            </Button>
+            <div className="flex items-center justify-between gap-4 sm:justify-end">
+              {p.price_from != null && (
+                <span className="rounded-full bg-amber-soft px-3 py-1 text-base font-semibold whitespace-nowrap text-ink">
+                  {t.pickMasterPriceFrom} {p.price_from} zł
+                </span>
+              )}
+              <Button
+                className="min-w-32 rounded-full sm:min-w-36"
+                onClick={() => onSelect(p)}
+              >
+                {t.chooseMasterButton}
+              </Button>
+            </div>
           </div>
         ))}
       </div>

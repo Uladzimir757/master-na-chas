@@ -23,7 +23,7 @@ export function TrustBar() {
         const Glyph = TRUST_ICONS[i];
         return (
           <li key={item} className="flex items-center gap-2.5 text-base font-medium text-ink-2">
-            <Glyph className="h-5 w-5 shrink-0 text-accent" />
+            <Glyph className="h-5 w-5 shrink-0 text-amber" />
             {item}
           </li>
         );
@@ -38,7 +38,7 @@ export function HowItWorks() {
 
   return (
     <section className="w-full">
-      <h2 className="mb-6 text-2xl font-bold tracking-[-0.01em] sm:text-3xl">{howTitle}</h2>
+      <h2 className="mb-6 text-[1.75rem] leading-tight font-extrabold tracking-[-0.015em] sm:text-4xl">{howTitle}</h2>
       <ol className="grid gap-3 md:grid-cols-3 md:gap-4">
         {steps.map((step, i) => {
           const Glyph = STEP_ICONS[i];

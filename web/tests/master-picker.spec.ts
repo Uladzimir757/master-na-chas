@@ -15,7 +15,7 @@ const SERVICE_B = providerServiceOffering({
   description: "Со своим инструментом",
 });
 
-test("shows a master's rating, or 'no rating yet' when unset", async ({ page }) => {
+test("shows a master's rating and review count, or 'new master' when unrated", async ({ page }) => {
   const rated = { ...PROVIDER, id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", name: "Рейтинговый", rating: 4.8, rating_count: 12 };
   const unrated = { ...PROVIDER, id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", name: "Новичок", rating: null, rating_count: 0 };
   await mockCatalog(page, { providers: [rated, unrated] });
@@ -23,8 +23,12 @@ test("shows a master's rating, or 'no rating yet' when unset", async ({ page }) 
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: t.pickMasterTitle })).toBeVisible();
-  await expect(page.getByText(t.ratingValue(4.8, 12))).toBeVisible();
-  await expect(page.getByText(t.noRatingYet)).toBeVisible();
+  const ratedCard = page.locator("div.rounded-2xl", { hasText: "Рейтинговый" });
+  await expect(ratedCard.getByText("4,8", { exact: true })).toBeVisible();
+  await expect(ratedCard.getByText(`· ${t.reviewsCount(12)}`)).toBeVisible();
+  await expect(page.locator("div.rounded-2xl", { hasText: "Новичок" }).getByText(t.newMaster)).toBeVisible();
+  // initials avatar instead of the category icon standing in for the master
+  await expect(ratedCard.getByText("РЕ", { exact: true })).toBeVisible();
 });
 
 test("a master with several services shows a picker; choosing one opens the slot calendar", async ({ page }) => {

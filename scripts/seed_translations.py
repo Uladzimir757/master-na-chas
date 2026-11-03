@@ -264,6 +264,11 @@ ENTRIES: list[tuple[str, str, str]] = [
     ("masterListLoadError", "Nie udało się załadować listy mistrzów.", "Couldn't load the list of specialists."),
     ("ratingValue", "★ {rating} ({count})", "★ {rating} ({count})"),
     ("noRatingYet", "Brak ocen", "No ratings yet"),
+    # Карточка мастера в тёплой клиентской теме (components/MasterPicker.tsx).
+    ("reviewsCountOne", "{n} opinia", "{n} review"),
+    ("reviewsCountFew", "{n} opinie", "{n} reviews"),
+    ("reviewsCountMany", "{n} opinii", "{n} reviews"),
+    ("newMaster", "Nowy mistrz", "New master"),
     ("chooseMasterButton", "Wybierz", "Choose"),
     ("backToMasters", "← wybierz innego mistrza", "← choose a different specialist"),
     ("masterServicesLoadError", "Nie udało się załadować usług tego mistrza.", "Couldn't load this specialist's services."),

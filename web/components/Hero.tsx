@@ -30,7 +30,7 @@ export default function Hero({ targetId }: Props) {
           <p className="mb-3 text-sm font-semibold tracking-[0.08em] text-kicker uppercase">
             {copy.kicker}
           </p>
-          <h1 className="text-4xl leading-[1.08] font-bold tracking-[-0.02em] sm:text-6xl">
+          <h1 className="text-[2.6rem] leading-[1.05] font-extrabold tracking-[-0.02em] sm:text-6xl">
             {ready ? t.heroTitle : copy.heroTitle}
           </h1>
           <p className="mt-4 max-w-xl text-lg leading-relaxed text-ink-2">
@@ -44,7 +44,7 @@ export default function Hero({ targetId }: Props) {
               e.preventDefault();
               document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" });
             }}
-            className="mt-7 inline-flex min-h-14 w-full items-center justify-center rounded-full bg-accent px-8 text-lg font-semibold text-on-accent transition hover:brightness-90 sm:w-auto"
+            className="mt-7 inline-flex min-h-14 w-full items-center justify-center rounded-full bg-accent px-8 text-lg font-semibold text-on-accent transition hover:bg-accent-2 sm:w-auto"
           >
             {ready ? t.pickMasterTitle : copy.cta}
           </a>
