@@ -163,6 +163,9 @@ export interface Translations {
   masterListLoadError: string;
   ratingValue: (rating: number, count: number) => string;
   noRatingYet: string;
+  /** «12 opinii» / «12 reviews» — master card in the warm client theme. */
+  reviewsCount: (n: number) => string;
+  newMaster: string;
   chooseMasterButton: string;
   backToMasters: string;
   masterServicesLoadError: string;
@@ -511,6 +514,22 @@ export function buildTranslations(map: TranslationMap): Translations {
     ratingValue: (rating, count) =>
       interpolate(pick(map, "ratingValue"), { rating, count }),
     noRatingYet: pick(map, "noRatingYet"),
+    // Polish plural rules pick the form for both languages: en's strings for
+    // "few" and "many" are the same plural, so they come out right too.
+    reviewsCount: (n) =>
+      interpolate(
+        pick(
+          map,
+          (
+            {
+              one: "reviewsCountOne",
+              few: "reviewsCountFew",
+            } as Partial<Record<Intl.LDMLPluralRule, string>>
+          )[new Intl.PluralRules("pl").select(n)] ?? "reviewsCountMany",
+        ),
+        { n },
+      ),
+    newMaster: pick(map, "newMaster"),
     chooseMasterButton: pick(map, "chooseMasterButton"),
     backToMasters: pick(map, "backToMasters"),
     masterServicesLoadError: pick(map, "masterServicesLoadError"),

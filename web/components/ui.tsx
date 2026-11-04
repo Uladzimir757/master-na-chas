@@ -39,7 +39,7 @@ export function Button({
 }: ButtonProps) {
   const variantClass =
     variant === "primary"
-      ? "bg-accent text-on-accent hover:brightness-90"
+      ? "bg-accent text-on-accent hover:bg-accent-2"
       : "border border-accent bg-surface text-accent hover:bg-bg";
 
   return (

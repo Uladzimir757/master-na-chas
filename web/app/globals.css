@@ -16,6 +16,33 @@
   --line: #bfdad1;
   --line-soft: #cfe3dc;
   --danger: #c8322d;
+  /* Second (warm) accent — only the client theme below sets it to amber;
+     here it falls back to the regular accent so nothing outside that
+     theme changes. */
+  --amber: var(--accent);
+  --amber-soft: var(--bg);
+  --card-shadow: 0 1px 2px rgb(27 46 42 / 0.05), 0 8px 24px rgb(27 46 42 / 0.06);
+}
+
+/* Warm client theme (design brief «ZR — тёплый редизайн»): the public pages
+   (home, «moja rezerwacja», review) carry .theme-warm on their <main>;
+   :has() lifts it to :root so the page background behind the content and
+   anything portalled outside <main> turn warm too. The master cabinet and
+   the admin keep the calmer palette above. */
+:root:has(.theme-warm) {
+  --bg: #fbf6ee;
+  --surface: #fffdf9;
+  --ink: #2b2622;
+  --ink-2: #7a6f66;
+  --ink-3: #7a6f66;
+  --kicker: #3e7d6b;
+  --accent: #3e7d6b;
+  --accent-2: #2f6354;
+  --line: #eadfcf;
+  --line-soft: #eadfcf;
+  --amber: #f2a33a;
+  --amber-soft: #fcebcb;
+  --card-shadow: 0 1px 2px rgb(43 38 34 / 0.05), 0 8px 24px rgb(43 38 34 / 0.07);
 }
 
 @theme inline {
@@ -31,8 +58,10 @@
   --color-line: var(--line);
   --color-line-soft: var(--line-soft);
   --color-danger: var(--danger);
+  --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
   --font-sans: var(--font-work-sans), system-ui, sans-serif;
-  --shadow-card: 0 1px 2px rgb(27 46 42 / 0.05), 0 8px 24px rgb(27 46 42 / 0.06);
+  --shadow-card: var(--card-shadow);
 }
 
 body {

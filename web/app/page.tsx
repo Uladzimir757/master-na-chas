@@ -12,7 +12,7 @@ export default function Home() {
   const { t, ready } = useLocale();
 
   return (
-    <main className="flex min-h-screen flex-col">
+    <main className="theme-warm flex min-h-screen flex-col">
       <header className="border-b border-line-soft bg-surface">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
           <span className="flex min-h-10 items-center gap-2 text-lg font-bold tracking-[-0.01em]">

@@ -148,7 +148,7 @@ export default function MyBookingPage() {
     Math.max(0, Math.round((now - new Date(iso).getTime()) / 60_000));
 
   return (
-    <main className="flex min-h-screen flex-col items-center gap-4 px-0 py-6 sm:px-4 sm:py-10">
+    <main className="theme-warm flex min-h-screen flex-col items-center gap-4 px-0 py-6 sm:px-4 sm:py-10">
       <div className="flex w-full max-w-md justify-end px-3">
         <LanguageSwitcher />
       </div>

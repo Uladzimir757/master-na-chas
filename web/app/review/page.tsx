@@ -154,7 +154,7 @@ export default function ReviewPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-4 py-10">
+    <main className="theme-warm flex min-h-screen flex-col items-center justify-center gap-4 px-4 py-10">
       <div className="flex w-full max-w-md justify-end">
         <LanguageSwitcher />
       </div>
