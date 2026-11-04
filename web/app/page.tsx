@@ -1,15 +1,34 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import BookingFlow, { BOOKING_ID } from "@/components/BookingFlow";
 import Hero from "@/components/Hero";
 import { HowItWorks, TrustBar } from "@/components/HomeSections";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { WrenchIcon } from "@/components/icons";
 import { useLocale } from "@/lib/LocaleContext";
+import { shouldAutoOpenCabinet } from "@/lib/autoOpenCabinet";
 
 export default function Home() {
   const { t, ready } = useLocale();
+  const router = useRouter();
+  const [openingCabinet, setOpeningCabinet] = useState(false);
+
+  // A master signed in on this device lands in the cabinet, not on the
+  // client's booking page.
+  useEffect(() => {
+    if (shouldAutoOpenCabinet()) {
+      // localStorage is only readable after hydration (static export), so
+      // this can't be a lazy initial state; blanks the page during the hop.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpeningCabinet(true);
+      router.replace("/cabinet/");
+    }
+  }, [router]);
+
+  if (openingCabinet) return <main className="min-h-screen" />;
 
   return (
     <main className="theme-warm flex min-h-screen flex-col">

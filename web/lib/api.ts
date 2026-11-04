@@ -496,13 +496,25 @@ export const api = {
       setToken("master", null);
     }
   },
-  me: () =>
-    request<{
-      master_user_id: string;
-      name: string | null;
-      role: string;
-      permissions: string[];
-    }>("/auth/me"),
+  // Every check also renews the saved token (the API hands back a fresh one),
+  // and a 401 drops it — so the app's auto-open of the cabinet
+  // (lib/autoOpenCabinet.ts) never loops on a dead token.
+  me: async () => {
+    try {
+      const res = await request<{
+        master_user_id: string;
+        name: string | null;
+        role: string;
+        permissions: string[];
+        token?: string;
+      }>("/auth/me");
+      if (res.token) setToken("master", res.token);
+      return res;
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) setToken("master", null);
+      throw err;
+    }
+  },
   rolesMeta: () => request<RolesMeta>("/api/providers/me/roles"),
   listStaff: () => request<StaffMember[]>("/api/providers/me/staff"),
   createStaff: (body: {
