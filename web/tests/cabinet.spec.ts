@@ -467,3 +467,76 @@ test("a failed call-out fee save shows an error message", async ({ page }) => {
 
   await expect(page.getByText(t.settingsSaveError)).toBeVisible();
 });
+
+// docs/app-auto-open-cabinet-task.md — одно приложение на мастера и клиента:
+// сохранённый вход мастера открывает кабинет сразу при запуске.
+test.describe("auto-open cabinet on launch", () => {
+  const withSavedToken = (page: import("@playwright/test").Page, token: string) =>
+    page.addInitScript((tok) => {
+      if (!sessionStorage.getItem("zr_test_seeded")) {
+        sessionStorage.setItem("zr_test_seeded", "1");
+        localStorage.setItem("zr_master_token", tok);
+      }
+    }, token);
+
+  test("a saved master login opens the cabinet instead of the home page", async ({ page }) => {
+    await withSavedToken(page, "saved-token");
+    await mockAuthMe(page, { loggedIn: true });
+    await mockMyServices(page, [serviceToggle()]);
+    await mockProviderSettings(page);
+    await mockMyCalendar(page, {});
+
+    await page.goto("/");
+
+    await expect(page).toHaveURL(/\/cabinet\/$/);
+    await expect(page.getByRole("heading", { name: t.cabinetTitle(PROVIDER.name) })).toBeVisible();
+  });
+
+  test("going back to the home page in the same session doesn't bounce again", async ({ page }) => {
+    await withSavedToken(page, "saved-token");
+    await mockAuthMe(page, { loggedIn: true });
+    await mockMyServices(page, [serviceToggle()]);
+    await mockProviderSettings(page);
+    await mockMyCalendar(page, {});
+
+    await page.goto("/");
+    await expect(page).toHaveURL(/\/cabinet\/$/);
+    await page.goto("/");
+    await expect(page.getByRole("link", { name: t.cabinetLink })).toBeVisible();
+    await expect(page).not.toHaveURL(/cabinet/);
+  });
+
+  test("without a saved login the client sees the home page", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("link", { name: t.cabinetLink })).toBeVisible();
+    await expect(page).not.toHaveURL(/cabinet/);
+  });
+
+  test("a rejected token is dropped and the login form shown", async ({ page }) => {
+    await withSavedToken(page, "expired-token");
+    await mockAuthMe(page, { loggedIn: false });
+
+    await page.goto("/");
+
+    await expect(page.getByRole("heading", { name: t.cabinetLoginTitle })).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem("zr_master_token"))).toBeNull();
+  });
+
+  test("/auth/me renews the saved token", async ({ page }) => {
+    await withSavedToken(page, "old-token");
+    await page.route("**/auth/me", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ master_user_id: "master-1", name: null, role: "owner", permissions: [], token: "fresh-token" }),
+      }),
+    );
+    await mockMyServices(page, [serviceToggle()]);
+    await mockProviderSettings(page);
+    await mockMyCalendar(page, {});
+
+    await page.goto("/cabinet/");
+
+    await expect.poll(() => page.evaluate(() => localStorage.getItem("zr_master_token"))).toBe("fresh-token");
+  });
+});

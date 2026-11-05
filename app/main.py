@@ -729,6 +729,10 @@ async def whoami(master_user_id: str = Depends(require_master_user_id), db: Asyn
         "name": user.name,
         "role": user.role,
         "permissions": effective_permissions(user.role, user.permissions),
+        # Свежий токен при каждой проверке: приложение зовёт /auth/me на
+        # каждом запуске, так что вход живёт до «Выход», а не 30 дней с
+        # момента ввода пароля (docs/app-auto-open-cabinet-task.md).
+        "token": make_token("master", master_user_id),
     }
 
 

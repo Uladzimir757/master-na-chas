@@ -48,3 +48,24 @@ async def test_non_ascii_admin_secret_is_403_not_500(client: AsyncClient):
     assert r.status_code == 403
     r = await client.post("/admin/login", json={"password": "пароль"})
     assert r.status_code == 401
+
+
+async def test_me_renews_master_token(client: AsyncClient, master_user: MasterUser, monkeypatch):
+    # /auth/me выдаёт свежий токен — приложение сохраняет его на каждом
+    # запуске, и вход не протухает через 30 дней после ввода пароля
+    from itsdangerous import TimestampSigner
+
+    day = 24 * 3600
+    now = [1_800_000_000]
+    monkeypatch.setattr(TimestampSigner, "get_timestamp", lambda self: now[0])
+
+    r = await client.post("/auth/login", json={"email": master_user.email, "password": MASTER_PASSWORD})
+    old = r.json()["token"]
+    client.cookies.clear()
+
+    now[0] += 20 * day
+    fresh = (await client.get("/auth/me", headers={"Authorization": f"Bearer {old}"})).json()["token"]
+
+    now[0] += 20 * day  # 40 дней после входа, 20 после последнего запуска
+    assert (await client.get("/auth/me", headers={"Authorization": f"Bearer {old}"})).status_code == 401
+    assert (await client.get("/auth/me", headers={"Authorization": f"Bearer {fresh}"})).status_code == 200
