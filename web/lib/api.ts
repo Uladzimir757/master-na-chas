@@ -275,6 +275,8 @@ export interface AdminMaster {
   telegram_linked: boolean;
   rating: number | null;
   rating_count: number;
+  // only the dispatcher gets it (docs/decisions.md «Диспетчер»)
+  phone: string | null;
 }
 
 export interface CreateMasterPayload {
@@ -282,6 +284,7 @@ export interface CreateMasterPayload {
   email: string;
   password: string;
   travel_buffer_minutes: number;
+  phone: string | null;
 }
 
 export interface TelegramLink {
@@ -786,6 +789,12 @@ export const api = {
     request<AdminMaster>(`/admin/masters/${masterUserId}`, {
       method: "PATCH",
       body: JSON.stringify({ rating, rating_count: ratingCount }),
+    }),
+  // Sends only the phone, so the rating stays as it is; null clears it.
+  updateMasterPhone: (masterUserId: string, phone: string | null) =>
+    request<AdminMaster>(`/admin/masters/${masterUserId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ phone }),
     }),
   // 409 when the master has bookings — see app/main.py::delete_master's
   // docstring for why that's checked instead of a raw cascade.

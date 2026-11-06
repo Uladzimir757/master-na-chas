@@ -211,6 +211,34 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     [],
   );
 
+  const handlePhoneBlur = useCallback(
+    async (master: AdminMaster, raw: string) => {
+      const nextPhone = raw.trim() || null;
+      if (nextPhone === master.phone) return;
+      setRatingError(null);
+      setSavingRatingFor(master.master_user_id);
+      try {
+        const updated = await api.updateMasterPhone(
+          master.master_user_id,
+          nextPhone,
+        );
+        setMasters(
+          (prev) =>
+            prev?.map((m) =>
+              m.master_user_id === updated.master_user_id ? updated : m,
+            ) ?? prev,
+        );
+      } catch {
+        setRatingError(
+          "Не удалось сохранить телефон — только цифры, +, пробелы и скобки",
+        );
+      } finally {
+        setSavingRatingFor(null);
+      }
+    },
+    [],
+  );
+
   const handleDeleteMaster = useCallback(async (master: AdminMaster) => {
     setDeleteError(null);
     setDeletingFor(master.master_user_id);
@@ -298,6 +326,23 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   <span className="text-ink-2">оценок</span>
                 </div>
 
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-ink-2">Телефон</span>
+                  <input
+                    key={`${m.master_user_id}-phone-${m.phone ?? "empty"}`}
+                    type="tel"
+                    inputMode="tel"
+                    maxLength={30}
+                    aria-label={`Телефон — ${m.name}`}
+                    defaultValue={m.phone ?? ""}
+                    placeholder="+48 …"
+                    disabled={savingRatingFor === m.master_user_id}
+                    onBlur={(e) => handlePhoneBlur(m, e.target.value)}
+                    className="w-44 rounded-md border border-line bg-surface px-2 py-1.5 text-ink"
+                  />
+                  <span className="text-ink-3">виден только в диспетчере</span>
+                </div>
+
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <span className="text-ink-2">Telegram: </span>
@@ -377,6 +422,7 @@ function CreateMasterForm({ onCreated }: { onCreated: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [travelBufferMinutes, setTravelBufferMinutes] = useState("30");
+  const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -393,18 +439,22 @@ function CreateMasterForm({ onCreated }: { onCreated: () => void }) {
           email,
           password,
           travel_buffer_minutes: Number(travelBufferMinutes) || 0,
+          phone: phone.trim() || null,
         });
         setName("");
         setEmail("");
         setPassword("");
         setTravelBufferMinutes("30");
+        setPhone("");
         setSuccess(true);
         onCreated();
       } catch (err) {
         if (err instanceof ApiError && err.status === 409) {
           setError("Мастер с таким email уже существует");
         } else if (err instanceof ApiError && err.status === 422) {
-          setError("Проверьте поля — пароль должен быть не короче 8 символов");
+          setError(
+            "Проверьте поля — пароль не короче 8 символов, в телефоне только цифры, +, пробелы и скобки",
+          );
         } else {
           setError("Не удалось создать мастера, попробуйте ещё раз");
         }
@@ -412,7 +462,7 @@ function CreateMasterForm({ onCreated }: { onCreated: () => void }) {
         setSubmitting(false);
       }
     },
-    [name, email, password, travelBufferMinutes, onCreated],
+    [name, email, password, travelBufferMinutes, phone, onCreated],
   );
 
   return (
@@ -446,6 +496,15 @@ function CreateMasterForm({ onCreated }: { onCreated: () => void }) {
           className={passwordClass}
           showLabel="Показать пароль"
           hideLabel="Скрыть пароль"
+        />
+        <input
+          type="tel"
+          inputMode="tel"
+          maxLength={30}
+          placeholder="Телефон (необязательно, виден только в диспетчере)"
+          className={inputClass}
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
         />
         <label className="flex items-center gap-2 text-sm text-ink-2">
           Буфер на дорогу между заказами (мин)

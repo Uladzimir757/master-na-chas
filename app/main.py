@@ -34,7 +34,7 @@ Routes:
   GET   /admin/me                             (ADMIN_SECRET header OR admin session required)
   GET   /admin/masters                        (ADMIN_SECRET header OR admin session required)
   POST  /admin/masters                       (ADMIN_SECRET header OR admin session required)
-  PATCH /admin/masters/{id}                  (ADMIN_SECRET header OR admin session required — rating/rating_count only)
+  PATCH /admin/masters/{id}                  (ADMIN_SECRET header OR admin session required — rating/rating_count, phone)
   DELETE /admin/masters/{id}                 (ADMIN_SECRET header OR admin session required — blocked if bookings exist)
   POST  /admin/masters/{id}/telegram-link     (ADMIN_SECRET header OR admin session required)
   GET   /admin/translations                  (ADMIN_SECRET header OR admin session required)
@@ -420,6 +420,7 @@ async def dispatcher_masters(
             DispatcherMasterOut(
                 id=p.id,
                 name=p.name,
+                phone=p.phone,
                 lat=location.lat if location else None,
                 lng=location.lng if location else None,
                 rating=p.rating,
@@ -2251,6 +2252,7 @@ async def list_masters(db: AsyncSession = Depends(get_db)) -> list[MasterOut]:
             telegram_linked=master_user.telegram_chat_id is not None,
             rating=provider.rating,
             rating_count=provider.rating_count,
+            phone=provider.phone,
         )
         for master_user, provider in rows
     ]
@@ -2263,9 +2265,10 @@ async def update_master_rating(
     db: AsyncSession = Depends(get_db),
 ) -> MasterOut:
     """Manual stand-in for the not-yet-built reviews system — see
-    Provider.rating's docstring in app/models.py. Only rating/rating_count
-    are editable here for now (not travel_buffer_minutes/is_active — those
-    stay a future extension of this same endpoint, not requested yet)."""
+    Provider.rating's docstring in app/models.py — plus the master's phone
+    (for the dispatcher). Only the parts sent change (AdminMasterUpdate).
+    Not travel_buffer_minutes/is_active — those stay a future extension of
+    this same endpoint, not requested yet."""
     master_user = await db.get(MasterUser, master_user_id)
     if master_user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Master not found")
@@ -2273,8 +2276,12 @@ async def update_master_rating(
     if provider is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Master not found")
 
-    provider.rating = payload.rating
-    provider.rating_count = payload.rating_count
+    sent = payload.model_fields_set
+    if sent & {"rating", "rating_count"}:
+        provider.rating = payload.rating
+        provider.rating_count = payload.rating_count
+    if "phone" in sent:
+        provider.phone = (payload.phone or "").strip() or None
     await db.commit()
 
     return MasterOut(
@@ -2287,6 +2294,7 @@ async def update_master_rating(
         telegram_linked=master_user.telegram_chat_id is not None,
         rating=provider.rating,
         rating_count=provider.rating_count,
+        phone=provider.phone,
     )
 
 
@@ -2341,6 +2349,7 @@ async def create_master(
         tenant_id=tenant_row.id,
         name=payload.name,
         travel_buffer_minutes=payload.travel_buffer_minutes,
+        phone=(payload.phone or "").strip() or None,
     )
     db.add(provider)
     await db.flush()

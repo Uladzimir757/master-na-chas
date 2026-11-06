@@ -215,6 +215,37 @@ async def test_admin_can_clear_master_rating_back_to_null(client: AsyncClient, m
     assert resp.json()["rating"] is None
 
 
+async def test_admin_sets_phone_without_touching_rating(client: AsyncClient, master_user: MasterUser):
+    headers = {"x-admin-secret": TEST_SECRET}
+    await client.patch(f"/admin/masters/{master_user.id}", json={"rating": 4.5, "rating_count": 3}, headers=headers)
+
+    resp = await client.patch(f"/admin/masters/{master_user.id}", json={"phone": " +48 600 100 200 "}, headers=headers)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["phone"] == "+48 600 100 200"
+    assert resp.json()["rating"] == 4.5 and resp.json()["rating_count"] == 3
+
+    # the rating pair alone leaves the phone as it is; "" clears it
+    resp = await client.patch(f"/admin/masters/{master_user.id}", json={"rating": 5, "rating_count": 4}, headers=headers)
+    assert resp.json()["phone"] == "+48 600 100 200"
+    resp = await client.patch(f"/admin/masters/{master_user.id}", json={"phone": ""}, headers=headers)
+    assert resp.json()["phone"] is None
+
+
+async def test_admin_phone_rejects_letters(client: AsyncClient, master_user: MasterUser):
+    resp = await client.patch(
+        f"/admin/masters/{master_user.id}", json={"phone": "call me"}, headers={"x-admin-secret": TEST_SECRET}
+    )
+    assert resp.status_code == 422
+
+
+async def test_create_master_with_phone(client: AsyncClient, tenant: Tenant):
+    headers = {"x-admin-secret": TEST_SECRET}
+    payload = {"name": "Z telefonem", "email": "tel@example.com", "password": "long-enough-1", "phone": "+48 500 000 000"}
+    assert (await client.post("/admin/masters", json=payload, headers=headers)).status_code == 200
+    listing = await client.get("/admin/masters", headers=headers)
+    assert next(r for r in listing.json() if r["email"] == "tel@example.com")["phone"] == "+48 500 000 000"
+
+
 async def test_admin_set_master_rating_requires_admin(client: AsyncClient, master_user: MasterUser):
     resp = await client.patch(f"/admin/masters/{master_user.id}", json={"rating": 4.0, "rating_count": 1})
     assert resp.status_code == 403

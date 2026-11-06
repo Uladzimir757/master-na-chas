@@ -170,6 +170,7 @@ class CreateMasterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)
     travel_buffer_minutes: int = 30
+    phone: str | None = Field(default=None, max_length=30, pattern=r"^[0-9+()\- ]*$")
 
 
 class MasterOut(BaseModel):
@@ -186,17 +187,21 @@ class MasterOut(BaseModel):
     telegram_linked: bool
     rating: float | None = None
     rating_count: int = 0
+    phone: str | None = None
 
 
 class AdminMasterUpdate(BaseModel):
-    """PATCH /admin/masters/{master_user_id} body — currently just the
-    manual rating stand-in (see Provider.rating's docstring in
-    app/models.py). Always-send-the-full-value shape: null explicitly clears
-    a previously-set rating back to "no rating", same convention as
-    ProviderSettingsUpdate.call_out_fee."""
+    """PATCH /admin/masters/{master_user_id} body — the manual rating
+    stand-in (see Provider.rating's docstring in app/models.py) and/or the
+    master's phone. Each part changes only when sent: the panel saves the
+    rating pair and the phone separately. Within a part, the always-send-
+    the-full-value shape: null explicitly clears a rating back to "no
+    rating" (same convention as ProviderSettingsUpdate.call_out_fee), and
+    null or "" clears the phone."""
 
     rating: float | None = Field(default=None, ge=0, le=5)
     rating_count: int = Field(default=0, ge=0)
+    phone: str | None = Field(default=None, max_length=30, pattern=r"^[0-9+()\- ]*$")
 
 
 class TelegramLinkOut(BaseModel):
@@ -252,9 +257,9 @@ class ProviderLocationOut(BaseModel):
 
 class DispatcherMasterOut(BaseModel):
     """For the dispatcher (a separate project, GET /api/dispatcher/masters):
-    one master as its results card. Unlike ProviderOut the phone may be given
-    out here (docs/decisions.md, «Диспетчер») — there is no phone field on a
-    master yet, so it is null for now. lat/lng only while the master shares
+    one master as its results card. Unlike ProviderOut the phone is given
+    out here (docs/decisions.md, «Диспетчер»), null until the admin panel
+    sets one. lat/lng only while the master shares
     his live location (same rule as ProviderOut.location); url is where the
     client books him."""
 

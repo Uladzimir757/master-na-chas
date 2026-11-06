@@ -122,6 +122,10 @@ class Provider(Base):
     # would misleadingly outrank "no rating" below it).
     rating: Mapped[Decimal | None] = mapped_column(Numeric(2, 1))
     rating_count: Mapped[int] = mapped_column(Integer, default=0)
+    # Set from the admin panel. Only the dispatcher gets it (GET
+    # /api/dispatcher/masters, docs/decisions.md «Диспетчер») — the public
+    # pages still show no phone.
+    phone: Mapped[str | None] = mapped_column(String)
 
     working_hours: Mapped[list["WorkingHours"]] = relationship(back_populates="provider")
     master_users: Mapped[list["MasterUser"]] = relationship(back_populates="provider")

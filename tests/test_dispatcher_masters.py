@@ -78,3 +78,13 @@ async def test_inactive_master_or_offer_is_left_out(client: AsyncClient, db_sess
     await db_session.commit()
     r = await client.get("/api/dispatcher/masters", params={"category": "handyman", **GDYNIA})
     assert [m["name"] for m in r.json()] == ["Elektryk"]
+
+
+async def test_phone_set_in_admin_reaches_the_dispatcher(client: AsyncClient, db_session: AsyncSession, masters):
+    masters["electrician"].phone = "+48 600 100 200"
+    await db_session.commit()
+    r = await client.get("/api/dispatcher/masters", params={"category": "handyman", **GDYNIA})
+    assert r.json()[0]["phone"] == "+48 600 100 200"
+    # the public master list still has no phone
+    public = await client.get("/api/providers")
+    assert all("phone" not in p for p in public.json())
