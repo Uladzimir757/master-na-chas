@@ -25,6 +25,7 @@ Routes:
   PATCH /api/providers/me/busy                (logged-in master only — set/clear estimate)
   POST  /api/providers/me/busy/finish         (logged-in master only — "занят сейчас" off)
   GET   /api/translations                     (public — approved UI strings for a lang)
+  GET   /api/dispatcher/masters               (public — masters for the dispatcher project's results)
   POST  /auth/login
   POST  /auth/logout
   GET   /auth/me
@@ -52,6 +53,7 @@ Routes:
 from __future__ import annotations
 
 import logging
+import math
 import secrets
 import uuid
 from contextlib import asynccontextmanager
@@ -121,6 +123,7 @@ from app.schemas import (
     ProviderLocationOut,
     ProviderLocationUpdate,
     ProviderOut,
+    DispatcherMasterOut,
     ProviderServiceOut,
     ProviderServicesUpdate,
     ProviderSettingsOut,
@@ -352,6 +355,79 @@ async def list_providers(db: AsyncSession = Depends(get_db)) -> list[ProviderOut
         )
         for p in providers
     ]
+
+
+# The dispatcher's (separate project) categories this tenant's masters cover,
+# and its handyman subcategories -> our Service.category values.
+DISPATCHER_CATEGORIES = {"handyman"}
+DISPATCHER_SUBCATEGORIES = {
+    "plumbing": "plumbing",
+    "electrical": "electric",
+    "furniture_assembly": "assembly",
+    "general_repair": "repair",
+}
+
+
+def _in_service_area(lat: float | None, lng: float | None, city: str | None) -> bool:
+    if lat is not None and lng is not None:
+        return _distance_km(lat, lng, settings.SERVICE_AREA_LAT, settings.SERVICE_AREA_LNG) <= settings.SERVICE_AREA_RADIUS_KM
+    cities = {c.strip() for c in settings.SERVICE_AREA_CITIES.split(",")}
+    return bool(city) and city.strip().lower() in cities
+
+
+def _distance_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp, dl = p2 - p1, math.radians(lng2 - lng1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 6371.0 * 2 * math.asin(math.sqrt(a))
+
+
+@app.get("/api/dispatcher/masters", response_model=list[DispatcherMasterOut])
+async def dispatcher_masters(
+    category: str,
+    subcategory: str | None = None,
+    city: str | None = None,
+    lat: float | None = Query(default=None, ge=-90, le=90),
+    lng: float | None = Query(default=None, ge=-180, le=180),
+    lang: str = Query(default=DEFAULT_LANG),
+    db: AsyncSession = Depends(get_db),
+) -> list[DispatcherMasterOut]:
+    """Our masters for one request of the dispatcher (a separate project that
+    only knows this URL): active masters with an active service of the
+    request's category, best rated first. Empty for another category or a
+    place outside SERVICE_AREA_* — the dispatcher then shows Google Places
+    only. A subcategory we don't have (e.g. painting) doesn't narrow the list:
+    any handyman can be asked. `lang` is accepted for the dispatcher's sake;
+    the booking page picks its own language."""
+    if category not in DISPATCHER_CATEGORIES or not _in_service_area(lat, lng, city):
+        return []
+    stmt = (
+        select(Provider)
+        .join(ProviderService, ProviderService.provider_id == Provider.id)
+        .join(Service, Service.id == ProviderService.service_id)
+        .where(Provider.is_active.is_(True), ProviderService.is_active.is_(True), Service.is_active.is_(True))
+        .distinct()
+    )
+    if subcategory in DISPATCHER_SUBCATEGORIES:
+        stmt = stmt.where(Service.category == DISPATCHER_SUBCATEGORIES[subcategory])
+    providers = (await db.execute(stmt)).scalars().all()
+    providers = sorted(providers, key=lambda p: (p.rating is None, -(p.rating or 0), p.name))
+    now = datetime.now(timezone.utc)
+    out = []
+    for p in providers:
+        location = await _resolve_provider_location(db, p, now)
+        out.append(
+            DispatcherMasterOut(
+                id=p.id,
+                name=p.name,
+                lat=location.lat if location else None,
+                lng=location.lng if location else None,
+                rating=p.rating,
+                reviews=p.rating_count,
+                url=f"{settings.WEB_PUBLIC_URL}/",
+            )
+        )
+    return out
 
 
 @app.get("/api/translations")
