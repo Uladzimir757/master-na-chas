@@ -250,6 +250,25 @@ class ProviderLocationOut(BaseModel):
     updated_at: datetime
 
 
+class DispatcherMasterOut(BaseModel):
+    """For the dispatcher (a separate project, GET /api/dispatcher/masters):
+    one master as its results card. Unlike ProviderOut the phone may be given
+    out here (docs/decisions.md, «Диспетчер») — there is no phone field on a
+    master yet, so it is null for now. lat/lng only while the master shares
+    his live location (same rule as ProviderOut.location); url is where the
+    client books him."""
+
+    id: uuid.UUID
+    name: str
+    phone: str | None = None
+    address: str | None = None
+    lat: float | None = None
+    lng: float | None = None
+    rating: float | None = None
+    reviews: int = 0
+    url: str
+
+
 class ProviderOut(BaseModel):
     """Public — just enough for the master-picker screen and booking page:
     which master a slot belongs to, his rating (if any — see Provider.rating

@@ -107,6 +107,14 @@ class Settings(BaseSettings):
     # app/main.py:update_booking_status). Без схемы/слеша на конце.
     WEB_PUBLIC_URL: str = "http://localhost:3000"
 
+    # Где работают мастера — для GET /api/dispatcher/masters: диспетчеру
+    # (отдельный проект) мастера отдаются, только если запрос внутри этого
+    # круга (или, без координат, назван один из SERVICE_AREA_CITIES).
+    SERVICE_AREA_LAT: float = 54.45
+    SERVICE_AREA_LNG: float = 18.56
+    SERVICE_AREA_RADIUS_KM: float = 35.0
+    SERVICE_AREA_CITIES: str = "gdynia,gdansk,gdańsk,sopot,rumia,reda,trojmiasto,trójmiasto,tricity"
+
     # Клиент может сам отменить/перенести запись не позже чем за N часов до начала.
     CLIENT_CHANGE_MIN_HOURS: int = 4
     # Живая точка мастера на странице записи показывается за N часов до начала.
