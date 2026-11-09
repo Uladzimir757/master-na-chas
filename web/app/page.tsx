@@ -46,11 +46,14 @@ export default function Home() {
       <TrustBar />
 
       <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center gap-14 px-1 pt-4 pb-14 sm:px-0 sm:pb-20">
-        <div id={BOOKING_ID} className="w-full scroll-mt-4">
-          <BookingFlow />
-        </div>
+        {/* Above the booking flow, not below it: that flow's master/service
+            lists grow with the catalog (already 25+ services, more masters
+            to come) and used to push this block an unreachable scroll away. */}
         <div className="w-full px-3 sm:px-6">
           <HowItWorks />
+        </div>
+        <div id={BOOKING_ID} className="w-full scroll-mt-4">
+          <BookingFlow />
         </div>
         {ready && (
           <Link
