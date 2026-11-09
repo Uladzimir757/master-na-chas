@@ -2096,11 +2096,16 @@ async def delete_staff(
 
 
 async def _collect_analytics(
-    db: AsyncSession, date_from: date, date_to: date, provider_id: uuid.UUID | None
+    db: AsyncSession, date_from: date, date_to: date, provider_id: uuid.UUID | None, lang: str = DEFAULT_LANG
 ) -> tuple[list[ServiceStatOut], list[MasterStatOut]]:
     """Общий подсчёт для кабинета мастера (provider_id задан) и суперадминки
     (provider_id=None — по всем мастерам или по одному). Возвращает статистику
-    по работам и по мастерам за период."""
+    по работам и по мастерам за период.
+
+    `lang` picks the service name the same way the public catalog does
+    (_resolve_service_name) — Service.name on its own is the internal/
+    canonical field (Russian historically, see Service.name/app/models.py's
+    docstring), which used to leak into this otherwise-localized screen."""
     range_start = datetime.combine(date_from, time.min, tzinfo=BUSINESS_TZ)
     range_end = datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=BUSINESS_TZ)
     conds = [
@@ -2112,7 +2117,7 @@ async def _collect_analytics(
         conds.append(Booking.provider_id == provider_id)
     rows = (
         await db.execute(
-            select(Booking, Service.name, Provider.name)
+            select(Booking, Service, Provider.name)
             .join(Service, Service.id == Booking.service_id)
             .join(Provider, Provider.id == Booking.provider_id)
             .where(*conds)
@@ -2124,9 +2129,9 @@ async def _collect_analytics(
 
     by_service: dict[uuid.UUID, dict] = {}
     by_master: dict[uuid.UUID, dict] = {}
-    for b, service_name, provider_name in rows:
+    for b, service, provider_name in rows:
         for acc, key, name in (
-            (by_service, b.service_id, service_name),
+            (by_service, b.service_id, _resolve_service_name(service, lang)),
             (by_master, b.provider_id, provider_name),
         ):
             a = acc.setdefault(key, blank(name))
@@ -2171,6 +2176,7 @@ async def _collect_analytics(
 async def get_my_analytics(
     date_from: date,
     date_to: date,
+    lang: str = Query(default=DEFAULT_LANG),
     master_user_id: str = Depends(require_master_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> AnalyticsOut:
@@ -2182,7 +2188,7 @@ async def get_my_analytics(
     if (date_to - date_from).days > 366:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "range too large, max 366 days")
     provider = await _get_own_provider(master_user_id, db, "analytics_view")
-    services, _ = await _collect_analytics(db, date_from, date_to, provider.id)
+    services, _ = await _collect_analytics(db, date_from, date_to, provider.id, _resolve_lang(lang))
     return AnalyticsOut(date_from=date_from, date_to=date_to, services=services)
 
 
@@ -2227,7 +2233,11 @@ async def admin_analytics(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "date_to must be >= date_from")
     if (date_to - date_from).days > 366:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "range too large, max 366 days")
-    services, masters = await _collect_analytics(db, date_from, date_to, provider_id)
+    # Superadmin screen is hardcoded Russian, but catalog names themselves
+    # are maintained in Polish (SUPPORTED_LANGS) — showing the internal
+    # Service.name here was the same leak as the master cabinet's, just
+    # less visible since it happened to match for Russian-era rows.
+    services, masters = await _collect_analytics(db, date_from, date_to, provider_id, DEFAULT_LANG)
     return AdminAnalyticsOut(date_from=date_from, date_to=date_to, services=services, masters=masters)
 
 

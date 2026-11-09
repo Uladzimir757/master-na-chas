@@ -11,7 +11,7 @@ import { CompactButton, inputClass } from "@/components/ui";
 const hours = (min: number) => (min / 60).toFixed(1);
 
 export default function AnalyticsPanel() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const [from, setFrom] = useState(() => toDateParam(addDays(new Date(), -29)));
   const [to, setTo] = useState(() => toDateParam(new Date()));
   // The period actually loaded: changes only on mount (default last 30
@@ -26,7 +26,7 @@ export default function AnalyticsPanel() {
   useEffect(() => {
     let alive = true;
     api
-      .getAnalytics(applied.from, applied.to)
+      .getAnalytics(applied.from, applied.to, locale)
       .then((d) => {
         if (alive) {
           setData(d);
@@ -37,7 +37,7 @@ export default function AnalyticsPanel() {
     return () => {
       alive = false;
     };
-  }, [applied]);
+  }, [applied, locale]);
 
   return (
     <section>

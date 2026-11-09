@@ -549,9 +549,9 @@ export const api = {
     request<{ ok: true }>(`/api/providers/me/staff/${id}`, {
       method: "DELETE",
     }),
-  getAnalytics: (from: string, to: string) =>
+  getAnalytics: (from: string, to: string, lang: string) =>
     request<Analytics>(
-      `/api/providers/me/analytics?date_from=${from}&date_to=${to}`,
+      `/api/providers/me/analytics?date_from=${from}&date_to=${to}&lang=${lang}`,
     ),
   // A logged-in master changing their own password — previously only the
   // superadmin could ever set one, at creation time (see AdminMaster's
