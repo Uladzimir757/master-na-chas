@@ -27,22 +27,37 @@ interface LocaleContextValue {
 
 const LocaleContext = createContext<LocaleContextValue | null>(null);
 
+// Render's free tier spins the API down after idle and takes 30-50s to wake
+// on a cold request — long enough that a single failed fetch (timeout or a
+// 502 while it's waking) used to flip `ready` true with an empty map, which
+// makes lib/i18n.ts's per-key fallback show as RAW KEY NAMES (heroTitle,
+// catElectric, ...) across the whole app rather than the one genuinely-
+// missing string it's meant for. Retrying with backoff keeps `ready` false —
+// so components keep rendering their static homeCopy fallback — until the
+// API is actually reachable or we've given it a fair chance to wake up.
+const RETRY_DELAYS_MS = [1000, 2000, 4000, 8000, 15000, 15000];
+
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<LocaleCode>(DEFAULT_LOCALE);
   const [ready, setReady] = useState(false);
   const [map, setMap] = useState<Record<string, string>>({});
 
   const loadTranslations = useCallback(async (lang: LocaleCode) => {
-    try {
-      const fetched = await api.getTranslations(lang);
-      setMap(fetched);
-    } catch {
-      // Best-effort: falls back to key-name text (see lib/i18n.ts's `pick`)
-      // rather than blocking the whole app on a translations-fetch failure.
-      setMap({});
-    } finally {
-      setReady(true);
+    for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+      try {
+        const fetched = await api.getTranslations(lang);
+        setMap(fetched);
+        setReady(true);
+        return;
+      } catch {
+        if (attempt === RETRY_DELAYS_MS.length) break;
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[attempt]));
+      }
     }
+    // Retries exhausted: fall back to key-name text (see lib/i18n.ts's
+    // `pick`) rather than blocking the whole app forever.
+    setMap({});
+    setReady(true);
   }, []);
 
   // Resolve once on mount — see the module docstring for why this can't run

@@ -7,7 +7,7 @@ import type { LocaleCode } from "@/lib/locale";
 // until the real translations load.
 const COPY = {
   pl: {
-    kicker: "Gdynia · Trójmiasto",
+    kicker: "Fachowcy w całej Polsce",
     heroTitle: "Fachowiec pod ręką, kiedy potrzebujesz",
     heroSubtitle:
       "Montaż mebli, drobne naprawy i instalacje — rezerwacja wolnego terminu w kilka minut",
@@ -21,7 +21,7 @@ const COPY = {
     ],
   },
   en: {
-    kicker: "Gdynia · Tricity",
+    kicker: "Handymen across Poland",
     heroTitle: "A handyman on call, whenever you need one",
     heroSubtitle:
       "Furniture assembly, small repairs and installations — book a free slot in a couple of minutes",
