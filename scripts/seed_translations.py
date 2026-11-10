@@ -236,6 +236,7 @@ ENTRIES: list[tuple[str, str, str]] = [
         "Set it, and hours reopen for booking after that time plus 30 minutes.",
     ),
     ("busyEstimatePlaceholder", "np. 60", "e.g. 60"),
+    ("busySaveEstimateButton", "Zapisz", "Save"),
     ("busyActionError", "Nie udało się zaktualizować statusu. Spróbuj ponownie.", "Couldn't update the status. Please try again."),
     # Master changing their own password — components/CabinetDashboard.tsx.
     ("changePasswordTitle", "Zmień hasło", "Change password"),

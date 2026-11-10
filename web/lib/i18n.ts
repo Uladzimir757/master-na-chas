@@ -141,6 +141,7 @@ export interface Translations {
   busyEstimateLabel: string;
   busyEstimateHint: string;
   busyEstimatePlaceholder: string;
+  busySaveEstimateButton: string;
   busyActionError: string;
 
   // Master changing their own password — components/CabinetDashboard.tsx.
@@ -492,6 +493,7 @@ export function buildTranslations(map: TranslationMap): Translations {
     busyEstimateLabel: pick(map, "busyEstimateLabel"),
     busyEstimateHint: pick(map, "busyEstimateHint"),
     busyEstimatePlaceholder: pick(map, "busyEstimatePlaceholder"),
+    busySaveEstimateButton: pick(map, "busySaveEstimateButton"),
     busyActionError: pick(map, "busyActionError"),
 
     changePasswordTitle: pick(map, "changePasswordTitle"),

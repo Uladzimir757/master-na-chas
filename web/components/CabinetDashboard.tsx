@@ -724,19 +724,35 @@ export default function CabinetDashboard({
                     <span className="mt-1 block text-sm text-ink-2">
                       {t.busyEstimateHint}
                     </span>
-                    <input
-                      key={settings.busy_estimated_minutes ?? "empty"}
-                      ref={busyEstimateInputRef}
-                      type="number"
-                      min={1}
-                      step="1"
-                      inputMode="numeric"
-                      defaultValue={settings.busy_estimated_minutes ?? ""}
-                      placeholder={t.busyEstimatePlaceholder}
-                      disabled={savingBusy}
-                      onBlur={handleBusyEstimateBlur}
-                      className={`mt-2 w-32 ${inputClass}`}
-                    />
+                    {/* Explicit "Zapisz", not save-on-blur: the value did
+                        save silently when you tabbed away, but nothing on
+                        screen showed that without it being explained —
+                        same complaint as AnalyticsPanel's old auto-fetch,
+                        same fix (see analytics-apply-button-task.md). */}
+                    <div className="mt-2 flex items-end gap-2">
+                      <input
+                        key={settings.busy_estimated_minutes ?? "empty"}
+                        ref={busyEstimateInputRef}
+                        type="number"
+                        min={1}
+                        step="1"
+                        inputMode="numeric"
+                        defaultValue={settings.busy_estimated_minutes ?? ""}
+                        placeholder={t.busyEstimatePlaceholder}
+                        disabled={savingBusy}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleBusyEstimateBlur();
+                        }}
+                        className={`w-32 ${inputClass}`}
+                      />
+                      <CompactButton
+                        type="button"
+                        disabled={savingBusy}
+                        onClick={handleBusyEstimateBlur}
+                      >
+                        {t.busySaveEstimateButton}
+                      </CompactButton>
+                    </div>
                   </label>
                 </div>
 
