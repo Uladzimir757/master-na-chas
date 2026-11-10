@@ -50,11 +50,15 @@ export default function Hero({ targetId }: Props) {
           </a>
         </div>
 
-        <ul className="grid grid-cols-4 gap-2 md:grid-cols-2 md:gap-3">
+        {/* One bordered card for the whole group, hairline dividers between
+            cells (gap-px + bg-line-soft shows through as 1px lines) — was
+            four separately-bordered/shadowed boxes, which read as four
+            unrelated buttons rather than one category picker. */}
+        <ul className="grid grid-cols-4 gap-px overflow-hidden rounded-2xl border border-line-soft bg-line-soft shadow-card md:grid-cols-2">
           {categories.map((c) => (
             <li
               key={c.id}
-              className="flex flex-col items-center gap-2 rounded-2xl border border-line-soft bg-surface p-2 py-3 text-center shadow-card md:p-5"
+              className="flex flex-col items-center gap-2 bg-surface p-2 py-3 text-center md:p-5"
             >
               <IconBadge>
                 <CategoryIcon category={c.id} />
