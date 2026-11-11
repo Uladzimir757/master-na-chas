@@ -1,4 +1,4 @@
-# Создаёт ключ загрузки (upload key) для Google Play и keystore.properties,
+﻿# Создаёт ключ загрузки (upload key) для Google Play и keystore.properties,
 # который читает app/build.gradle. Запускать ОДИН раз, вручную:
 #   powershell -ExecutionPolicy Bypass -File web\android\create-upload-key.ps1
 #
