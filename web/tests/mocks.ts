@@ -128,6 +128,7 @@ export const TRANSLATIONS_FIXTURE: Record<string, string> = {
   reviewsCountFew: "{n} отзыва",
   reviewsCountMany: "{n} отзывов",
   newMaster: "Новый мастер",
+  travelBack: "Назад",
   travelLateWarning: "Предыдущая работа заканчивается в {prev} — с дорогой будете у клиента в {arrive}, на {late} мин позже. Клиент увидит это время.",
   travelConfirmAnyway: "Всё равно подтвердить",
   myBookingLate: "Это примерно на {n} мин позже назначенного времени.",

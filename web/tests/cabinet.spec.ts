@@ -498,6 +498,24 @@ test.describe("auto-open cabinet on launch", () => {
     await expect(page).not.toHaveURL(/cabinet/);
   });
 
+  // Приложение открылось прямо в кабинете (deep link из пуша, ?tab=settings) —
+  // первый же переход на главную по ссылке не должен бросать обратно.
+  test("opening the cabinet directly, then its home link, stays on the home page", async ({ page }) => {
+    await withSavedToken(page, "saved-token");
+    await mockAuthMe(page, { loggedIn: true });
+    await mockMyServices(page, [serviceToggle()]);
+    await mockProviderSettings(page);
+    await mockMyCalendar(page, {});
+    await mockCatalog(page);
+
+    await page.goto("/cabinet/");
+    await expect(page.getByRole("heading", { name: t.cabinetTitle(PROVIDER.name) })).toBeVisible();
+    // календарь над ссылкой ещё перестраивается — «stable» не дождаться
+    await page.getByRole("link", { name: t.backToBooking }).dispatchEvent("click");
+    await expect(page.getByRole("link", { name: t.cabinetLink })).toBeVisible();
+    await expect(page).not.toHaveURL(/cabinet/);
+  });
+
   // Тап по уведомлению геолокации заново открывает окно приложения с главной,
   // пока процесс жив (sessionStorage при этом сохранялся) — каждая свежая
   // загрузка должна вести мастера в кабинет.

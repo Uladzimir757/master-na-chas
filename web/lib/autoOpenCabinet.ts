@@ -4,20 +4,31 @@
  * (docs/app-auto-open-cabinet-task.md). Токен проверяет уже сам кабинет:
  * недействительный он сбрасывает (api.me) и показывает форму входа.
  *
- * Только на свежей загрузке документа: флаг живёт в памяти модуля, а не в
- * sessionStorage. Фоновая геолокация держит процесс приложения живым, и
- * sessionStorage переживал перезапуск окна (тап по уведомлению «клиент видит
- * ваше местоположение») — мастер попадал на главную. Переход на главную по
- * ссылке внутри сайта — клиентская навигация, модуль не перезагружается,
- * поэтому обратно в кабинет не бросает.
+ * Только когда сам документ загрузился на главной (свежий запуск, тап по
+ * уведомлению, обновление страницы) — и только один раз за загрузку.
+ * Флаг в памяти модуля, а не в sessionStorage: фоновая геолокация держит
+ * процесс приложения живым, и sessionStorage переживал перезапуск окна.
+ * Переход на главную по ссылке изнутри сайта — клиентская навигация: если
+ * документ грузился не на главной (например, приложение открылось прямо в
+ * кабинете), обратно в кабинет не бросаем.
  */
 
 import { getToken } from "@/lib/authToken";
 
 let decided = false;
 
+function documentLoadedAtHome(): boolean {
+  try {
+    const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    const url = new URL(nav?.name ?? window.location.href);
+    return url.pathname === "/" || url.pathname === "";
+  } catch {
+    return true;
+  }
+}
+
 export function shouldAutoOpenCabinet(): boolean {
   if (decided) return false;
   decided = true;
-  return getToken("master") !== null;
+  return documentLoadedAtHome() && getToken("master") !== null;
 }
