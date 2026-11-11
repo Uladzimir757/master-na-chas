@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     # минуту дёргает внешний пингер с заголовком X-Tick-Secret. Пусто = тик
     # выключен (403).
     TICK_SECRET: str = ""
+    # Без тика таймер подтверждения прогоняется попутно после обычных
+    # запросов, не чаще раза в столько секунд (app/main.py
+    # _maybe_sweep_confirm_timer). 0 = выключено.
+    CONFIRM_SWEEP_SECONDS: int = 30
 
     # The master's login cookie (app/main.py's SessionMiddleware). Local dev
     # keeps the browser default (Lax, not Secure) because `npm run dev`'s

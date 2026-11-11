@@ -3,6 +3,7 @@ import { Work_Sans } from "next/font/google";
 import "./globals.css";
 import { LocaleProvider } from "@/lib/LocaleContext";
 import { RegisterServiceWorker } from "@/components/RegisterServiceWorker";
+import { PushBanner } from "@/components/PushBanner";
 import { InstallPrompt } from "@/components/InstallPrompt";
 
 // Work Sans: all UI text and headings, same body font as the zlecai
@@ -76,6 +77,7 @@ export default function RootLayout({
           <InstallPrompt />
         </LocaleProvider>
         <RegisterServiceWorker />
+        <PushBanner />
       </body>
     </html>
   );

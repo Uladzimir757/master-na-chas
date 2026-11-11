@@ -278,6 +278,7 @@ async def _timing_and_cache(request: Request, call_next):
         )
     if response.status_code < 400 and write_invalidates(request.method, request.url.path):
         public_cache.clear()
+    _maybe_sweep_confirm_timer()
     return response
 
 
@@ -829,6 +830,14 @@ async def tick(x_tick_secret: str = Header(default=""), db: AsyncSession = Depen
         x_tick_secret.encode("utf-8"), settings.TICK_SECRET.encode("utf-8")
     ):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Forbidden")
+    return {"ok": True, "notices": await _run_confirm_timer(db)}
+
+
+async def _run_confirm_timer(db: AsyncSession) -> int:
+    """Автоотмена + уведомления мастеру, которым пришло время (заказ дождался
+    рабочих часов, напоминания). Общая для тика и для «попутного» прогона
+    после обычных запросов (_confirm_timer_sweep). Возвращает число
+    отправленных уведомлений."""
     await _expire_overdue(db)
     now = datetime.now(timezone.utc)
     claimed = await claim_due_notices(db, now)
@@ -846,7 +855,35 @@ async def tick(x_tick_secret: str = Header(default=""), db: AsyncSession = Depen
             {"service": service_name, **_when_facts(booking.start_at), "minutes_left": _minutes_left(booking, now)},
             url=_cabinet_booking_url(booking.id),
         )
-    return {"ok": True, "notices": len(claimed)}
+    return len(claimed)
+
+
+_last_sweep = 0.0
+
+
+async def _confirm_timer_sweep() -> None:
+    async with async_session_factory() as session:
+        try:
+            await _run_confirm_timer(session)
+        except Exception:  # best-effort: следующий запрос попробует снова
+            logger.exception("confirm_timer_sweep failed")
+
+
+def _maybe_sweep_confirm_timer() -> None:
+    """Без тика (Render free, TICK_SECRET пуст) таймер подтверждения
+    прогоняется попутно — в фоне после обычного запроса, не чаще раза в
+    CONFIRM_SWEEP_SECONDS. Запросы идут постоянно, пока у мастера включён
+    показ местоположения (телефон шлёт точку ~раз в 30 с), так что заказ,
+    пришедший ночью, доходит до мастера около начала его рабочего дня, а не
+    никогда (решение пользователя 11.11.2026: ночью не будить)."""
+    global _last_sweep
+    if settings.TICK_SECRET or settings.CONFIRM_SWEEP_SECONDS <= 0:
+        return
+    now = _time.monotonic()
+    if now - _last_sweep < settings.CONFIRM_SWEEP_SECONDS:
+        return
+    _last_sweep = now
+    run_in_background(_confirm_timer_sweep())
 
 
 @app.get("/api/bookings", response_model=list[BookingOut])

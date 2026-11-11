@@ -88,10 +88,22 @@ export async function unregisterNativePush(): Promise<void> {
 
 let tapHandlerInstalled = false;
 
+/** Ссылка из data.url пуша — только свой сайт, внешние адреса игнорируются. */
+export function openPushUrl(url: unknown): void {
+  if (typeof url !== "string") return;
+  try {
+    const target = new URL(url, window.location.origin);
+    if (target.origin === window.location.origin) {
+      window.location.href = target.pathname + target.search + target.hash;
+    }
+  } catch {
+    /* битый url — остаёмся где были */
+  }
+}
+
 /**
  * Тап по уведомлению открывает его data.url (сервер кладёт туда ссылку
- * «моя запись» клиенту и /cabinet/ мастеру). Только свой сайт — внешние
- * адреса игнорируются.
+ * «моя запись» клиенту и /cabinet/?booking=<id> мастеру).
  */
 export async function installPushTapHandler(): Promise<void> {
   if (!isNativeApp() || tapHandlerInstalled) return;
@@ -100,17 +112,39 @@ export async function installPushTapHandler(): Promise<void> {
     const { FirebaseMessaging } = await import("@capacitor-firebase/messaging");
     await FirebaseMessaging.addListener("notificationActionPerformed", (event) => {
       const data = event.notification.data as { url?: unknown } | undefined;
-      if (typeof data?.url !== "string") return;
-      try {
-        const target = new URL(data.url, window.location.origin);
-        if (target.origin === window.location.origin) {
-          window.location.href = target.pathname + target.search + target.hash;
-        }
-      } catch {
-        /* битый url — просто открыть приложение */
-      }
+      openPushUrl(data?.url);
     });
   } catch {
     tapHandlerInstalled = false;
+  }
+}
+
+export interface ForegroundPush {
+  title: string;
+  body: string;
+  url: string | null;
+}
+
+/**
+ * Пуш, пришедший при открытом приложении: Android его не показывает, он
+ * приходит только сюда — components/PushBanner.tsx рисует баннер. Возвращает
+ * функцию отписки.
+ */
+export async function onForegroundPush(cb: (push: ForegroundPush) => void): Promise<() => void> {
+  if (!isNativeApp()) return () => {};
+  try {
+    const { FirebaseMessaging } = await import("@capacitor-firebase/messaging");
+    const handle = await FirebaseMessaging.addListener("notificationReceived", (event) => {
+      const n = event.notification;
+      const data = n.data as { url?: unknown } | undefined;
+      cb({
+        title: n.title ?? "",
+        body: n.body ?? "",
+        url: typeof data?.url === "string" ? data.url : null,
+      });
+    });
+    return () => void handle.remove();
+  } catch {
+    return () => {};
   }
 }

@@ -263,3 +263,40 @@ async def test_analytics_counts_timeouts_apart_from_cancellations(
     assert row["timed_out"] == 1 and row["cancelled"] == 1
     await db_session.refresh(timed_out)
     assert timed_out.cancel_reason == PROVIDER_TIMEOUT
+
+
+# ----------------------------------------------------------------------------
+# попутный прогон без тика (Render free)
+# ----------------------------------------------------------------------------
+
+
+def test_sweep_runs_on_requests_when_there_is_no_tick(monkeypatch: pytest.MonkeyPatch):
+    started: list = []
+    monkeypatch.setattr(main_module, "run_in_background", lambda coro: (started.append(coro), coro.close()))
+    monkeypatch.setattr(main_module, "_last_sweep", 0.0)
+    monkeypatch.setattr(settings, "TICK_SECRET", "")
+    monkeypatch.setattr(settings, "CONFIRM_SWEEP_SECONDS", 30)
+
+    main_module._maybe_sweep_confirm_timer()
+    main_module._maybe_sweep_confirm_timer()  # в пределах 30 с — не повторяется
+    assert len(started) == 1
+
+
+def test_sweep_is_off_when_the_tick_is_configured(monkeypatch: pytest.MonkeyPatch):
+    started: list = []
+    monkeypatch.setattr(main_module, "run_in_background", lambda coro: (started.append(coro), coro.close()))
+    monkeypatch.setattr(main_module, "_last_sweep", 0.0)
+    monkeypatch.setattr(settings, "TICK_SECRET", TICK)
+    monkeypatch.setattr(settings, "CONFIRM_SWEEP_SECONDS", 30)
+
+    main_module._maybe_sweep_confirm_timer()
+    assert started == []
+
+
+async def test_run_confirm_timer_sends_the_deferred_morning_notice(
+    db_session: AsyncSession, provider: Provider, service: Service, staff_notices: list
+):
+    # ночной заказ, рабочие часы начались — то же, что делает тик
+    await _pending(db_session, provider, service, deadline=datetime.now(timezone.utc) + timedelta(minutes=15), sent=0)
+    assert await main_module._run_confirm_timer(db_session) == 1
+    assert "new job" in staff_notices[0]["purpose"]

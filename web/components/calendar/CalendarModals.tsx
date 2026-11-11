@@ -609,13 +609,16 @@ export function EventDetailsModal({
                 {t.cancelBookingButton}
               </CompactButton>
             )}
-            <CompactButton
-              variant="secondary"
-              disabled={busy}
-              onClick={() => setEditingTime(true)}
-            >
-              {t.calendarEditTimeButton}
-            </CompactButton>
+            {/* переносить имеет смысл только живую запись */}
+            {(event.status === "pending" || event.status === "confirmed") && (
+              <CompactButton
+                variant="secondary"
+                disabled={busy}
+                onClick={() => setEditingTime(true)}
+              >
+                {t.calendarEditTimeButton}
+              </CompactButton>
+            )}
             <button
               onClick={onClose}
               className="ml-auto text-sm text-ink-2 hover:text-ink"
