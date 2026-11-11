@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "882542998477",
+    "project_id": "zlotren",
+    "storage_bucket": "zlotren.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:882542998477:android:50ff2ccce6e8b24a394a84",
+        "android_client_info": {
+          "package_name": "pl.zr.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBCA8bYletbRNkmm2R7NZJ3kRzLWnTk7vU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
