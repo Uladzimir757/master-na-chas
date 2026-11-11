@@ -62,12 +62,12 @@ export default function MyBookingPage() {
 
   const load = useCallback(async (bid: string, tok: string) => {
     try {
-      setBooking(await api.getMyBooking(bid, tok));
+      setBooking(await api.getMyBooking(bid, tok, locale));
       setLoadFailed(false);
     } catch {
       setLoadFailed(true);
     }
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -88,7 +88,7 @@ export default function MyBookingPage() {
       // (no-op в браузере; неверная ссылка просто отклоняется сервером).
       void registerNativePush({ kind: "client", bookingId: bid, token: tok });
       api
-        .myBookingHistory(bid, tok)
+        .myBookingHistory(bid, tok, locale)
         .then(setHistory)
         .catch(() => setHistory([]));
       // живая точка мастера обновляется раз в полминуты
@@ -98,7 +98,8 @@ export default function MyBookingPage() {
       }, POLL_MS);
     })();
     return () => clearInterval(timer);
-  }, [load]);
+    // locale: смена языка перезагружает названия услуг на новом языке
+  }, [load, locale]);
 
   const startPicking = async () => {
     if (!id || !token) return;
@@ -172,9 +173,27 @@ export default function MyBookingPage() {
                 </span>
                 {booking.status === "confirmed" && booking.travel_minutes && (
                   <p className="mt-2 text-sm text-ink-2">
-                    {t.myBookingTravel(booking.travel_minutes)}
+                    {t.myBookingTravel(
+                      booking.travel_minutes,
+                      fmtTime(booking.start_at),
+                      fmtTime(
+                        new Date(
+                          new Date(booking.start_at).getTime() -
+                            booking.travel_minutes * 60_000,
+                        ).toISOString(),
+                      ),
+                    )}
                   </p>
                 )}
+                {(booking.status === "pending" ||
+                  booking.status === "confirmed") &&
+                  !booking.location &&
+                  booking.tracking_from &&
+                  now < new Date(booking.tracking_from).getTime() && (
+                    <p className="mt-2 text-sm text-ink-2">
+                      {t.myBookingTrackingSoon(fmt(booking.tracking_from))}
+                    </p>
+                  )}
               </div>
 
               {booking.status === "cancelled" &&
@@ -234,7 +253,7 @@ export default function MyBookingPage() {
                         id &&
                         token &&
                         run(
-                          () => api.cancelMyBooking(id, token),
+                          () => api.cancelMyBooking(id, token, locale),
                           t.myBookingCancelled,
                         )
                       }
@@ -306,6 +325,7 @@ export default function MyBookingPage() {
                                 id,
                                 token,
                                 chosen.start_at,
+                                locale,
                               ),
                             t.myBookingMoved,
                           )

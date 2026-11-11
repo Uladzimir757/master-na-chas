@@ -85,3 +85,24 @@ async def test_history_by_phone(client: AsyncClient, db_session, bookable_provid
     r = await client.get(f"/api/my-booking/{b.id}/history?token={TOKEN}")
     assert r.status_code == 200
     assert len(r.json()) == 2
+
+
+async def test_service_name_follows_the_page_language(
+    client: AsyncClient, db_session, bookable_provider: Provider, service: Service
+):
+    # было: «моя запись» отдавала внутреннее (русское) Service.name при
+    # польской странице — половина текста по-русски
+    service.name_pl, service.name_en = "Montaż mebli", "Furniture assembly"
+    await db_session.commit()
+    b = await _mk(db_session, bookable_provider, service, _dt(10))
+
+    assert (await client.get(f"/api/my-booking/{b.id}?token={TOKEN}&lang=pl")).json()["service_name"] == "Montaż mebli"
+    assert (await client.get(f"/api/my-booking/{b.id}?token={TOKEN}&lang=en")).json()["service_name"] == "Furniture assembly"
+    history = (await client.get(f"/api/my-booking/{b.id}/history?token={TOKEN}&lang=pl")).json()
+    assert {h["service_name"] for h in history} == {"Montaż mebli"}
+
+
+async def test_tracking_window_is_reported(client: AsyncClient, db_session, bookable_provider: Provider, service: Service):
+    b = await _mk(db_session, bookable_provider, service, _dt(10))
+    body = (await client.get(f"/api/my-booking/{b.id}?token={TOKEN}")).json()
+    assert datetime.fromisoformat(body["tracking_from"]) == _dt(8)

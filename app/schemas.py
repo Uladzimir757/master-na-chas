@@ -853,6 +853,9 @@ class MyBookingOut(BaseModel):
     travel_minutes: int | None = None     # время доезда мастера (после подтверждения)
     cancel_reason: str | None = None      # 'provider_timeout' — мастер не ответил вовремя
     confirm_deadline_at: datetime | None = None
+    # с какого момента клиенту показывается живая точка мастера на карте
+    # (start_at - TRACK_WINDOW_HOURS) — страница говорит об этом заранее
+    tracking_from: datetime | None = None
     location: ProviderLocationOut | None = None  # живая точка мастера (если можно показывать)
 
 

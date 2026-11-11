@@ -1997,7 +1997,9 @@ def _can_change(booking: Booking, now: datetime) -> bool:
     return booking.status in (BookingStatus.pending, BookingStatus.confirmed) and now <= _change_deadline(booking)
 
 
-async def _my_booking_out(db: AsyncSession, booking: Booking) -> MyBookingOut:
+async def _my_booking_out(db: AsyncSession, booking: Booking, lang: str = DEFAULT_LANG) -> MyBookingOut:
+    """`lang` — язык страницы клиента: название услуги как в каталоге
+    (_resolve_service_name), а не внутреннее Service.name (русское)."""
     now = datetime.now(timezone.utc)
     service = await db.get(Service, booking.service_id)
     provider = await db.get(Provider, booking.provider_id)
@@ -2010,7 +2012,7 @@ async def _my_booking_out(db: AsyncSession, booking: Booking) -> MyBookingOut:
         location = await _resolve_provider_location(db, provider, now)
     return MyBookingOut(
         id=booking.id,
-        service_name=service.name if service else "",
+        service_name=_resolve_service_name(service, _resolve_lang(lang)) if service else "",
         provider_name=provider.name if provider else "",
         start_at=booking.start_at,
         end_at=booking.end_at,
@@ -2021,20 +2023,27 @@ async def _my_booking_out(db: AsyncSession, booking: Booking) -> MyBookingOut:
         travel_minutes=booking.travel_minutes,
         cancel_reason=booking.cancel_reason,
         confirm_deadline_at=booking.confirm_deadline_at,
+        tracking_from=booking.start_at - timedelta(hours=settings.TRACK_WINDOW_HOURS),
     )
 
 
 @app.get("/api/my-booking/{booking_id}", response_model=MyBookingOut)
-async def get_my_booking(booking_id: uuid.UUID, token: str, db: AsyncSession = Depends(get_db)) -> MyBookingOut:
+async def get_my_booking(
+    booking_id: uuid.UUID, token: str, lang: str = Query(default=DEFAULT_LANG), db: AsyncSession = Depends(get_db)
+) -> MyBookingOut:
     await _expire_overdue(db)
     booking = await _get_booking_by_token(db, booking_id, token)
-    return await _my_booking_out(db, booking)
+    return await _my_booking_out(db, booking, lang)
 
 
 @app.post("/api/my-booking/{booking_id}/cancel", response_model=MyBookingOut)
 @limiter.limit("10/minute")
 async def cancel_my_booking(
-    request: Request, booking_id: uuid.UUID, token: str, db: AsyncSession = Depends(get_db)
+    request: Request,
+    booking_id: uuid.UUID,
+    token: str,
+    lang: str = Query(default=DEFAULT_LANG),
+    db: AsyncSession = Depends(get_db),
 ) -> MyBookingOut:
     booking = await _get_booking_by_token(db, booking_id, token)
     if not _can_change(booking, datetime.now(timezone.utc)):
@@ -2057,13 +2066,17 @@ async def cancel_my_booking(
         },
         url=_cabinet_booking_url(booking.id),
     )
-    return await _my_booking_out(db, booking)
+    return await _my_booking_out(db, booking, lang)
 
 
 @app.post("/api/my-booking/{booking_id}/reschedule", response_model=MyBookingOut)
 @limiter.limit("10/minute")
 async def reschedule_my_booking(
-    request: Request, booking_id: uuid.UUID, payload: MyBookingReschedule, db: AsyncSession = Depends(get_db)
+    request: Request,
+    booking_id: uuid.UUID,
+    payload: MyBookingReschedule,
+    lang: str = Query(default=DEFAULT_LANG),
+    db: AsyncSession = Depends(get_db),
 ) -> MyBookingOut:
     """Перенос только на реально свободный слот того же мастера: новое время
     должно присутствовать в его актуальной доступности (рабочие часы,
@@ -2112,7 +2125,7 @@ async def reschedule_my_booking(
         },
         url=_cabinet_booking_url(booking.id),
     )
-    return await _my_booking_out(db, booking)
+    return await _my_booking_out(db, booking, lang)
 
 
 @app.get("/api/my-booking/{booking_id}/slots", response_model=list[SlotOut])
@@ -2133,7 +2146,7 @@ async def my_booking_slots(
 
 @app.get("/api/my-booking/{booking_id}/history", response_model=list[MyBookingHistoryItem])
 async def my_booking_history(
-    booking_id: uuid.UUID, token: str, db: AsyncSession = Depends(get_db)
+    booking_id: uuid.UUID, token: str, lang: str = Query(default=DEFAULT_LANG), db: AsyncSession = Depends(get_db)
 ) -> list[MyBookingHistoryItem]:
     """История заказов этого клиента (по телефону из записи). Владение
     телефоном подтверждено самой ссылкой из SMS; логинов у клиентов нет."""
@@ -2142,7 +2155,7 @@ async def my_booking_history(
         return []
     rows = (
         await db.execute(
-            select(Booking, Service.name, Provider.name)
+            select(Booking, Service, Provider.name)
             .join(Service, Service.id == Booking.service_id)
             .join(Provider, Provider.id == Booking.provider_id)
             .where(Booking.client_phone == booking.client_phone)
@@ -2152,9 +2165,14 @@ async def my_booking_history(
     ).all()
     return [
         MyBookingHistoryItem(
-            id=b.id, service_name=sn, provider_name=pn, start_at=b.start_at, status=b.status, price=b.price
+            id=b.id,
+            service_name=_resolve_service_name(svc, _resolve_lang(lang)),
+            provider_name=pn,
+            start_at=b.start_at,
+            status=b.status,
+            price=b.price,
         )
-        for b, sn, pn in rows
+        for b, svc, pn in rows
     ]
 
 
@@ -2234,6 +2252,7 @@ async def _recompute_provider_rating(db: AsyncSession, provider_id: uuid.UUID) -
 async def get_review_invite(
     booking_id: uuid.UUID,
     token: str,
+    lang: str = Query(default=DEFAULT_LANG),
     db: AsyncSession = Depends(get_db),
 ) -> ReviewInviteOut:
     booking = await db.get(Booking, booking_id)
@@ -2254,7 +2273,7 @@ async def get_review_invite(
     service = await db.get(Service, booking.service_id)
     return ReviewInviteOut(
         provider_name=provider.name if provider else "",
-        service_name=service.name if service else "",
+        service_name=_resolve_service_name(service, _resolve_lang(lang)) if service else "",
         start_at=booking.start_at,
         client_name=booking.client_name,
     )

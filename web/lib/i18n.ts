@@ -401,7 +401,8 @@ export interface Translations {
   myCitiesSaved: string;
   myCitiesError: string;
   myCitiesMinOne: string;
-  myBookingTravel: (n: number) => string;
+  myBookingTravel: (n: number, arrive: string, depart: string) => string;
+  myBookingTrackingSoon: (time: string) => string;
   myBookingTimedOut: string;
   bookAnotherMaster: string;
   analyticsColTimedOut: string;
@@ -830,8 +831,10 @@ export function buildTranslations(map: TranslationMap): Translations {
     myCitiesSaved: pick(map, "myCitiesSaved"),
     myCitiesError: pick(map, "myCitiesError"),
     myCitiesMinOne: pick(map, "myCitiesMinOne"),
-    myBookingTravel: (n) =>
-      interpolate(pick(map, "myBookingTravel"), { n }),
+    myBookingTravel: (n, arrive, depart) =>
+      interpolate(pick(map, "myBookingTravel"), { n, arrive, depart }),
+    myBookingTrackingSoon: (time) =>
+      interpolate(pick(map, "myBookingTrackingSoon"), { time }),
     myBookingTimedOut: pick(map, "myBookingTimedOut"),
     bookAnotherMaster: pick(map, "bookAnotherMaster"),
     analyticsColTimedOut: pick(map, "analyticsColTimedOut"),

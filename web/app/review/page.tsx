@@ -58,7 +58,7 @@ type LoadState =
   | { status: "ready"; providerName: string; serviceName: string; startAt: string };
 
 export default function ReviewPage() {
-  const { t, ready } = useLocale();
+  const { t, ready, locale } = useLocale();
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [state, setState] = useState<LoadState>({ status: "loading" });
@@ -86,7 +86,7 @@ export default function ReviewPage() {
       }
 
       try {
-        const invite = await api.getReviewInvite(id, tok);
+        const invite = await api.getReviewInvite(id, tok, locale);
         setState({
           status: "ready",
           providerName: invite.provider_name,
@@ -101,7 +101,8 @@ export default function ReviewPage() {
         }
       }
     })();
-  }, []);
+    // locale: название услуги на языке страницы, при смене — заново
+  }, [locale]);
 
   async function handleFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
