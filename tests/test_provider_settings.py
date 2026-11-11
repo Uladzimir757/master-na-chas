@@ -45,7 +45,8 @@ async def test_patch_my_settings_updates_all_fields_and_persists(logged_in_clien
 
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["requires_booking_confirmation"] is False
+    # старый клиент ещё шлёт флаг — принимается, но подтверждение всегда ручное
+    assert body["requires_booking_confirmation"] is True
     assert body["call_out_fee"] == 50
     assert body["share_location"] is True
 
@@ -53,7 +54,7 @@ async def test_patch_my_settings_updates_all_fields_and_persists(logged_in_clien
     again = await logged_in_client.get("/api/providers/me")
     assert again.status_code == 200, again.text
     assert again.json()["call_out_fee"] == 50
-    assert again.json()["requires_booking_confirmation"] is False
+    assert again.json()["requires_booking_confirmation"] is True
     assert again.json()["share_location"] is True
 
 
@@ -140,3 +141,12 @@ async def test_public_providers_list_is_sorted_by_rating_best_first_unrated_last
 
     assert ids_in_order.index(str(rated_high.id)) < ids_in_order.index(str(rated_low.id))
     assert ids_in_order.index(str(rated_low.id)) < ids_in_order.index(str(provider.id))
+
+
+async def test_patch_my_settings_without_confirmation_flag(logged_in_client: AsyncClient):
+    # новый кабинет флаг не шлёт — переключателя больше нет
+    resp = await logged_in_client.patch(
+        "/api/providers/me/settings", json={"call_out_fee": 40, "share_location": False}
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["call_out_fee"] == 40 and resp.json()["requires_booking_confirmation"] is True

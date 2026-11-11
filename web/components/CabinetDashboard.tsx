@@ -185,24 +185,6 @@ export default function CabinetDashboard({
     })();
   }, [loadAll, ready]);
 
-  const handleToggleConfirmation = useCallback(async () => {
-    if (!settings) return;
-    setSettingsError(null);
-    setSavingSettings(true);
-    try {
-      const updated = await api.updateMySettings({
-        requires_booking_confirmation: !settings.requires_booking_confirmation,
-        call_out_fee: settings.call_out_fee,
-        share_location: settings.share_location,
-      });
-      setSettings(updated);
-    } catch {
-      setSettingsError(t.settingsSaveError);
-    } finally {
-      setSavingSettings(false);
-    }
-  }, [settings, t]);
-
   // Uncontrolled input (key={settings.call_out_fee} below forces a remount
   // whenever the saved value actually changes, e.g. after a save) — same
   // key-based-remount convention this codebase already uses elsewhere
@@ -218,7 +200,6 @@ export default function CabinetDashboard({
     setSavingSettings(true);
     try {
       const updated = await api.updateMySettings({
-        requires_booking_confirmation: settings.requires_booking_confirmation,
         call_out_fee: nextFee,
         share_location: settings.share_location,
       });
@@ -239,7 +220,6 @@ export default function CabinetDashboard({
     setSavingSettings(true);
     try {
       const updated = await api.updateMySettings({
-        requires_booking_confirmation: settings.requires_booking_confirmation,
         call_out_fee: settings.call_out_fee,
         share_location: !settings.share_location,
       });
@@ -784,25 +764,7 @@ export default function CabinetDashboard({
             <h2 className="mb-2 text-sm font-medium text-ink-2">
               {t.settingsTitle}
             </h2>
-            <label className="flex items-start gap-3">
-              <input
-                type="checkbox"
-                checked={settings.requires_booking_confirmation}
-                disabled={savingSettings}
-                onChange={handleToggleConfirmation}
-                className="mt-1"
-              />
-              <span>
-                <span className="block font-medium">
-                  {t.requiresConfirmationLabel}
-                </span>
-                <span className="block text-sm text-ink-2">
-                  {t.requiresConfirmationHint}
-                </span>
-              </span>
-            </label>
-
-            <div className="mt-4">
+            <div>
               <label className="block">
                 <span className="block font-medium">{t.callOutFeeLabel}</span>
                 <span className="mt-1 block text-sm text-ink-2">
