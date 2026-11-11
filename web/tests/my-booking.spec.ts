@@ -52,6 +52,29 @@ test("an upcoming booking has no book-again button", async ({ page }) => {
   await mockMyBooking(page, { status: "confirmed", travel_minutes: 30 });
   await page.goto(`/booking/?id=${ID}&token=secret`);
 
-  await expect(page.getByText(t.myBookingTravel(30))).toBeVisible();
+  // 09:00 start, 30 min drive -> leaves at 08:30
+  await expect(page.getByText(t.myBookingTravel(30, "09:00", "08:30"))).toBeVisible();
   await expect(page.getByRole("link", { name: t.bookAgain })).toHaveCount(0);
+});
+
+test("before the tracking window the page says when the map will appear", async ({ page }) => {
+  await mockMyBooking(page, { status: "confirmed", tracking_from: "2027-06-07T07:00:00+02:00" });
+  await page.goto(`/booking/?id=${ID}&token=secret`);
+
+  const hint = page.getByText(/здесь на карте будет видно/);
+  await expect(hint).toBeVisible();
+  await expect(hint).toContainText("07:00");
+});
+
+test("a late master shows the honest arrival time", async ({ page }) => {
+  // booked 09:00, previous job pushes arrival to 09:15
+  await mockMyBooking(page, {
+    status: "confirmed",
+    travel_minutes: 45,
+    expected_arrival_at: "2027-06-07T09:15:00+02:00",
+  });
+  await page.goto(`/booking/?id=${ID}&token=secret`);
+
+  await expect(page.getByText(t.myBookingTravel(45, "09:15", "08:30"), { exact: false })).toBeVisible();
+  await expect(page.getByText(t.myBookingLate(15), { exact: false })).toBeVisible();
 });

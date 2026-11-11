@@ -300,3 +300,65 @@ async def test_run_confirm_timer_sends_the_deferred_morning_notice(
     await _pending(db_session, provider, service, deadline=datetime.now(timezone.utc) + timedelta(minutes=15), sent=0)
     assert await main_module._run_confirm_timer(db_session) == 1
     assert "new job" in staff_notices[0]["purpose"]
+
+
+# ----------------------------------------------------------------------------
+# время доезда сверяется с календарём (решение 11.11.2026)
+# ----------------------------------------------------------------------------
+
+
+async def _booking_at(db: AsyncSession, provider: Provider, service: Service, start: datetime, end: datetime, **kw) -> Booking:
+    b = Booking(
+        id=uuid.uuid4(), tenant_id=service.tenant_id, provider_id=provider.id, service_id=service.id,
+        client_name="Клиент", client_phone="+48500100300", start_at=start, end_at=end,
+        status=kw.pop("status", BookingStatus.confirmed), manage_token=uuid.uuid4().hex, **kw,
+    )
+    db.add(b)
+    await db.commit()
+    return b
+
+
+async def test_arrival_preview_warns_when_the_previous_job_ends_too_late(
+    logged_in_client: AsyncClient, db_session: AsyncSession, provider: Provider, service: Service
+):
+    await _booking_at(db_session, provider, service, _local(NEXT_MONDAY, 12), _local(NEXT_MONDAY, 13, 30))
+    target = await _booking_at(
+        db_session, provider, service, _local(NEXT_MONDAY, 14), _local(NEXT_MONDAY, 15), status=BookingStatus.pending
+    )
+    late = (await logged_in_client.get(f"/api/bookings/{target.id}/arrival?travel_minutes=45")).json()
+    assert datetime.fromisoformat(late["expected_arrival_at"]) == _local(NEXT_MONDAY, 14, 15)
+    assert late["late_minutes"] == 15
+    assert datetime.fromisoformat(late["previous_end_at"]) == _local(NEXT_MONDAY, 13, 30)
+
+    ok = (await logged_in_client.get(f"/api/bookings/{target.id}/arrival?travel_minutes=15")).json()
+    assert datetime.fromisoformat(ok["expected_arrival_at"]) == _local(NEXT_MONDAY, 14)
+    assert ok["late_minutes"] == 0
+
+
+async def test_arrival_preview_with_nothing_before(
+    logged_in_client: AsyncClient, db_session: AsyncSession, provider: Provider, service: Service
+):
+    target = await _booking_at(db_session, provider, service, _local(NEXT_MONDAY, 9), _local(NEXT_MONDAY, 10))
+    body = (await logged_in_client.get(f"/api/bookings/{target.id}/arrival?travel_minutes=90")).json()
+    assert body["late_minutes"] == 0 and body["previous_end_at"] is None
+
+
+async def test_client_sees_the_honest_arrival_time(
+    client: AsyncClient, db_session: AsyncSession, provider: Provider, service: Service
+):
+    await _booking_at(db_session, provider, service, _local(NEXT_MONDAY, 12), _local(NEXT_MONDAY, 13, 30))
+    target = await _booking_at(
+        db_session, provider, service, _local(NEXT_MONDAY, 14), _local(NEXT_MONDAY, 15), travel_minutes=45
+    )
+    body = (await client.get(f"/api/my-booking/{target.id}?token={target.manage_token}")).json()
+    assert datetime.fromisoformat(body["expected_arrival_at"]) == _local(NEXT_MONDAY, 14, 15)
+
+
+async def test_arrival_preview_is_only_for_own_bookings(
+    logged_in_client: AsyncClient, db_session: AsyncSession, tenant, service: Service
+):
+    other = Provider(id=uuid.uuid4(), tenant_id=tenant.id, name="Чужой", travel_buffer_minutes=0)
+    db_session.add(other)
+    await db_session.commit()
+    theirs = await _booking_at(db_session, other, service, _local(NEXT_MONDAY, 9), _local(NEXT_MONDAY, 10))
+    assert (await logged_in_client.get(f"/api/bookings/{theirs.id}/arrival?travel_minutes=30")).status_code == 404

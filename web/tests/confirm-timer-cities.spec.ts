@@ -19,6 +19,7 @@ import {
   SLOT_A,
   SOPOT,
   t,
+  todayAt,
 } from "./mocks";
 
 // docs/confirm-timer-travel-cities-task.md: города на главной, таймер
@@ -50,7 +51,7 @@ test.describe("city step on the home page", () => {
     await expect(page.getByRole("heading", { name: t.cityPickTitle })).toBeVisible();
   });
 
-  test("a single city needs no choosing, and the booking carries it", async ({ page }) => {
+  test("a remembered city skips the choice, and the booking carries it", async ({ page }) => {
     await mockCatalog(page);
     await mockAvailability(page, [SLOT_A]);
     let sent: Record<string, unknown> = {};
@@ -72,6 +73,35 @@ test.describe("city step on the home page", () => {
 
     await expect(page.getByText(t.bookingConfirmWithin(15))).toBeVisible();
     expect(sent.city_id).toBe(GDYNIA.id);
+  });
+
+  test("even a single city is offered for choosing, by list or by location", async ({ page, context }) => {
+    const KATOWICE = { ...SOPOT, id: "c3333333-3333-3333-3333-333333333333", slug: "katowice", name_pl: "Katowice", name_en: "Katowice", lat: 50.2649, lng: 19.0238, has_masters: false };
+    await mockCatalog(page, { cities: [GDYNIA, SOPOT, KATOWICE] });
+    const asked: string[] = [];
+    page.on("request", (r) => {
+      const url = new URL(r.url());
+      if (url.pathname.endsWith("/api/providers")) asked.push(url.searchParams.get("city") ?? "");
+    });
+    await context.grantPermissions(["geolocation"]);
+    await context.setGeolocation({ latitude: 54.445, longitude: 18.565 }); // Sopot
+
+    await page.goto("/");
+    await expect(page.getByRole("button", { name: new RegExp(`Katowice.*${t.cityNoMastersYet}`) })).toBeVisible();
+    await page.getByRole("button", { name: t.cityUseLocation }).click();
+    await expect(page.getByText(t.cityCurrent("Sopot"))).toBeVisible();
+    await expect.poll(() => asked).toContain("sopot");
+  });
+
+  test("a city without masters says so and offers to change it", async ({ page }) => {
+    const KATOWICE = { ...SOPOT, id: "c3333333-3333-3333-3333-333333333333", slug: "katowice", name_pl: "Katowice", name_en: "Katowice", has_masters: false };
+    await mockCatalog(page, { cities: [GDYNIA, KATOWICE], providers: [] });
+
+    await page.goto("/");
+    await page.getByRole("button", { name: new RegExp("Katowice") }).click();
+    await expect(page.getByText(t.cityNoMasters)).toBeVisible();
+    await page.getByRole("button", { name: t.cityChange }).last().click();
+    await expect(page.getByRole("heading", { name: t.cityPickTitle })).toBeVisible();
   });
 
   test("a booking made off-hours says when the master will confirm", async ({ page }) => {
@@ -121,6 +151,37 @@ test.describe("cabinet: confirmation timer and travel time", () => {
     await page.getByRole("button", { name: t.confirmBookingButton }).click();
     await page.getByRole("button", { name: t.travelMinutesChip(15), exact: true }).click();
     await expect(page.getByText(t.confirmDeadlinePassedError)).toBeVisible();
+  });
+
+  test("confirming warns when the previous job makes the master late", async ({ page }) => {
+    const booking = cabinetBooking({ status: "pending", confirm_deadline_at: inMinutes(10) });
+    await cabinet(page, booking);
+    await page.route("**/api/bookings/*/arrival**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          expected_arrival_at: todayAt(9, 15),
+          previous_end_at: todayAt(8, 30),
+          late_minutes: 15,
+        }),
+      }),
+    );
+    let sent: unknown = null;
+    await mockBookingStatusUpdate(page, (_id, status, payload) => {
+      sent = payload.travel_minutes;
+      return { status: 200, body: { ...booking, status } };
+    });
+
+    await page.goto("/cabinet/");
+    await page.getByText(booking.client_name, { exact: false }).click();
+    await page.getByRole("button", { name: t.confirmBookingButton }).click();
+    await page.getByRole("button", { name: t.travelMinutesChip(45), exact: true }).click();
+
+    await expect(page.getByText(t.travelLateWarning("08:30", "09:15", 15))).toBeVisible();
+    expect(sent).toBeNull(); // nothing confirmed yet — the master decides
+    await page.getByRole("button", { name: t.travelConfirmAnyway }).click();
+    await expect.poll(() => sent).toBe(45);
   });
 
   test("a confirmed booking shows travel time and when to leave", async ({ page }) => {

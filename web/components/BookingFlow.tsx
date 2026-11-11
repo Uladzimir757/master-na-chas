@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   api,
   cityName,
-  type City,
+  type PublicCity,
   type Provider,
   type ProviderServiceOffering,
 } from "@/lib/api";
@@ -14,6 +14,7 @@ import { ChevronRightIcon, IconBadge, WrenchIcon } from "@/components/icons";
 import { PriceLabel } from "@/components/PriceLabel";
 import MasterPicker from "@/components/MasterPicker";
 import SlotPicker from "@/components/SlotPicker";
+import CityPicker from "@/components/CityPicker";
 
 // The element on the home page that wraps this flow.
 export const BOOKING_ID = "masters";
@@ -48,8 +49,8 @@ function storeCity(slug: string | null): void {
 export default function BookingFlow() {
   const { locale, t, ready } = useLocale();
 
-  const [cities, setCities] = useState<City[] | null>(null);
-  const [city, setCity] = useState<City | null>(null);
+  const [cities, setCities] = useState<PublicCity[] | null>(null);
+  const [city, setCity] = useState<PublicCity | null>(null);
   const [providersLoaded, setProvidersLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -64,8 +65,8 @@ export default function BookingFlow() {
   const [selectedService, setSelectedService] =
     useState<ProviderServiceOffering | null>(null);
 
-  // The remembered city if it's still offered; a single city needs no
-  // choosing at all.
+  // The remembered city if it's still offered, otherwise the client picks
+  // (from the list or by location) — even when there's only one city.
   useEffect(() => {
     if (!ready) return;
     (async () => {
@@ -73,10 +74,7 @@ export default function BookingFlow() {
         const list = await api.listCities();
         setCities(list);
         const stored = readStoredCity();
-        setCity(
-          list.find((c) => c.slug === stored) ??
-            (list.length === 1 ? list[0] : null),
-        );
+        setCity(list.find((c) => c.slug === stored) ?? null);
       } catch {
         setLoadError(t.masterListLoadError);
       }
@@ -103,7 +101,7 @@ export default function BookingFlow() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, city]);
 
-  const pickCity = useCallback((c: City) => {
+  const pickCity = useCallback((c: PublicCity) => {
     storeCity(c.slug);
     setCity(c);
   }, []);
@@ -192,28 +190,7 @@ export default function BookingFlow() {
   }
 
   if (!city) {
-    return (
-      <Card>
-        <h1 className="mb-5 text-[1.75rem] leading-tight font-extrabold tracking-[-0.015em] sm:text-4xl">
-          {t.cityPickTitle}
-        </h1>
-        {cities.length === 0 ? (
-          <Centered>{t.noCities}</Centered>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {cities.map((c) => (
-              <button
-                key={c.id}
-                className="min-h-11 rounded-full border border-line bg-surface px-5 py-2 text-base font-medium transition hover:border-accent hover:text-accent-2"
-                onClick={() => pickCity(c)}
-              >
-                {cityName(c, locale)}
-              </button>
-            ))}
-          </div>
-        )}
-      </Card>
-    );
+    return <CityPicker cities={cities} onPick={pickCity} />;
   }
 
   if (!providersLoaded) {
@@ -225,16 +202,26 @@ export default function BookingFlow() {
       <>
         <div className="mx-3 mb-2 flex flex-wrap items-center gap-x-3 text-base text-ink-2 sm:mx-6">
           <span>{t.cityCurrent(cityName(city, locale))}</span>
-          {cities.length > 1 && (
+          <button
+            className="min-h-11 text-accent underline-offset-4 hover:underline"
+            onClick={changeCity}
+          >
+            {t.cityChange}
+          </button>
+        </div>
+        {providers.length === 0 ? (
+          <Card>
+            <p className="mb-4 text-base">{t.cityNoMasters}</p>
             <button
-              className="min-h-11 text-accent underline-offset-4 hover:underline"
+              className="inline-flex min-h-12 items-center rounded-full bg-accent px-6 py-2 text-base font-semibold text-on-accent transition hover:bg-accent-2"
               onClick={changeCity}
             >
               {t.cityChange}
             </button>
-          )}
-        </div>
-        <MasterPicker providers={providers} onSelect={pickProvider} />
+          </Card>
+        ) : (
+          <MasterPicker providers={providers} onSelect={pickProvider} />
+        )}
       </>
     );
   }

@@ -106,9 +106,10 @@ from app.schemas import (
     AdminCityOut,
     AdminCityUpdate,
     AdminMasterCitiesUpdate,
-    CityOut,
     MyCitiesUpdate,
     MyCityOut,
+    ArrivalPreviewOut,
+    PublicCityOut,
     MasterStatOut,
     MyBookingHistoryItem,
     MyBookingOut,
@@ -429,25 +430,43 @@ async def list_providers(
     ])
 
 
-@app.get("/api/cities", response_model=list[CityOut])
-async def list_cities(response: Response, db: AsyncSession = Depends(get_db)) -> list[CityOut]:
-    """Города для выбора на главной: активные и только те, где есть хотя бы
-    один активный мастер — пустой город клиенту не показываем."""
+@app.get("/api/cities", response_model=list[PublicCityOut])
+async def list_cities(response: Response, db: AsyncSession = Depends(get_db)) -> list[PublicCityOut]:
+    """Все активные города для выбора на главной (решение пользователя
+    11.11.2026: клиент видит все города, а не только с мастерами). Город без
+    мастеров помечен has_masters=False — клиент видит пометку. lat/lng — для
+    выбора «по моей локации» (ближайший город)."""
     response.headers["Cache-Control"] = cache_control()
     cached = public_cache.get("cities")
     if not is_missing(cached):
         return cached
-    has_master = (
-        select(ProviderCity.city_id)
-        .join(Provider, Provider.id == ProviderCity.provider_id)
-        .where(Provider.is_active.is_(True))
+    has_master = set(
+        (
+            await db.execute(
+                select(ProviderCity.city_id)
+                .join(Provider, Provider.id == ProviderCity.provider_id)
+                .where(Provider.is_active.is_(True))
+            )
+        ).scalars().all()
     )
-    stmt = (
-        select(City)
-        .where(City.is_active.is_(True), City.id.in_(has_master))
-        .order_by(City.sort_order, City.name_pl)
+    cities = (
+        await db.execute(select(City).where(City.is_active.is_(True)).order_by(City.sort_order, City.name_pl))
+    ).scalars().all()
+    return public_cache.set(
+        "cities",
+        [
+            PublicCityOut(
+                id=c.id,
+                slug=c.slug,
+                name_pl=c.name_pl,
+                name_en=c.name_en,
+                lat=float(c.lat) if c.lat is not None else None,
+                lng=float(c.lng) if c.lng is not None else None,
+                has_masters=c.id in has_master,
+            )
+            for c in cities
+        ],
     )
-    return public_cache.set("cities", [CityOut.model_validate(c) for c in (await db.execute(stmt)).scalars().all()])
 
 
 async def _provider_works_in(db: AsyncSession, provider_id: uuid.UUID, city_id: uuid.UUID) -> bool:
@@ -908,6 +927,56 @@ async def list_my_bookings(
     return (await db.execute(stmt)).scalars().all()
 
 
+async def _previous_job_end(db: AsyncSession, booking: Booking) -> datetime | None:
+    """Конец последней работы мастера в тот же день до этой записи —
+    откуда он поедет к клиенту. None — до неё в этот день ничего нет."""
+    day_start = datetime.combine(booking.start_at.astimezone(BUSINESS_TZ).date(), time.min, tzinfo=BUSINESS_TZ)
+    return (
+        await db.execute(
+            select(func.max(Booking.end_at)).where(
+                Booking.provider_id == booking.provider_id,
+                Booking.id != booking.id,
+                Booking.status != BookingStatus.cancelled,
+                Booking.end_at <= booking.start_at,
+                Booking.end_at > day_start,
+            )
+        )
+    ).scalar_one_or_none()
+
+
+async def _expected_arrival(
+    db: AsyncSession, booking: Booking, travel_minutes: int | None
+) -> tuple[datetime, datetime | None] | None:
+    """(расчётный приезд, конец предыдущей работы). Приезд — начало записи
+    или «предыдущая работа + дорога», что позже: время доезда сверяется с
+    календарём, а не просто обещается (решение пользователя 11.11.2026)."""
+    if not travel_minutes:
+        return None
+    previous_end = await _previous_job_end(db, booking)
+    arrival = booking.start_at
+    if previous_end is not None:
+        arrival = max(arrival, previous_end + timedelta(minutes=travel_minutes))
+    return arrival, previous_end
+
+
+@app.get("/api/bookings/{booking_id}/arrival", response_model=ArrivalPreviewOut)
+async def arrival_preview(
+    booking_id: uuid.UUID,
+    travel_minutes: int = Query(ge=1, le=600),
+    db: AsyncSession = Depends(get_db),
+    master_user_id: str = Depends(require_master_user_id),
+) -> ArrivalPreviewOut:
+    """Перед подтверждением: успевает ли мастер к началу с этим временем
+    доезда после предыдущей работы. Опоздание он видит и решает сам."""
+    provider = await _get_own_provider(master_user_id, db, "bookings_status")
+    booking = await db.get(Booking, booking_id)
+    if booking is None or booking.provider_id != provider.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Booking not found")
+    arrival, previous_end = await _expected_arrival(db, booking, travel_minutes)
+    late = max(0, math.ceil((arrival - booking.start_at).total_seconds() / 60))
+    return ArrivalPreviewOut(expected_arrival_at=arrival, previous_end_at=previous_end, late_minutes=late)
+
+
 @app.patch("/api/bookings/{booking_id}/status", response_model=BookingOut)
 async def update_booking_status(
     booking_id: uuid.UUID,
@@ -945,6 +1014,8 @@ async def update_booking_status(
 
     if newly_confirmed and booking.client_phone:
         service = await db.get(Service, booking.service_id)
+        expected = await _expected_arrival(db, booking, booking.travel_minutes)
+        arrival_local = (expected[0] if expected else booking.start_at).astimezone(BUSINESS_TZ).strftime("%H:%M")
         run_in_background(
             notify_client(
                 phone=booking.client_phone,
@@ -952,13 +1023,14 @@ async def update_booking_status(
                 on_dead_fcm_tokens=_prune_dead_fcm_tokens,
                 purpose=(
                     "Tell the client that the master confirmed the booking for the given service and time, "
-                    "and how many minutes the master needs to drive to them."
+                    "and at what time the master will arrive (it can be later than the booked time)."
                 ),
                 facts={
                     "service": service.name if service else "",
                     **_when_facts(booking.start_at),
                     "master": provider.name,
                     "travel_minutes": booking.travel_minutes,
+                    "master_arrives_at": arrival_local,
                 },
                 must_include=_manage_url(booking),
             )
@@ -1979,7 +2051,9 @@ def _can_change(booking: Booking, now: datetime) -> bool:
     return booking.status in (BookingStatus.pending, BookingStatus.confirmed) and now <= _change_deadline(booking)
 
 
-async def _my_booking_out(db: AsyncSession, booking: Booking) -> MyBookingOut:
+async def _my_booking_out(db: AsyncSession, booking: Booking, lang: str = DEFAULT_LANG) -> MyBookingOut:
+    """`lang` — язык страницы клиента: название услуги как в каталоге
+    (_resolve_service_name), а не внутреннее Service.name (русское)."""
     now = datetime.now(timezone.utc)
     service = await db.get(Service, booking.service_id)
     provider = await db.get(Provider, booking.provider_id)
@@ -1990,9 +2064,10 @@ async def _my_booking_out(db: AsyncSession, booking: Booking) -> MyBookingOut:
         and booking.start_at - timedelta(hours=settings.TRACK_WINDOW_HOURS) <= now <= booking.end_at
     ):
         location = await _resolve_provider_location(db, provider, now)
+    expected = await _expected_arrival(db, booking, booking.travel_minutes)
     return MyBookingOut(
         id=booking.id,
-        service_name=service.name if service else "",
+        service_name=_resolve_service_name(service, _resolve_lang(lang)) if service else "",
         provider_name=provider.name if provider else "",
         start_at=booking.start_at,
         end_at=booking.end_at,
@@ -2003,20 +2078,28 @@ async def _my_booking_out(db: AsyncSession, booking: Booking) -> MyBookingOut:
         travel_minutes=booking.travel_minutes,
         cancel_reason=booking.cancel_reason,
         confirm_deadline_at=booking.confirm_deadline_at,
+        tracking_from=booking.start_at - timedelta(hours=settings.TRACK_WINDOW_HOURS),
+        expected_arrival_at=expected[0] if expected else None,
     )
 
 
 @app.get("/api/my-booking/{booking_id}", response_model=MyBookingOut)
-async def get_my_booking(booking_id: uuid.UUID, token: str, db: AsyncSession = Depends(get_db)) -> MyBookingOut:
+async def get_my_booking(
+    booking_id: uuid.UUID, token: str, lang: str = Query(default=DEFAULT_LANG), db: AsyncSession = Depends(get_db)
+) -> MyBookingOut:
     await _expire_overdue(db)
     booking = await _get_booking_by_token(db, booking_id, token)
-    return await _my_booking_out(db, booking)
+    return await _my_booking_out(db, booking, lang)
 
 
 @app.post("/api/my-booking/{booking_id}/cancel", response_model=MyBookingOut)
 @limiter.limit("10/minute")
 async def cancel_my_booking(
-    request: Request, booking_id: uuid.UUID, token: str, db: AsyncSession = Depends(get_db)
+    request: Request,
+    booking_id: uuid.UUID,
+    token: str,
+    lang: str = Query(default=DEFAULT_LANG),
+    db: AsyncSession = Depends(get_db),
 ) -> MyBookingOut:
     booking = await _get_booking_by_token(db, booking_id, token)
     if not _can_change(booking, datetime.now(timezone.utc)):
@@ -2039,13 +2122,17 @@ async def cancel_my_booking(
         },
         url=_cabinet_booking_url(booking.id),
     )
-    return await _my_booking_out(db, booking)
+    return await _my_booking_out(db, booking, lang)
 
 
 @app.post("/api/my-booking/{booking_id}/reschedule", response_model=MyBookingOut)
 @limiter.limit("10/minute")
 async def reschedule_my_booking(
-    request: Request, booking_id: uuid.UUID, payload: MyBookingReschedule, db: AsyncSession = Depends(get_db)
+    request: Request,
+    booking_id: uuid.UUID,
+    payload: MyBookingReschedule,
+    lang: str = Query(default=DEFAULT_LANG),
+    db: AsyncSession = Depends(get_db),
 ) -> MyBookingOut:
     """Перенос только на реально свободный слот того же мастера: новое время
     должно присутствовать в его актуальной доступности (рабочие часы,
@@ -2094,7 +2181,7 @@ async def reschedule_my_booking(
         },
         url=_cabinet_booking_url(booking.id),
     )
-    return await _my_booking_out(db, booking)
+    return await _my_booking_out(db, booking, lang)
 
 
 @app.get("/api/my-booking/{booking_id}/slots", response_model=list[SlotOut])
@@ -2115,7 +2202,7 @@ async def my_booking_slots(
 
 @app.get("/api/my-booking/{booking_id}/history", response_model=list[MyBookingHistoryItem])
 async def my_booking_history(
-    booking_id: uuid.UUID, token: str, db: AsyncSession = Depends(get_db)
+    booking_id: uuid.UUID, token: str, lang: str = Query(default=DEFAULT_LANG), db: AsyncSession = Depends(get_db)
 ) -> list[MyBookingHistoryItem]:
     """История заказов этого клиента (по телефону из записи). Владение
     телефоном подтверждено самой ссылкой из SMS; логинов у клиентов нет."""
@@ -2124,7 +2211,7 @@ async def my_booking_history(
         return []
     rows = (
         await db.execute(
-            select(Booking, Service.name, Provider.name)
+            select(Booking, Service, Provider.name)
             .join(Service, Service.id == Booking.service_id)
             .join(Provider, Provider.id == Booking.provider_id)
             .where(Booking.client_phone == booking.client_phone)
@@ -2134,9 +2221,14 @@ async def my_booking_history(
     ).all()
     return [
         MyBookingHistoryItem(
-            id=b.id, service_name=sn, provider_name=pn, start_at=b.start_at, status=b.status, price=b.price
+            id=b.id,
+            service_name=_resolve_service_name(svc, _resolve_lang(lang)),
+            provider_name=pn,
+            start_at=b.start_at,
+            status=b.status,
+            price=b.price,
         )
-        for b, sn, pn in rows
+        for b, svc, pn in rows
     ]
 
 
@@ -2216,6 +2308,7 @@ async def _recompute_provider_rating(db: AsyncSession, provider_id: uuid.UUID) -
 async def get_review_invite(
     booking_id: uuid.UUID,
     token: str,
+    lang: str = Query(default=DEFAULT_LANG),
     db: AsyncSession = Depends(get_db),
 ) -> ReviewInviteOut:
     booking = await db.get(Booking, booking_id)
@@ -2236,7 +2329,7 @@ async def get_review_invite(
     service = await db.get(Service, booking.service_id)
     return ReviewInviteOut(
         provider_name=provider.name if provider else "",
-        service_name=service.name if service else "",
+        service_name=_resolve_service_name(service, _resolve_lang(lang)) if service else "",
         start_at=booking.start_at,
         client_name=booking.client_name,
     )

@@ -370,6 +370,14 @@ export interface Translations {
   reviewsSectionTitle: string;
   reviewsEmpty: string;
   reviewsLoadError: string;
+  travelLateWarning: (prev: string, arrive: string, late: number) => string;
+  travelConfirmAnyway: string;
+  myBookingLate: (n: number) => string;
+  cityUseLocation: string;
+  cityLocating: string;
+  cityLocationError: string;
+  cityNoMastersYet: string;
+  cityNoMasters: string;
   pushStatusTitle: string;
   pushStatusChecking: string;
   pushStatusOn: string;
@@ -396,7 +404,8 @@ export interface Translations {
   myCitiesSaved: string;
   myCitiesError: string;
   myCitiesMinOne: string;
-  myBookingTravel: (n: number) => string;
+  myBookingTravel: (n: number, arrive: string, depart: string) => string;
+  myBookingTrackingSoon: (time: string) => string;
   myBookingTimedOut: string;
   bookAnotherMaster: string;
   analyticsColTimedOut: string;
@@ -786,6 +795,16 @@ export function buildTranslations(map: TranslationMap): Translations {
     reviewsSectionTitle: pick(map, "reviewsSectionTitle"),
     reviewsEmpty: pick(map, "reviewsEmpty"),
     reviewsLoadError: pick(map, "reviewsLoadError"),
+    travelLateWarning: (prev, arrive, late) =>
+      interpolate(pick(map, "travelLateWarning"), { prev, arrive, late }),
+    travelConfirmAnyway: pick(map, "travelConfirmAnyway"),
+    myBookingLate: (n) =>
+      interpolate(pick(map, "myBookingLate"), { n }),
+    cityUseLocation: pick(map, "cityUseLocation"),
+    cityLocating: pick(map, "cityLocating"),
+    cityLocationError: pick(map, "cityLocationError"),
+    cityNoMastersYet: pick(map, "cityNoMastersYet"),
+    cityNoMasters: pick(map, "cityNoMasters"),
     pushStatusTitle: pick(map, "pushStatusTitle"),
     pushStatusChecking: pick(map, "pushStatusChecking"),
     pushStatusOn: pick(map, "pushStatusOn"),
@@ -820,8 +839,10 @@ export function buildTranslations(map: TranslationMap): Translations {
     myCitiesSaved: pick(map, "myCitiesSaved"),
     myCitiesError: pick(map, "myCitiesError"),
     myCitiesMinOne: pick(map, "myCitiesMinOne"),
-    myBookingTravel: (n) =>
-      interpolate(pick(map, "myBookingTravel"), { n }),
+    myBookingTravel: (n, arrive, depart) =>
+      interpolate(pick(map, "myBookingTravel"), { n, arrive, depart }),
+    myBookingTrackingSoon: (time) =>
+      interpolate(pick(map, "myBookingTrackingSoon"), { time }),
     myBookingTimedOut: pick(map, "myBookingTimedOut"),
     bookAnotherMaster: pick(map, "bookAnotherMaster"),
     analyticsColTimedOut: pick(map, "analyticsColTimedOut"),

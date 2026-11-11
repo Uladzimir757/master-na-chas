@@ -80,6 +80,15 @@ class BookingCreatedOut(BookingOut):
 TravelMinutes = Literal[15, 30, 45, 60, 90]
 
 
+class ArrivalPreviewOut(BaseModel):
+    """GET /api/bookings/{id}/arrival — что будет с приездом при выбранном
+    времени доезда, до подтверждения: мастер видит опоздание заранее."""
+
+    expected_arrival_at: datetime
+    previous_end_at: datetime | None = None
+    late_minutes: int = 0
+
+
 class BookingStatusUpdate(BaseModel):
     status: BookingStatus
     # итоговая цена работы — при завершении (аналитика)
@@ -853,6 +862,12 @@ class MyBookingOut(BaseModel):
     travel_minutes: int | None = None     # время доезда мастера (после подтверждения)
     cancel_reason: str | None = None      # 'provider_timeout' — мастер не ответил вовремя
     confirm_deadline_at: datetime | None = None
+    # с какого момента клиенту показывается живая точка мастера на карте
+    # (start_at - TRACK_WINDOW_HOURS) — страница говорит об этом заранее
+    tracking_from: datetime | None = None
+    # расчётный приезд мастера: начало записи или «конец его предыдущей
+    # работы в этот день + дорога», что позже (app/main.py _expected_arrival)
+    expected_arrival_at: datetime | None = None
     location: ProviderLocationOut | None = None  # живая точка мастера (если можно показывать)
 
 
@@ -885,9 +900,18 @@ class CityOut(BaseModel):
     slug: str
     name_pl: str
     name_en: str
+    lat: float | None = None
+    lng: float | None = None
 
     class Config:
         from_attributes = True
+
+
+class PublicCityOut(CityOut):
+    """GET /api/cities: все активные города; has_masters=False — пока нет
+    ни одного мастера (клиент видит пометку и может выбрать другой)."""
+
+    has_masters: bool
 
 
 class AdminCityOut(CityOut):
@@ -910,6 +934,8 @@ class AdminCityCreate(BaseModel):
     name_pl: str = Field(min_length=1, max_length=100)
     name_en: str = Field(min_length=1, max_length=100)
     sort_order: int = 100
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
 
 
 class AdminCityUpdate(BaseModel):
@@ -917,6 +943,8 @@ class AdminCityUpdate(BaseModel):
     name_en: str | None = Field(default=None, min_length=1, max_length=100)
     is_active: bool | None = None
     sort_order: int | None = None
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
 
 
 class AdminMasterCitiesUpdate(BaseModel):

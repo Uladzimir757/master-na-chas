@@ -111,6 +111,16 @@ export interface MyBooking {
   // "provider_timeout" — мастер не подтвердил вовремя, заказ отменён сам
   cancel_reason?: string | null;
   confirm_deadline_at?: string | null;
+  // с этого момента на странице видна живая точка мастера
+  tracking_from?: string | null;
+  // расчётный приезд: начало записи или «предыдущая работа + дорога»
+  expected_arrival_at?: string | null;
+}
+
+export interface ArrivalPreview {
+  expected_arrival_at: string;
+  previous_end_at: string | null;
+  late_minutes: number;
 }
 
 export interface MyBookingHistoryItem {
@@ -173,6 +183,13 @@ export interface City {
   slug: string;
   name_pl: string;
   name_en: string;
+}
+
+// GET /api/cities: все активные города; has_masters=false — пока пусто.
+export interface PublicCity extends City {
+  lat: number | null;
+  lng: number | null;
+  has_masters: boolean;
 }
 
 export interface MyCity extends City {
@@ -493,7 +510,7 @@ export const api = {
     request<Provider[]>(
       `/api/providers${city ? `?city=${encodeURIComponent(city)}` : ""}`,
     ),
-  listCities: () => request<City[]>("/api/cities"),
+  listCities: () => request<PublicCity[]>("/api/cities"),
   // One master's own offered services, for the booking flow once a master
   // has been picked (components/MasterPicker.tsx).
   listProviderServices: (providerId: string, lang: string) =>
@@ -678,6 +695,11 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ status, ...extra }),
     }),
+  // перед подтверждением: успевает ли мастер после предыдущей работы
+  arrivalPreview: (bookingId: string, travelMinutes: number) =>
+    request<ArrivalPreview>(
+      `/api/bookings/${bookingId}/arrival?travel_minutes=${travelMinutes}`,
+    ),
   getMyCities: () => request<MyCity[]>("/api/providers/me/cities"),
   updateMyCities: (cityIds: string[]) =>
     request<MyCity[]>("/api/providers/me/cities", {
@@ -874,9 +896,10 @@ export const api = {
 
   // Отзывы (Этап 3) — публичные, верификация токеном из SMS-ссылки, см.
   // app/main.py's _issue_review_invite/get_review_invite/submit_review.
-  getReviewInvite: (bookingId: string, token: string) =>
+  // lang — название услуги на языке страницы (не внутреннее русское)
+  getReviewInvite: (bookingId: string, token: string, lang: string) =>
     request<ReviewInvite>(
-      `/api/reviews/invite/${bookingId}?token=${encodeURIComponent(token)}`,
+      `/api/reviews/invite/${bookingId}?token=${encodeURIComponent(token)}&lang=${encodeURIComponent(lang)}`,
     ),
   submitReview: (bookingId: string, payload: ReviewSubmitPayload) =>
     request<Review>(`/api/reviews/invite/${bookingId}`, {
@@ -884,17 +907,18 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   // «Моя запись» — публичная страница клиента по ссылке из SMS (manage_token).
-  getMyBooking: (id: string, token: string) =>
+  // lang везде — название услуги на языке страницы
+  getMyBooking: (id: string, token: string, lang: string) =>
     request<MyBooking>(
-      `/api/my-booking/${id}?token=${encodeURIComponent(token)}`,
+      `/api/my-booking/${id}?token=${encodeURIComponent(token)}&lang=${encodeURIComponent(lang)}`,
     ),
-  cancelMyBooking: (id: string, token: string) =>
+  cancelMyBooking: (id: string, token: string, lang: string) =>
     request<MyBooking>(
-      `/api/my-booking/${id}/cancel?token=${encodeURIComponent(token)}`,
+      `/api/my-booking/${id}/cancel?token=${encodeURIComponent(token)}&lang=${encodeURIComponent(lang)}`,
       { method: "POST" },
     ),
-  rescheduleMyBooking: (id: string, token: string, startAt: string) =>
-    request<MyBooking>(`/api/my-booking/${id}/reschedule`, {
+  rescheduleMyBooking: (id: string, token: string, startAt: string, lang: string) =>
+    request<MyBooking>(`/api/my-booking/${id}/reschedule?lang=${encodeURIComponent(lang)}`, {
       method: "POST",
       body: JSON.stringify({ token, start_at: startAt }),
     }),
@@ -902,9 +926,9 @@ export const api = {
     request<Slot[]>(
       `/api/my-booking/${id}/slots?token=${encodeURIComponent(token)}&date_from=${from}&date_to=${to}`,
     ),
-  myBookingHistory: (id: string, token: string) =>
+  myBookingHistory: (id: string, token: string, lang: string) =>
     request<MyBookingHistoryItem[]>(
-      `/api/my-booking/${id}/history?token=${encodeURIComponent(token)}`,
+      `/api/my-booking/${id}/history?token=${encodeURIComponent(token)}&lang=${encodeURIComponent(lang)}`,
     ),
   listProviderReviews: (providerId: string) =>
     request<Review[]>(`/api/providers/${providerId}/reviews`),
