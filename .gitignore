@@ -12,3 +12,6 @@ __pycache__/
 # генерируются next dev
 web/AGENTS.md
 web/CLAUDE.md
+
+# Firebase service account key (secret, never commit)
+app/*firebase-adminsdk*.json
