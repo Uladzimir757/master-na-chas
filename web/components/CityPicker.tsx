@@ -64,7 +64,9 @@ export default function CityPicker({
         setLocating(false);
         setLocateError(true);
       },
-      { enableHighAccuracy: false, timeout: 15_000, maximumAge: 10 * 60_000 },
+      // enableHighAccuracy: в WebView на Xiaomi (HyperOS) низкая точность не
+      // отвечает вовсе (таймаут) — проверено на телефоне 12.11.2026
+      { enableHighAccuracy: true, timeout: 20_000, maximumAge: 10 * 60_000 },
     );
   };
 
