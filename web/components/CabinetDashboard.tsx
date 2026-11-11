@@ -85,6 +85,12 @@ function effectiveTab(
   );
 }
 
+function initialTab(): CabinetTab {
+  if (typeof window === "undefined") return "calendar";
+  const tab = new URLSearchParams(window.location.search).get("tab");
+  return tab === "settings" ? "settings" : "calendar";
+}
+
 export default function CabinetDashboard({
   onLogout,
 }: {
@@ -92,7 +98,9 @@ export default function CabinetDashboard({
 }) {
   const { locale, t, ready } = useLocale();
 
-  const [requestedTab, setTab] = useState<CabinetTab>("calendar");
+  // ?tab=settings — тап по уведомлению геолокации в приложении
+  // (MainActivity.java) ведёт туда, где её выключают.
+  const [requestedTab, setTab] = useState<CabinetTab>(initialTab);
   // права текущего сотрудника (роль + чекбоксы) -> какие вкладки показывать;
   // сервер всё равно проверяет каждое действие (403), это только UI.
   const [perms, setPerms] = useState<string[] | null>(null);

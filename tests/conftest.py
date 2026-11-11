@@ -53,6 +53,16 @@ assert NEXT_MONDAY.weekday() == 0
 
 
 @pytest.fixture(autouse=True)
+def _no_confirm_timer_sweep(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Попутный прогон таймера (app/main.py _maybe_sweep_confirm_timer) идёт
+    через свой async_session_factory — то есть в базу из DATABASE_URL, не в
+    тестовую. В тестах выключен; сам прогон проверяется вызовом напрямую."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "CONFIRM_SWEEP_SECONDS", 0)
+
+
+@pytest.fixture(autouse=True)
 def _fresh_public_cache():
     """Каждый тест сидит свои строки — кэш каталога от прошлого теста
     (app/public_cache.py) не должен их подменять."""
