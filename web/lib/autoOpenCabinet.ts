@@ -1,24 +1,23 @@
 /**
  * Приложение одно на мастера и клиента. Если на устройстве сохранён вход
- * мастера, при запуске открываем сразу кабинет, а не главную для клиента
+ * мастера, при открытии сразу показываем кабинет, а не главную для клиента
  * (docs/app-auto-open-cabinet-task.md). Токен проверяет уже сам кабинет:
  * недействительный он сбрасывает (api.me) и показывает форму входа.
  *
- * Только один раз за запуск: sessionStorage живёт, пока жив процесс
- * приложения / вкладка, так что мастер, сам вернувшийся на главную, туда и
- * попадёт, а при следующем запуске снова откроется кабинет.
+ * Только на свежей загрузке документа: флаг живёт в памяти модуля, а не в
+ * sessionStorage. Фоновая геолокация держит процесс приложения живым, и
+ * sessionStorage переживал перезапуск окна (тап по уведомлению «клиент видит
+ * ваше местоположение») — мастер попадал на главную. Переход на главную по
+ * ссылке внутри сайта — клиентская навигация, модуль не перезагружается,
+ * поэтому обратно в кабинет не бросает.
  */
 
 import { getToken } from "@/lib/authToken";
 
-const DONE_KEY = "zr_auto_cabinet_done";
+let decided = false;
 
 export function shouldAutoOpenCabinet(): boolean {
-  try {
-    if (window.sessionStorage.getItem(DONE_KEY)) return false;
-    window.sessionStorage.setItem(DONE_KEY, "1");
-  } catch {
-    /* no sessionStorage — still fine to check the token */
-  }
+  if (decided) return false;
+  decided = true;
   return getToken("master") !== null;
 }

@@ -26,24 +26,36 @@ export type PushOwner =
   | { kind: "master" }
   | { kind: "client"; bookingId: string; token: string };
 
+/** Итог последней попытки включить пуши — для строки статуса в кабинете. */
+export type PushStatus =
+  | { state: "registered" }
+  | { state: "denied" }
+  | { state: "unavailable" }
+  | { state: "error"; message: string };
+
 /**
  * Спрашивает разрешение на уведомления, получает FCM-токен и привязывает
  * его к мастеру (по входу) или к телефону клиента (по ссылке «моя запись»).
  * Best-effort: отказ в разрешении, нет Firebase-конфига в сборке или сеть —
- * молча ничего, сайт работает как раньше.
+ * сайт работает как раньше, а причина возвращается статусом (его показывает
+ * блок «Уведомления на этом телефоне» в кабинете, components/PushStatus.tsx).
  */
-export async function registerNativePush(owner: PushOwner): Promise<void> {
+export async function registerNativePush(owner: PushOwner): Promise<PushStatus> {
   const p = platform();
-  if (!isNativeApp() || !p) return;
+  if (!isNativeApp() || !p) return { state: "unavailable" };
+  let step = "plugin";
   try {
     const { FirebaseMessaging } = await import("@capacitor-firebase/messaging");
+    step = "permission";
     let perm = await FirebaseMessaging.checkPermissions();
     if (perm.receive === "prompt" || perm.receive === "prompt-with-rationale") {
       perm = await FirebaseMessaging.requestPermissions();
     }
-    if (perm.receive !== "granted") return;
+    if (perm.receive !== "granted") return { state: "denied" };
+    step = "token";
     const { token } = await FirebaseMessaging.getToken();
-    if (!token) return;
+    if (!token) return { state: "error", message: "token: empty" };
+    step = "server";
     if (owner.kind === "master") {
       await api.registerDeviceToken(token, p);
     } else {
@@ -54,8 +66,10 @@ export async function registerNativePush(owner: PushOwner): Promise<void> {
     } catch {
       /* ignore */
     }
-  } catch {
-    /* best-effort, см. docstring */
+    return { state: "registered" };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { state: "error", message: `${step}: ${message}` };
   }
 }
 

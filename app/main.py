@@ -200,6 +200,10 @@ from app.translations import DEFAULT_LANG, SUPPORTED_LANGS, refresh_translation_
 logging.basicConfig(level=settings.LOG_LEVEL, format="%(levelname)s:%(name)s:%(message)s")
 
 logger = logging.getLogger("master_na_chas")
+# httpx пишет каждый запрос с полным URL на INFO, а в URL Telegram Bot API
+# лежит токен бота — в логах Render его быть не должно.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpx2").setLevel(logging.WARNING)
 
 
 def _client_ip(request: Request) -> str:
@@ -1996,6 +2000,7 @@ async def cancel_my_booking(
             "client_name": booking.client_name,
             "client_phone": booking.client_phone,
         },
+        url=_cabinet_booking_url(booking.id),
     )
     return await _my_booking_out(db, booking)
 
@@ -2050,6 +2055,7 @@ async def reschedule_my_booking(
             "client_name": booking.client_name,
             "client_phone": booking.client_phone,
         },
+        url=_cabinet_booking_url(booking.id),
     )
     return await _my_booking_out(db, booking)
 

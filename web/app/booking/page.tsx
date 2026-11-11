@@ -179,12 +179,7 @@ export default function MyBookingPage() {
 
               {booking.status === "cancelled" &&
                 booking.cancel_reason === "provider_timeout" && (
-                  <div>
-                    <p className="mb-2 text-sm">{t.myBookingTimedOut}</p>
-                    <Link href="/" className="text-base text-accent underline">
-                      {t.bookAnotherMaster}
-                    </Link>
-                  </div>
+                  <p className="text-sm">{t.myBookingTimedOut}</p>
                 )}
 
               {booking.location && (
@@ -208,6 +203,20 @@ export default function MyBookingPage() {
 
               {message && <p className="text-sm text-accent-2">{message}</p>}
               {error && <p className="text-sm text-danger">{error}</p>}
+
+              {/* Отменённая/прошедшая запись — не тупик: сразу записаться снова. */}
+              {(booking.status === "cancelled" ||
+                booking.status === "completed" ||
+                booking.status === "no_show") && (
+                <Link
+                  href="/"
+                  className="inline-flex min-h-12 items-center justify-center self-start rounded-full bg-accent px-6 py-2 text-base font-semibold text-on-accent transition hover:bg-accent-2"
+                >
+                  {booking.cancel_reason === "provider_timeout"
+                    ? t.bookAnotherMaster
+                    : t.bookAgain}
+                </Link>
+              )}
 
               {booking.can_change && !picking && (
                 <>
