@@ -197,15 +197,27 @@ test("confirming a pending booking updates its status", async ({ page }) => {
   await mockProviderSettings(page);
   const booking = cabinetBooking({ status: "pending" });
   const calendar = await mockMyCalendar(page, { bookings: [booking] });
-  await mockBookingStatusUpdate(page, (id, status) => {
+  let sentTravel: unknown;
+  await mockBookingStatusUpdate(page, (id, status, payload) => {
+    sentTravel = payload.travel_minutes;
     const idx = calendar.bookings.findIndex((b) => b.id === id);
-    if (idx !== -1) calendar.bookings[idx] = { ...calendar.bookings[idx], status: status as typeof booking.status };
+    if (idx !== -1)
+      calendar.bookings[idx] = {
+        ...calendar.bookings[idx],
+        status: status as typeof booking.status,
+        travel_minutes: payload.travel_minutes as number,
+      };
     return { status: 200, body: calendar.bookings[idx] };
   });
 
   await page.goto("/cabinet/");
   await page.getByText(booking.client_name, { exact: false }).click();
+  // «Подтвердить» сначала спрашивает время доезда; без выбора ничего не уходит
   await page.getByRole("button", { name: t.confirmBookingButton }).click();
+  await expect(page.getByText(t.travelPickTitle)).toBeVisible();
+  expect(sentTravel).toBeUndefined();
+  await page.getByRole("button", { name: t.travelMinutesChip(45), exact: true }).click();
+  await expect.poll(() => sentTravel).toBe(45);
 
   // confirming closes the details panel and reloads the calendar — reopen
   // the (now-updated) event to see the new status
@@ -251,6 +263,7 @@ test("a failed booking status update shows an error message", async ({ page }) =
   await page.goto("/cabinet/");
   await page.getByText(booking.client_name, { exact: false }).click();
   await page.getByRole("button", { name: t.confirmBookingButton }).click();
+  await page.getByRole("button", { name: t.travelMinutesChip(30), exact: true }).click();
 
   await expect(page.getByText(t.bookingActionError)).toBeVisible();
   // the optimistic-looking UI didn't silently flip to "confirmed" underneath the error

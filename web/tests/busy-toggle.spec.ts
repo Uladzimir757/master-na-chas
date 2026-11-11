@@ -78,7 +78,8 @@ test("setting an estimate while busy saves it and shows the computed until time"
 
   const estimateInput = page.getByPlaceholder(t.busyEstimatePlaceholder);
   await estimateInput.fill(String(BUSY_ESTIMATE_MINUTES));
-  await estimateInput.blur();
+  // сохраняется явной кнопкой, не по уходу с поля (fef9446)
+  await page.getByRole("button", { name: t.busySaveEstimateButton }).click();
 
   await expect(page.getByText(t.busyUntilText(formatTime(BUSY_UNTIL, "pl")))).toBeVisible();
   await expect(page.getByText(t.busyActionError)).not.toBeVisible();
@@ -100,7 +101,8 @@ test("clearing the estimate returns to the open-ended note", async ({ page }) =>
   await expect(estimateInput).toHaveValue(String(BUSY_ESTIMATE_MINUTES));
 
   await estimateInput.fill("");
-  await estimateInput.blur();
+  // сохраняется явной кнопкой, не по уходу с поля (fef9446)
+  await page.getByRole("button", { name: t.busySaveEstimateButton }).click();
 
   await expect(page.getByText(t.busyOpenEndedNote)).toBeVisible();
 });

@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   api,
   type MyBooking,
@@ -169,7 +170,22 @@ export default function MyBookingPage() {
                 <span className="mt-2 inline-block rounded-full bg-bg px-2.5 py-1 text-xs">
                   {t.bookingStatusLabel[booking.status] ?? booking.status}
                 </span>
+                {booking.status === "confirmed" && booking.travel_minutes && (
+                  <p className="mt-2 text-sm text-ink-2">
+                    {t.myBookingTravel(booking.travel_minutes)}
+                  </p>
+                )}
               </div>
+
+              {booking.status === "cancelled" &&
+                booking.cancel_reason === "provider_timeout" && (
+                  <div>
+                    <p className="mb-2 text-sm">{t.myBookingTimedOut}</p>
+                    <Link href="/" className="text-base text-accent underline">
+                      {t.bookAnotherMaster}
+                    </Link>
+                  </div>
+                )}
 
               {booking.location && (
                 <div>

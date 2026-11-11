@@ -79,6 +79,7 @@ test("creating a master adds it to the list without a page reload", async ({ pag
   await page.getByPlaceholder("Имя (как будет видно клиентам)").fill("Друг");
   await page.getByPlaceholder("Email для входа в личный кабинет").fill("friend@example.com");
   await page.getByPlaceholder("Пароль (минимум 8 символов)").fill("password123");
+  await page.getByRole("checkbox", { name: "Gdynia" }).check();
   await page.getByRole("button", { name: "Создать мастера" }).click();
 
   await expect(page.getByText("Мастер создан.")).toBeVisible();
@@ -96,6 +97,7 @@ test("a duplicate email surfaces the backend's 409 as a specific message", async
   await page.getByPlaceholder("Имя (как будет видно клиентам)").fill("Друг");
   await page.getByPlaceholder("Email для входа в личный кабинет").fill("dup@example.com");
   await page.getByPlaceholder("Пароль (минимум 8 символов)").fill("password123");
+  await page.getByRole("checkbox", { name: "Gdynia" }).check();
   await page.getByRole("button", { name: "Создать мастера" }).click();
 
   await expect(page.getByText("Мастер с таким email уже существует")).toBeVisible();

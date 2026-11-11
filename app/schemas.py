@@ -37,6 +37,9 @@ class BookingCreate(BaseModel):
     notes: str | None = None
     # None = "любой доступный мастер" (docs/mvp-task.md #3)
     provider_id: uuid.UUID | None = None
+    # Город заказа (выбор клиента на главной). None — старый клиент без
+    # выбора города; тогда проверки города нет.
+    city_id: uuid.UUID | None = None
 
     @field_validator("start_at")
     @classmethod
@@ -54,6 +57,12 @@ class BookingOut(BaseModel):
     end_at: datetime
     status: BookingStatus
     price: Decimal | None = None
+    city_id: uuid.UUID | None = None
+    # Таймер подтверждения (app/confirm_timer.py): до какого момента мастер
+    # должен подтвердить pending-заказ; None = таймера нет.
+    confirm_deadline_at: datetime | None = None
+    cancel_reason: str | None = None
+    travel_minutes: int | None = None
 
     class Config:
         from_attributes = True
@@ -66,10 +75,23 @@ class BookingCreatedOut(BookingOut):
     manage_token: str | None = None
 
 
+# Время доезда до клиента, которое мастер выбирает при подтверждении заказа
+# (чипы в кабинете, не свободный ввод).
+TravelMinutes = Literal[15, 30, 45, 60, 90]
+
+
 class BookingStatusUpdate(BaseModel):
     status: BookingStatus
     # итоговая цена работы — при завершении (аналитика)
     price: Decimal | None = Field(default=None, ge=0, le=1_000_000)
+    # обязательно при подтверждении (status=confirmed)
+    travel_minutes: TravelMinutes | None = None
+
+    @model_validator(mode="after")
+    def _confirm_needs_travel_time(self) -> "BookingStatusUpdate":
+        if self.status == BookingStatus.confirmed and self.travel_minutes is None:
+            raise ValueError("travel_minutes is required to confirm a booking")
+        return self
 
 
 class ManualBookingCreate(BaseModel):
@@ -103,6 +125,8 @@ class ManualBookingCreate(BaseModel):
     client_phone: str | None = None
     notes: str | None = None
     status: BookingStatus = BookingStatus.confirmed
+    # время доезда — у ручной брони необязательно
+    travel_minutes: TravelMinutes | None = None
 
     @field_validator("start_at")
     @classmethod
@@ -171,6 +195,8 @@ class CreateMasterRequest(BaseModel):
     password: str = Field(min_length=8)
     travel_buffer_minutes: int = 30
     phone: str | None = Field(default=None, max_length=30, pattern=r"^[0-9+()\- ]*$")
+    # города мастера; пусто — мастер не виден клиентам, пока не выберет сам
+    city_ids: list[uuid.UUID] = []
 
 
 class MasterOut(BaseModel):
@@ -188,6 +214,7 @@ class MasterOut(BaseModel):
     rating: float | None = None
     rating_count: int = 0
     phone: str | None = None
+    city_ids: list[uuid.UUID] = []
 
 
 class AdminMasterUpdate(BaseModel):
@@ -774,6 +801,8 @@ class ServiceStatOut(BaseModel):
     completed: int
     cancelled: int
     no_show: int
+    # автоотмены: мастер не подтвердил вовремя (в cancelled не входят)
+    timed_out: int = 0
     total_minutes: int
     avg_minutes: float
     revenue: Decimal
@@ -787,6 +816,8 @@ class MasterStatOut(BaseModel):
     completed: int
     cancelled: int
     no_show: int
+    # автоотмены: мастер не подтвердил вовремя (в cancelled не входят)
+    timed_out: int = 0
     total_minutes: int
     revenue: Decimal
     priced_jobs: int
@@ -818,6 +849,9 @@ class MyBookingOut(BaseModel):
     status: BookingStatus
     can_change: bool          # можно ли ещё отменить/перенести
     change_deadline: datetime  # до какого момента можно
+    travel_minutes: int | None = None     # время доезда мастера (после подтверждения)
+    cancel_reason: str | None = None      # 'provider_timeout' — мастер не ответил вовремя
+    confirm_deadline_at: datetime | None = None
     location: ProviderLocationOut | None = None  # живая точка мастера (если можно показывать)
 
 
@@ -838,3 +872,51 @@ class MyBookingHistoryItem(BaseModel):
     start_at: datetime
     status: BookingStatus
     price: Decimal | None = None
+
+
+# ============================================================================
+# Города (docs/confirm-timer-travel-cities-task.md)
+# ============================================================================
+
+
+class CityOut(BaseModel):
+    id: uuid.UUID
+    slug: str
+    name_pl: str
+    name_en: str
+
+    class Config:
+        from_attributes = True
+
+
+class AdminCityOut(CityOut):
+    is_active: bool
+    sort_order: int
+
+
+class MyCityOut(CityOut):
+    """GET/PUT /api/providers/me/cities: все активные города + отмечен ли."""
+
+    selected: bool
+
+
+class MyCitiesUpdate(BaseModel):
+    city_ids: list[uuid.UUID] = Field(min_length=1)
+
+
+class AdminCityCreate(BaseModel):
+    slug: str = Field(min_length=1, max_length=60, pattern=r"^[a-z0-9-]+$")
+    name_pl: str = Field(min_length=1, max_length=100)
+    name_en: str = Field(min_length=1, max_length=100)
+    sort_order: int = 100
+
+
+class AdminCityUpdate(BaseModel):
+    name_pl: str | None = Field(default=None, min_length=1, max_length=100)
+    name_en: str | None = Field(default=None, min_length=1, max_length=100)
+    is_active: bool | None = None
+    sort_order: int | None = None
+
+
+class AdminMasterCitiesUpdate(BaseModel):
+    city_ids: list[uuid.UUID]

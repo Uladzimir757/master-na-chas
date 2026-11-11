@@ -34,6 +34,7 @@ import {
   ServiceRowActions,
 } from "@/components/OwnServices";
 import MasterCalendar from "@/components/MasterCalendar";
+import MyCities from "@/components/MyCities";
 
 type CabinetTab =
   "calendar" | "services" | "settings" | "analytics" | "team" | "password";
@@ -869,6 +870,10 @@ export default function CabinetDashboard({
             {settingsError && (
               <p className="mt-2 text-sm text-danger">{settingsError}</p>
             )}
+          </section>
+
+          <section className="border-t border-line pt-5">
+            <MyCities />
           </section>
 
           <section className="border-t border-line pt-5">

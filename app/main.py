@@ -71,9 +71,18 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
 from app.db import async_session_factory, get_db
+from app.confirm_timer import (
+    PROVIDER_TIMEOUT,
+    claim_due_notices,
+    confirm_deadline_for,
+    expire_overdue_bookings,
+    timer_start,
+)
 from app.models import (
     Booking,
     BookingStatus,
+    City,
+    ProviderCity,
     MasterUser,
     Provider,
     ProviderBlock,
@@ -91,6 +100,13 @@ from app.models import (
 from app.notifications import notify_client, notify_master, reply_telegram, run_in_background
 from app.schemas import (
     AdminAnalyticsOut,
+    AdminCityCreate,
+    AdminCityOut,
+    AdminCityUpdate,
+    AdminMasterCitiesUpdate,
+    CityOut,
+    MyCitiesUpdate,
+    MyCityOut,
     MasterStatOut,
     MyBookingHistoryItem,
     MyBookingOut,
@@ -160,6 +176,7 @@ from app.security import (
 )
 from app.slot_engine import (
     BUSINESS_TZ,
+    CONFIRM_WINDOW,
     LOCATION_FRESHNESS,
     SlotOut,
     get_availability,
@@ -315,16 +332,31 @@ async def _resolve_provider_location(db: AsyncSession, provider: Provider, now: 
     )
 
 
+def _providers_in_city(slug: str):
+    """provider_id of masters working in this (active) city — a subquery."""
+    return (
+        select(ProviderCity.provider_id)
+        .join(City, City.id == ProviderCity.city_id)
+        .where(City.slug == slug, City.is_active.is_(True))
+    )
+
+
 @app.get("/api/providers", response_model=list[ProviderOut])
-async def list_providers(db: AsyncSession = Depends(get_db)) -> list[ProviderOut]:
+async def list_providers(city: str | None = None, db: AsyncSession = Depends(get_db)) -> list[ProviderOut]:
     """Sorted by rating (best first, unrated last — nulls_last, not a 0)
     for the master-picker screen; name as the tiebreaker so unrated masters
-    still list in a stable order rather than shuffling on every request."""
+    still list in a stable order rather than shuffling on every request.
+
+    `city` (slug) — only masters of that city; a master with no cities is
+    never in a city's list. Without it — every active master, for an older
+    cached page that doesn't ask for a city yet."""
     stmt = (
         select(Provider)
         .where(Provider.is_active.is_(True))
         .order_by(Provider.rating.desc().nulls_last(), Provider.name)
     )
+    if city is not None:
+        stmt = stmt.where(Provider.id.in_(_providers_in_city(city)))
     providers = (await db.execute(stmt)).scalars().all()
     now = datetime.now(timezone.utc)
     offer_rows = (
@@ -355,6 +387,34 @@ async def list_providers(db: AsyncSession = Depends(get_db)) -> list[ProviderOut
         )
         for p in providers
     ]
+
+
+@app.get("/api/cities", response_model=list[CityOut])
+async def list_cities(db: AsyncSession = Depends(get_db)) -> list[City]:
+    """Города для выбора на главной: активные и только те, где есть хотя бы
+    один активный мастер — пустой город клиенту не показываем."""
+    has_master = (
+        select(ProviderCity.city_id)
+        .join(Provider, Provider.id == ProviderCity.provider_id)
+        .where(Provider.is_active.is_(True))
+    )
+    stmt = (
+        select(City)
+        .where(City.is_active.is_(True), City.id.in_(has_master))
+        .order_by(City.sort_order, City.name_pl)
+    )
+    return list((await db.execute(stmt)).scalars().all())
+
+
+async def _provider_works_in(db: AsyncSession, provider_id: uuid.UUID, city_id: uuid.UUID) -> bool:
+    row = (
+        await db.execute(
+            select(ProviderCity.provider_id)
+            .join(City, City.id == ProviderCity.city_id)
+            .where(ProviderCity.provider_id == provider_id, ProviderCity.city_id == city_id, City.is_active.is_(True))
+        )
+    ).scalar_one_or_none()
+    return row is not None
 
 
 # The dispatcher's (separate project) categories this tenant's masters cover,
@@ -458,6 +518,7 @@ async def get_availability_endpoint(
     service = await db.get(Service, query.service_id)
     if service is None or not service.is_active:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Service not found")
+    await _expire_overdue(db)
 
     provider = None
     if query.provider_id is not None:
@@ -482,6 +543,8 @@ async def create_booking(request: Request, payload: BookingCreate, db: AsyncSess
         from app.slot_engine import list_providers_for_service
 
         candidates = await list_providers_for_service(db, service)
+        if payload.city_id is not None:
+            candidates = [c for c in candidates if await _provider_works_in(db, c.id, payload.city_id)]
         if not candidates:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "No provider offers this service")
         provider = candidates[0]
@@ -499,6 +562,8 @@ async def create_booking(request: Request, payload: BookingCreate, db: AsyncSess
         # it says nothing about whether this provider does this service.
         if not await provider_offers_service(db, provider.id, service.id):
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Provider does not offer this service")
+        if payload.city_id is not None and not await _provider_works_in(db, provider.id, payload.city_id):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Provider does not work in this city")
 
     end_at = payload.start_at + timedelta(minutes=await provider_service_duration(db, provider.id, service))
 
@@ -529,6 +594,18 @@ async def create_booking(request: Request, payload: BookingCreate, db: AsyncSess
         BookingStatus.pending if provider.requires_booking_confirmation else BookingStatus.confirmed
     )
 
+    # Таймер подтверждения (app/confirm_timer.py). Заказ вне рабочих часов
+    # ждёт их начала: уведомление мастеру уйдёт тогда из тика, не ночью.
+    now = datetime.now(timezone.utc)
+    deadline = None
+    if initial_status == BookingStatus.pending:
+        deadline = await confirm_deadline_for(db, provider.id, now=now, start_at=payload.start_at)
+    notify_master_now = deadline is None or deadline - CONFIRM_WINDOW <= now
+
+    # Просроченный неподтверждённый заказ на этот же слот держит его в
+    # EXCLUDE-констрейнте, пока его не отменил тик — освобождаем.
+    await _expire_overdue(db)
+
     booking = Booking(
         id=uuid.uuid4(),
         tenant_id=service.tenant_id,
@@ -541,6 +618,9 @@ async def create_booking(request: Request, payload: BookingCreate, db: AsyncSess
         notes=payload.notes,
         status=initial_status,
         manage_token=secrets.token_urlsafe(24),
+        city_id=payload.city_id,
+        confirm_deadline_at=deadline,
+        confirm_notices_sent=1 if deadline is not None and notify_master_now else 0,
     )
     db.add(booking)
     try:
@@ -552,12 +632,19 @@ async def create_booking(request: Request, payload: BookingCreate, db: AsyncSess
         raise
     await db.refresh(booking)
 
-    await _notify_new_booking(db, booking, service)
+    await _notify_new_booking(db, booking, service, staff=notify_master_now)
 
     return booking
 
 
-async def _notify_staff(db: AsyncSession, provider_id: uuid.UUID, purpose: str, facts: dict) -> None:
+def _cabinet_booking_url(booking_id: uuid.UUID) -> str:
+    """Deep link пуша: кабинет сразу открывает детали этой брони."""
+    return f"/cabinet/?booking={booking_id}"
+
+
+async def _notify_staff(
+    db: AsyncSession, provider_id: uuid.UUID, purpose: str, facts: dict, url: str = "/cabinet/"
+) -> None:
     """Уведомление хозяину и менеджерам (кто управляет бронями). Best-effort."""
     staff = (await db.execute(select(MasterUser).where(MasterUser.provider_id == provider_id))).scalars().all()
     recipients = [u for u in staff if "bookings_status" in effective_permissions(u.role, u.permissions)]
@@ -576,6 +663,7 @@ async def _notify_staff(db: AsyncSession, provider_id: uuid.UUID, purpose: str, 
                 facts=facts,
                 fcm_tokens=list(fcm_tokens),
                 on_dead_fcm_tokens=_prune_dead_fcm_tokens,
+                url=url,
             )
         )
 
@@ -597,40 +685,126 @@ async def _prune_dead_fcm_tokens(tokens: list[str]) -> None:
         await session.commit()
 
 
-async def _notify_new_booking(db: AsyncSession, booking: Booking, service: Service) -> None:
+def _when_facts(at: datetime) -> dict:
+    local = at.astimezone(BUSINESS_TZ)
+    return {"date": local.date().isoformat(), "weekday": local.strftime("%A"), "time": local.strftime("%H:%M")}
+
+
+def _minutes_left(booking: Booking, now: datetime) -> int:
+    return max(0, math.ceil((booking.confirm_deadline_at - now).total_seconds() / 60))
+
+
+def _manage_url(booking: Booking) -> str:
+    return f"{settings.WEB_PUBLIC_URL}/booking/?id={booking.id}&token={booking.manage_token}"
+
+
+async def _notify_master_of_booking(db: AsyncSession, booking: Booking, service_name: str, now: datetime) -> None:
+    """Уведомление мастеру о новом заказе — сразу при создании или, для
+    заказа вне рабочих часов, из тика в начале его рабочего дня."""
+    facts = {
+        "service": service_name,
+        **_when_facts(booking.start_at),
+        "client_name": booking.client_name,
+        "client_phone": booking.client_phone,
+    }
+    purpose = (
+        "Tell the master that a client has just booked a new job and give the job, the time and how to reach the client."
+    )
+    if booking.confirm_deadline_at is not None:
+        facts["minutes_to_confirm"] = _minutes_left(booking, now)
+        purpose += " Say he must confirm it in the app within the given minutes or it is cancelled automatically."
+    await _notify_staff(db, booking.provider_id, purpose, facts, url=_cabinet_booking_url(booking.id))
+
+
+async def _notify_new_booking(db: AsyncSession, booking: Booking, service: Service, *, staff: bool = True) -> None:
     """Best-effort — never raises into the request (see notifications.py docstring).
     Текст пишет LLM (app/llm_text.py) в фоне; здесь только собираются факты —
-    plain-значения, а не ORM-объекты, потому что сессия живёт недолго."""
-    start_local = booking.start_at.astimezone(BUSINESS_TZ)
-    when = {
-        "date": start_local.date().isoformat(),
-        "weekday": start_local.strftime("%A"),
-        "time": start_local.strftime("%H:%M"),
-    }
+    plain-значения, а не ORM-объекты, потому что сессия живёт недолго.
 
-    await _notify_staff(
-        db,
-        booking.provider_id,
-        "Tell the master that a client has just booked a new job and give the job, the time and how to reach the client.",
-        {
-            "service": service.name,
-            **when,
-            "client_name": booking.client_name,
-            "client_phone": booking.client_phone,
-        },
-    )
+    staff=False — заказ пришёл вне рабочих часов мастера: ему напишет тик в
+    начале рабочего дня (app/confirm_timer.py), клиенту — сейчас."""
+    now = datetime.now(timezone.utc)
+    if staff:
+        await _notify_master_of_booking(db, booking, service.name, now)
 
     if booking.client_phone:
+        facts = {"service": service.name, **_when_facts(booking.start_at)}
+        purpose = (
+            "Confirm to the client that the booking request was received for the given service and time, "
+            "and give the link to view, cancel or reschedule it."
+        )
+        start = timer_start(booking)
+        if booking.status == BookingStatus.pending and start is not None:
+            if start > now:
+                facts["master_confirms_after"] = start.astimezone(BUSINESS_TZ).strftime("%H:%M")
+                purpose += " Say the master will confirm it after the given time."
+            else:
+                facts["master_confirms_within_minutes"] = int(CONFIRM_WINDOW.total_seconds() // 60)
+                purpose += " Say the master will confirm it within the given minutes."
         run_in_background(
             notify_client(
                 phone=booking.client_phone,
                 fcm_tokens=await _client_fcm_tokens(db, booking.client_phone),
                 on_dead_fcm_tokens=_prune_dead_fcm_tokens,
-                purpose="Confirm to the client that the booking request was received for the given service and time, and give the link to view, cancel or reschedule it.",
-                facts={"service": service.name, **when},
-                must_include=f"{settings.WEB_PUBLIC_URL}/booking/?id={booking.id}&token={booking.manage_token}",
+                purpose=purpose,
+                facts=facts,
+                must_include=_manage_url(booking),
             )
         )
+
+
+async def _expire_overdue(db: AsyncSession) -> None:
+    """Ленивая автоотмена неподтверждённых заказов (app/confirm_timer.py) +
+    сообщение клиенту. Идемпотентна: каждую бронь отменяет и о ней пишет
+    ровно один вызов."""
+    expired = await expire_overdue_bookings(db, datetime.now(timezone.utc))
+    for booking in expired:
+        if not booking.client_phone:
+            continue
+        service = await db.get(Service, booking.service_id)
+        run_in_background(
+            notify_client(
+                phone=booking.client_phone,
+                fcm_tokens=await _client_fcm_tokens(db, booking.client_phone),
+                on_dead_fcm_tokens=_prune_dead_fcm_tokens,
+                purpose=(
+                    "Tell the client that the master did not confirm the booking in time, so it was cancelled, "
+                    "and invite them to book another master at the given link."
+                ),
+                facts={"service": service.name if service else "", **_when_facts(booking.start_at)},
+                must_include=f"{settings.WEB_PUBLIC_URL}/",
+            )
+        )
+
+
+@app.post("/internal/tick")
+async def tick(x_tick_secret: str = Header(default=""), db: AsyncSession = Depends(get_db)) -> dict:
+    """Раз в минуту от внешнего пингера (Render free tier засыпает, свой
+    планировщик в процессе ненадёжен): уведомления мастеру о заказах,
+    дождавшихся рабочих часов, напоминания на 5-й и 10-й минуте, автоотмена.
+    Повторный вызов в ту же минуту ничего не дублирует."""
+    if not settings.TICK_SECRET or not secrets.compare_digest(
+        x_tick_secret.encode("utf-8"), settings.TICK_SECRET.encode("utf-8")
+    ):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Forbidden")
+    await _expire_overdue(db)
+    now = datetime.now(timezone.utc)
+    claimed = await claim_due_notices(db, now)
+    for booking, sent, _due in claimed:
+        service = await db.get(Service, booking.service_id)
+        service_name = service.name if service else ""
+        if sent == 0:
+            await _notify_master_of_booking(db, booking, service_name, now)
+            continue
+        await _notify_staff(
+            db,
+            booking.provider_id,
+            "Remind the master that a client's booking is still waiting for his confirmation in the app "
+            "and say how many minutes are left before it is cancelled automatically.",
+            {"service": service_name, **_when_facts(booking.start_at), "minutes_left": _minutes_left(booking, now)},
+            url=_cabinet_booking_url(booking.id),
+        )
+    return {"ok": True, "notices": len(claimed)}
 
 
 @app.get("/api/bookings", response_model=list[BookingOut])
@@ -647,6 +821,7 @@ async def list_my_bookings(
     # /api/providers/me, so there's no parameter to pass that could ever
     # return someone else's data.
     provider = await _get_own_provider(master_user_id, db)
+    await _expire_overdue(db)
     stmt = select(Booking).where(Booking.provider_id == provider.id)
     if status_filter is not None:
         stmt = stmt.where(Booking.status == status_filter)
@@ -671,12 +846,44 @@ async def update_booking_status(
     booking = await db.get(Booking, booking_id)
     if booking is None or booking.provider_id != provider.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Booking not found")
+    # Дедлайн в БД — источник истины, даже если тик ещё не отменил заказ.
+    if (
+        booking.status == BookingStatus.pending
+        and booking.confirm_deadline_at is not None
+        and datetime.now(timezone.utc) >= booking.confirm_deadline_at
+    ):
+        await _expire_overdue(db)
+        raise HTTPException(status.HTTP_409_CONFLICT, "Confirmation deadline has passed")
     was_completed = booking.status == BookingStatus.completed
+    newly_confirmed = payload.status == BookingStatus.confirmed and booking.status != BookingStatus.confirmed
     booking.status = payload.status
     if payload.price is not None:
         booking.price = payload.price
+    if payload.travel_minutes is not None:
+        booking.travel_minutes = payload.travel_minutes
     await db.commit()
     await db.refresh(booking)
+
+    if newly_confirmed and booking.client_phone:
+        service = await db.get(Service, booking.service_id)
+        run_in_background(
+            notify_client(
+                phone=booking.client_phone,
+                fcm_tokens=await _client_fcm_tokens(db, booking.client_phone),
+                on_dead_fcm_tokens=_prune_dead_fcm_tokens,
+                purpose=(
+                    "Tell the client that the master confirmed the booking for the given service and time, "
+                    "and how many minutes the master needs to drive to them."
+                ),
+                facts={
+                    "service": service.name if service else "",
+                    **_when_facts(booking.start_at),
+                    "master": provider.name,
+                    "travel_minutes": booking.travel_minutes,
+                },
+                must_include=_manage_url(booking),
+            )
+        )
 
     # Отзывы (Этап 3): ссылка уходит ровно в момент, когда мастер отмечает
     # работу сделанной — не раньше (работа ещё не была выполнена, нечего
@@ -728,6 +935,7 @@ async def create_manual_booking(
         end_at=end_at,
         notes=payload.notes,
         status=payload.status,
+        travel_minutes=payload.travel_minutes,
     )
     db.add(booking)
     try:
@@ -995,6 +1203,45 @@ async def finish_busy(
     await db.commit()
     await db.refresh(provider)
     return _provider_busy_out(provider)
+
+
+async def _my_cities_out(db: AsyncSession, provider: Provider) -> list[MyCityOut]:
+    mine = set(await _provider_city_ids(db, provider.id))
+    stmt = select(City).order_by(City.sort_order, City.name_pl)
+    stmt = stmt.where(or_(City.is_active.is_(True), City.id.in_(mine))) if mine else stmt.where(City.is_active.is_(True))
+    cities = (await db.execute(stmt)).scalars().all()
+    return [
+        MyCityOut(id=c.id, slug=c.slug, name_pl=c.name_pl, name_en=c.name_en, selected=c.id in mine) for c in cities
+    ]
+
+
+@app.get("/api/providers/me/cities", response_model=list[MyCityOut])
+async def get_my_cities(
+    master_user_id: str = Depends(require_master_user_id), db: AsyncSession = Depends(get_db)
+) -> list[MyCityOut]:
+    """Все активные города с отметкой, в каких мастер работает."""
+    provider = await _get_own_provider(master_user_id, db)
+    return await _my_cities_out(db, provider)
+
+
+@app.put("/api/providers/me/cities", response_model=list[MyCityOut])
+async def update_my_cities(
+    payload: MyCitiesUpdate,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> list[MyCityOut]:
+    """Мастер задаёт свои города; минимум один (MyCitiesUpdate). Выключенный
+    суперадмином город выбрать нельзя."""
+    provider = await _get_own_provider(master_user_id, db, "settings_edit")
+    wanted = set(payload.city_ids)
+    active = set(
+        (await db.execute(select(City.id).where(City.id.in_(wanted), City.is_active.is_(True)))).scalars().all()
+    )
+    if active != wanted:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown or inactive city")
+    await _set_provider_cities(db, provider.id, list(wanted))
+    await db.commit()
+    return await _my_cities_out(db, provider)
 
 
 @app.get("/api/providers/me/services", response_model=list[ServiceToggleOut])
@@ -1455,6 +1702,7 @@ async def get_my_calendar(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"range too large, max {MAX_CALENDAR_RANGE_DAYS} days")
 
     provider = await _get_own_provider(master_user_id, db, "calendar_view")
+    await _expire_overdue(db)
     range_start = datetime.combine(date_from, time.min, tzinfo=BUSINESS_TZ)
     range_end = datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=BUSINESS_TZ)
 
@@ -1669,11 +1917,15 @@ async def _my_booking_out(db: AsyncSession, booking: Booking) -> MyBookingOut:
         can_change=_can_change(booking, now),
         change_deadline=_change_deadline(booking),
         location=location,
+        travel_minutes=booking.travel_minutes,
+        cancel_reason=booking.cancel_reason,
+        confirm_deadline_at=booking.confirm_deadline_at,
     )
 
 
 @app.get("/api/my-booking/{booking_id}", response_model=MyBookingOut)
 async def get_my_booking(booking_id: uuid.UUID, token: str, db: AsyncSession = Depends(get_db)) -> MyBookingOut:
+    await _expire_overdue(db)
     booking = await _get_booking_by_token(db, booking_id, token)
     return await _my_booking_out(db, booking)
 
@@ -1772,6 +2024,7 @@ async def my_booking_slots(
     service = await db.get(Service, booking.service_id)
     if provider is None or service is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Booking not found")
+    await _expire_overdue(db)
     return await get_availability(db, service, date_from, date_to, provider=provider)
 
 
@@ -2108,6 +2361,7 @@ async def _collect_analytics(
     docstring), which used to leak into this otherwise-localized screen."""
     range_start = datetime.combine(date_from, time.min, tzinfo=BUSINESS_TZ)
     range_end = datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=BUSINESS_TZ)
+    await _expire_overdue(db)
     conds = [
         Booking.start_at >= range_start,
         Booking.start_at < range_end,
@@ -2125,7 +2379,10 @@ async def _collect_analytics(
     ).all()
 
     def blank(name: str) -> dict:
-        return {"name": name, "completed": 0, "cancelled": 0, "no_show": 0, "minutes": 0, "revenue": Decimal(0), "priced": 0}
+        return {
+            "name": name, "completed": 0, "cancelled": 0, "timed_out": 0, "no_show": 0,
+            "minutes": 0, "revenue": Decimal(0), "priced": 0,
+        }
 
     by_service: dict[uuid.UUID, dict] = {}
     by_master: dict[uuid.UUID, dict] = {}
@@ -2141,6 +2398,8 @@ async def _collect_analytics(
                 if b.price is not None:
                     a["revenue"] += b.price
                     a["priced"] += 1
+            elif b.status == BookingStatus.cancelled and b.cancel_reason == PROVIDER_TIMEOUT:
+                a["timed_out"] += 1
             elif b.status == BookingStatus.cancelled:
                 a["cancelled"] += 1
             else:
@@ -2155,6 +2414,7 @@ async def _collect_analytics(
     services = [
         ServiceStatOut(
             service_id=sid, name=a["name"], completed=a["completed"], cancelled=a["cancelled"], no_show=a["no_show"],
+            timed_out=a["timed_out"],
             total_minutes=a["minutes"], avg_minutes=avg_min(a), revenue=a["revenue"], priced_jobs=a["priced"],
             avg_price=avg_price(a),
         )
@@ -2164,6 +2424,7 @@ async def _collect_analytics(
     masters = [
         MasterStatOut(
             provider_id=pid, name=a["name"], completed=a["completed"], cancelled=a["cancelled"], no_show=a["no_show"],
+            timed_out=a["timed_out"],
             total_minutes=a["minutes"], revenue=a["revenue"], priced_jobs=a["priced"], avg_price=avg_price(a),
         )
         for pid, a in by_master.items()
@@ -2251,6 +2512,9 @@ async def list_masters(db: AsyncSession = Depends(get_db)) -> list[MasterOut]:
             .order_by(Provider.name)
         )
     ).all()
+    cities: dict[uuid.UUID, list[uuid.UUID]] = {}
+    for pid, cid in (await db.execute(select(ProviderCity.provider_id, ProviderCity.city_id))).all():
+        cities.setdefault(pid, []).append(cid)
     return [
         MasterOut(
             master_user_id=master_user.id,
@@ -2263,6 +2527,7 @@ async def list_masters(db: AsyncSession = Depends(get_db)) -> list[MasterOut]:
             rating=provider.rating,
             rating_count=provider.rating_count,
             phone=provider.phone,
+            city_ids=cities.get(provider.id, []),
         )
         for master_user, provider in rows
     ]
@@ -2305,7 +2570,85 @@ async def update_master_rating(
         rating=provider.rating,
         rating_count=provider.rating_count,
         phone=provider.phone,
+        city_ids=await _provider_city_ids(db, provider.id),
     )
+
+
+async def _provider_city_ids(db: AsyncSession, provider_id: uuid.UUID) -> list[uuid.UUID]:
+    return list(
+        (await db.execute(select(ProviderCity.city_id).where(ProviderCity.provider_id == provider_id))).scalars().all()
+    )
+
+
+async def _set_provider_cities(db: AsyncSession, provider_id: uuid.UUID, city_ids: list[uuid.UUID]) -> None:
+    """Заменяет города мастера; неизвестный город — 422."""
+    wanted = set(city_ids)
+    if wanted:
+        known = set((await db.execute(select(City.id).where(City.id.in_(wanted)))).scalars().all())
+        if known != wanted:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown city")
+    await db.execute(delete(ProviderCity).where(ProviderCity.provider_id == provider_id))
+    for cid in wanted:
+        db.add(ProviderCity(provider_id=provider_id, city_id=cid))
+
+
+@app.put("/admin/masters/{master_user_id}/cities", response_model=MasterOut, dependencies=[Depends(require_admin)])
+async def set_master_cities(
+    master_user_id: uuid.UUID, payload: AdminMasterCitiesUpdate, db: AsyncSession = Depends(get_db)
+) -> MasterOut:
+    master_user = await db.get(MasterUser, master_user_id)
+    provider = await db.get(Provider, master_user.provider_id) if master_user else None
+    if master_user is None or provider is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Master not found")
+    await _set_provider_cities(db, provider.id, payload.city_ids)
+    await db.commit()
+    return MasterOut(
+        master_user_id=master_user.id,
+        provider_id=provider.id,
+        name=provider.name,
+        email=master_user.email,
+        travel_buffer_minutes=provider.travel_buffer_minutes,
+        is_active=provider.is_active,
+        telegram_linked=master_user.telegram_chat_id is not None,
+        rating=provider.rating,
+        rating_count=provider.rating_count,
+        phone=provider.phone,
+        city_ids=await _provider_city_ids(db, provider.id),
+    )
+
+
+@app.get("/admin/cities", response_model=list[AdminCityOut], dependencies=[Depends(require_admin)])
+async def admin_list_cities(db: AsyncSession = Depends(get_db)) -> list[City]:
+    return list((await db.execute(select(City).order_by(City.sort_order, City.name_pl))).scalars().all())
+
+
+@app.post(
+    "/admin/cities",
+    response_model=AdminCityOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_admin)],
+)
+async def admin_create_city(payload: AdminCityCreate, db: AsyncSession = Depends(get_db)) -> City:
+    city = City(id=uuid.uuid4(), is_active=True, **payload.model_dump())
+    db.add(city)
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "A city with this slug already exists") from exc
+    return city
+
+
+@app.patch("/admin/cities/{city_id}", response_model=AdminCityOut, dependencies=[Depends(require_admin)])
+async def admin_update_city(city_id: uuid.UUID, payload: AdminCityUpdate, db: AsyncSession = Depends(get_db)) -> City:
+    city = await db.get(City, city_id)
+    if city is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "City not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        if value is not None:
+            setattr(city, field, value)
+    await db.commit()
+    return city
 
 
 @app.delete("/admin/masters/{master_user_id}", dependencies=[Depends(require_admin)])
@@ -2363,6 +2706,7 @@ async def create_master(
     )
     db.add(provider)
     await db.flush()
+    await _set_provider_cities(db, provider.id, payload.city_ids)
 
     master_user = MasterUser(
         id=uuid.uuid4(),

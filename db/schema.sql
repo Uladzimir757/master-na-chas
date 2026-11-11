@@ -116,6 +116,50 @@ CREATE TABLE service (
 CREATE INDEX idx_service_tenant ON service (tenant_id);
 CREATE INDEX idx_service_owner ON service (owner_provider_id);
 
+-- ----------------------------------------------------------------------------
+-- city — where masters work (docs/confirm-timer-travel-cities-task.md). The
+-- client picks a city first and only sees masters of that city. Managed by
+-- the superadmin; names live here, not in translation_entry.
+-- ----------------------------------------------------------------------------
+CREATE TABLE city (
+    id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    slug        text NOT NULL UNIQUE,
+    name_pl     text NOT NULL,
+    name_en     text NOT NULL,
+    is_active   boolean NOT NULL DEFAULT true,
+    sort_order  int NOT NULL DEFAULT 0
+);
+
+INSERT INTO city (slug, name_pl, name_en, sort_order) VALUES
+    ('gdynia', 'Gdynia', 'Gdynia', 10),
+    ('sopot', 'Sopot', 'Sopot', 20),
+    ('gdansk', 'Gdańsk', 'Gdańsk', 30),
+    ('bialystok', 'Białystok', 'Białystok', 100),
+    ('bydgoszcz', 'Bydgoszcz', 'Bydgoszcz', 100),
+    ('gorzow-wielkopolski', 'Gorzów Wielkopolski', 'Gorzów Wielkopolski', 100),
+    ('katowice', 'Katowice', 'Katowice', 100),
+    ('kielce', 'Kielce', 'Kielce', 100),
+    ('krakow', 'Kraków', 'Kraków', 100),
+    ('lublin', 'Lublin', 'Lublin', 100),
+    ('lodz', 'Łódź', 'Łódź', 100),
+    ('olsztyn', 'Olsztyn', 'Olsztyn', 100),
+    ('opole', 'Opole', 'Opole', 100),
+    ('poznan', 'Poznań', 'Poznań', 100),
+    ('rzeszow', 'Rzeszów', 'Rzeszów', 100),
+    ('szczecin', 'Szczecin', 'Szczecin', 100),
+    ('torun', 'Toruń', 'Toruń', 100),
+    ('warszawa', 'Warszawa', 'Warsaw', 100),
+    ('wroclaw', 'Wrocław', 'Wrocław', 100),
+    ('zielona-gora', 'Zielona Góra', 'Zielona Góra', 100);
+
+-- the cities a master works in (several). A master with none is not listed
+-- publicly at all.
+CREATE TABLE provider_city (
+    provider_id  uuid NOT NULL REFERENCES provider(id) ON DELETE CASCADE,
+    city_id      uuid NOT NULL REFERENCES city(id) ON DELETE CASCADE,
+    PRIMARY KEY (provider_id, city_id)
+);
+
 -- which providers can perform which services (a shop mechanic might only do
 -- diesel injection work; a handyman might do everything on the menu).
 -- is_active toggles from the master's own cabinet (PUT /api/providers/me/services)
@@ -236,6 +280,15 @@ CREATE TABLE booking (
     notes         text,
     price         numeric(10,2),         -- итоговая цена работы (аналитика)
     manage_token  text UNIQUE,           -- секрет ссылки «моя запись» из SMS клиенту
+    city_id       uuid REFERENCES city(id),  -- город заказа (выбор клиента)
+    -- Таймер подтверждения (app/confirm_timer.py): до какого момента мастер
+    -- должен подтвердить pending-заказ; NULL = таймера нет (ручные брони,
+    -- старые брони). confirm_notices_sent: 0 = уведомление о заказе ещё не
+    -- ушло (заказ ночью ждёт рабочих часов), 1 = ушло, 2/3 = напоминания.
+    confirm_deadline_at   timestamptz,
+    confirm_notices_sent  smallint NOT NULL DEFAULT 0,
+    cancel_reason         text,      -- 'provider_timeout' = мастер не ответил вовремя
+    travel_minutes        smallint CHECK (travel_minutes IS NULL OR travel_minutes > 0),  -- время доезда, мастер при подтверждении
     created_at    timestamptz NOT NULL DEFAULT now(),
 
     -- THE important line: Postgres itself refuses to let two active bookings
@@ -250,6 +303,8 @@ CREATE TABLE booking (
 CREATE INDEX idx_booking_provider_time ON booking (provider_id, start_at);
 CREATE INDEX idx_booking_tenant ON booking (tenant_id);
 CREATE INDEX idx_booking_client ON booking (client_id) WHERE client_id IS NOT NULL;
+CREATE INDEX idx_booking_confirm_deadline ON booking (confirm_deadline_at)
+    WHERE status = 'pending' AND confirm_deadline_at IS NOT NULL;
 
 -- ----------------------------------------------------------------------------
 -- master_user — login for a provider (mvp-task.md #4). Deliberately minimal:

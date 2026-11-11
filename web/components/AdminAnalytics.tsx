@@ -131,6 +131,8 @@ export default function AdminAnalyticsPanel({
                   <dd className="text-right">{m.cancelled}</dd>
                   <dt className="text-ink-2">Не пришли</dt>
                   <dd className="text-right">{m.no_show}</dd>
+                  <dt className="text-ink-2">Не подтвердил вовремя</dt>
+                  <dd className="text-right">{m.timed_out ?? 0}</dd>
                 </dl>
               </div>
             ))}
@@ -162,6 +164,8 @@ export default function AdminAnalyticsPanel({
                   <dd className="text-right">{s.cancelled}</dd>
                   <dt className="text-ink-2">Не пришли</dt>
                   <dd className="text-right">{s.no_show}</dd>
+                  <dt className="text-ink-2">Не подтвердил вовремя</dt>
+                  <dd className="text-right">{s.timed_out ?? 0}</dd>
                 </dl>
               </div>
             ))}

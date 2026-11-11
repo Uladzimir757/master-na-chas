@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
   ApiError,
+  CONFIRM_WINDOW_MINUTES,
   type Booking,
   type Provider,
   type Service,
@@ -58,6 +59,8 @@ interface Props {
   // Undefined keeps the old combined-across-providers behavior (unused by
   // the current home page, kept in case something else still wants it).
   providerId?: string;
+  // The client's city (BookingFlow) — the API checks the master works there.
+  cityId?: string;
   // This master's own note about the service, if he set one (see
   // ProviderService.description in app/models.py) — undefined/null shows
   // nothing.
@@ -76,6 +79,7 @@ export default function SlotPicker({
   showChangeService,
   onChangeService,
   providerId,
+  cityId,
   description,
 }: Props) {
   const { locale, t } = useLocale();
@@ -92,6 +96,9 @@ export default function SlotPicker({
   const [booking, setBooking] = useState<
     (Booking & { manage_token?: string | null }) | null
   >(null);
+  // «Мастер подтвердит в течение 15 минут» / «…после 09:00» — worked out
+  // once at booking time from the confirmation deadline.
+  const [confirmNote, setConfirmNote] = useState<string | null>(null);
 
   const loadAvailability = useCallback(async () => {
     setSlotsError(null);
@@ -213,8 +220,10 @@ export default function SlotPicker({
         start_at: selectedSlot.start_at,
         client_name: clientName.trim(),
         client_phone: clientPhone.trim() || undefined,
+        city_id: cityId,
       });
       setBooking(result);
+      setConfirmNote(pendingNote(result));
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         setSubmitError(t.slotTakenError);
@@ -226,6 +235,20 @@ export default function SlotPicker({
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function pendingNote(b: Booking): string {
+    if (b.status !== "pending") return t.bookingConfirmed;
+    if (!b.confirm_deadline_at) return t.bookingPending;
+    const timerStart =
+      new Date(b.confirm_deadline_at).getTime() -
+      CONFIRM_WINDOW_MINUTES * 60_000;
+    // a minute of slack: a timer that has just started is "within 15 min"
+    return timerStart > Date.now() + 60_000
+      ? t.bookingConfirmAfter(
+          formatTime(new Date(timerStart).toISOString(), locale),
+        )
+      : t.bookingConfirmWithin(CONFIRM_WINDOW_MINUTES);
   }
 
   function bookAgain() {
@@ -256,9 +279,10 @@ export default function SlotPicker({
             </span>
           </p>
           <p className="text-base text-ink-2">
-            {booking.status === "pending"
-              ? t.bookingPending
-              : t.bookingConfirmed}
+            {confirmNote ??
+              (booking.status === "pending"
+                ? t.bookingPending
+                : t.bookingConfirmed)}
           </p>
           {booking.manage_token && (
             <a

@@ -128,6 +128,30 @@ export const TRANSLATIONS_FIXTURE: Record<string, string> = {
   reviewsCountFew: "{n} отзыва",
   reviewsCountMany: "{n} отзывов",
   newMaster: "Новый мастер",
+  busySaveEstimateButton: "Сохранить",
+  cityPickTitle: "Выберите город",
+  cityChange: "Сменить город",
+  cityCurrent: "Город: {city}",
+  noCities: "Пока нет доступных городов.",
+  bookingConfirmWithin: "Мастер подтвердит заказ в течение {n} минут.",
+  bookingConfirmAfter: "Мастер подтвердит заказ после {time}.",
+  confirmCountdown: "На подтверждение осталось {time}",
+  confirmWaitsForHours: "Отсчёт начнётся в {time}",
+  confirmExpired: "Время на подтверждение вышло",
+  confirmDeadlinePassedError: "Время на подтверждение вышло — заказ отменён.",
+  travelPickTitle: "Сколько ехать до клиента?",
+  travelMinutesChip: "{n} мин",
+  travelInfo: "Доезд: {n} мин · выезд в {time}",
+  myCitiesTitle: "Города, где я работаю",
+  myCitiesHint: "Клиенты видят вас только в выбранных городах.",
+  myCitiesSave: "Сохранить",
+  myCitiesSaved: "Сохранено",
+  myCitiesError: "Не удалось сохранить города.",
+  myCitiesMinOne: "Выберите хотя бы один город.",
+  myBookingTravel: "Мастеру ехать к вам около {n} мин.",
+  myBookingTimedOut: "Мастер не подтвердил заказ вовремя, и он отменён. Выберите другого мастера.",
+  bookAnotherMaster: "Выбрать другого мастера",
+  analyticsColTimedOut: "Не подтверждено вовремя",
   chooseMasterButton: "Выбрать",
   backToMasters: "← выбрать другого мастера",
   masterServicesLoadError: "Не удалось загрузить услуги этого мастера.",
@@ -256,9 +280,26 @@ function makeSlot(isoStartUtc: string, durationMinutes = SERVICE.duration_minute
 export const SLOT_A = makeSlot("2027-06-07T07:00:00Z");
 export const SLOT_B = makeSlot("2027-06-07T09:00:00Z");
 
+// Города (docs/confirm-timer-travel-cities-task.md). One city by default:
+// BookingFlow then picks it on its own, so specs that don't care about
+// cities go straight to the master list as before.
+export const GDYNIA = {
+  id: "c1111111-1111-1111-1111-111111111111",
+  slug: "gdynia",
+  name_pl: "Gdynia",
+  name_en: "Gdynia",
+};
+export const SOPOT = {
+  id: "c2222222-2222-2222-2222-222222222222",
+  slug: "sopot",
+  name_pl: "Sopot",
+  name_en: "Sopot",
+};
+
 export async function mockCatalog(
   page: Page,
   opts?: {
+    cities?: (typeof GDYNIA)[];
     servicesStatus?: number;
     // GET /api/providers failure — the home page's very first fetch now
     // (MasterPicker), surfaced as t.masterListLoadError. Distinct from
@@ -288,8 +329,12 @@ export async function mockCatalog(
       body: JSON.stringify(opts?.servicesStatus ? { detail: "boom" } : [SERVICE]),
     }),
   );
+  await page.route("**/api/cities", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(opts?.cities ?? [GDYNIA]) }),
+  );
   const providers = opts?.providers ?? [PROVIDER];
-  await page.route("**/api/providers", (route) => {
+  // a regex, not "**/api/providers": the list now carries ?city=<slug>
+  await page.route(/\/api\/providers(\?.*)?$/, (route) => {
     if (opts?.providersStatus && opts.providersStatus !== 200) {
       return route.fulfill({
         status: opts.providersStatus,
@@ -373,6 +418,8 @@ export interface CabinetBookingFixture {
   start_at: string;
   end_at: string;
   status: CabinetBookingStatus;
+  confirm_deadline_at?: string | null;
+  travel_minutes?: number | null;
 }
 
 export function cabinetBooking(overrides: Partial<CabinetBookingFixture> = {}): CabinetBookingFixture {
@@ -784,13 +831,13 @@ export async function mockMyCalendar(
  * IDOR-fix rejecting another master's booking, or a transient failure). */
 export async function mockBookingStatusUpdate(
   page: Page,
-  respond: (bookingId: string, status: string) => { status: number; body: unknown },
+  respond: (bookingId: string, status: string, payload: Record<string, unknown>) => { status: number; body: unknown },
 ) {
   await page.route("**/api/bookings/*/status", (route) => {
     const segments = new URL(route.request().url()).pathname.split("/");
     const bookingId = segments[segments.length - 2];
     const payload = JSON.parse(route.request().postData() ?? "{}");
-    const { status, body } = respond(bookingId, payload.status);
+    const { status, body } = respond(bookingId, payload.status, payload);
     return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
   });
 }
@@ -811,6 +858,7 @@ interface AdminMasterFixture {
   telegram_linked: boolean;
   rating: number | null;
   rating_count: number;
+  city_ids: string[];
 }
 
 export function adminMaster(overrides: Partial<AdminMasterFixture> = {}): AdminMasterFixture {
@@ -824,6 +872,7 @@ export function adminMaster(overrides: Partial<AdminMasterFixture> = {}): AdminM
     telegram_linked: false,
     rating: PROVIDER.rating,
     rating_count: PROVIDER.rating_count,
+    city_ids: [GDYNIA.id],
     ...overrides,
   };
 }
@@ -916,6 +965,13 @@ export async function mockAdminMasters(
   let current = [...initial];
   // блок «Аналитика» в панели всегда запрашивает отчёт; по умолчанию — пустой период
   await mockAdminAnalytics(page, { masters: [], services: [] });
+  await page.route("**/admin/cities", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([GDYNIA, SOPOT].map((c, i) => ({ ...c, is_active: true, sort_order: i }))),
+    }),
+  );
   await page.route("**/admin/masters", (route) => {
     if (route.request().method() === "GET") {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(current) });
@@ -935,6 +991,7 @@ export async function mockAdminMasters(
       name: payload.name,
       email: payload.email,
       travel_buffer_minutes: payload.travel_buffer_minutes ?? 30,
+      city_ids: payload.city_ids ?? [],
     });
     current = [...current, created];
     return route.fulfill({

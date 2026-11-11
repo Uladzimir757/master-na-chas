@@ -106,6 +106,11 @@ export interface MyBooking {
   can_change: boolean;
   change_deadline: string;
   location: ProviderLocation | null;
+  // время доезда мастера — после подтверждения
+  travel_minutes?: number | null;
+  // "provider_timeout" — мастер не подтвердил вовремя, заказ отменён сам
+  cancel_reason?: string | null;
+  confirm_deadline_at?: string | null;
 }
 
 export interface MyBookingHistoryItem {
@@ -158,7 +163,35 @@ export interface BookingCreate {
   client_name: string;
   client_phone?: string;
   notes?: string;
+  city_id?: string;
 }
+
+// Города (docs/confirm-timer-travel-cities-task.md) — справочник ведёт
+// суперадмин, названия не через translation_entry.
+export interface City {
+  id: string;
+  slug: string;
+  name_pl: string;
+  name_en: string;
+}
+
+export interface MyCity extends City {
+  selected: boolean;
+}
+
+export interface AdminCity extends City {
+  is_active: boolean;
+  sort_order: number;
+}
+
+export function cityName(city: City, locale: string): string {
+  return locale === "en" ? city.name_en : city.name_pl;
+}
+
+// Время доезда, которое мастер выбирает при подтверждении заказа.
+export const TRAVEL_MINUTES = [15, 30, 45, 60, 90] as const;
+// Сколько у мастера минут на подтверждение (app/slot_engine.py CONFIRM_WINDOW).
+export const CONFIRM_WINDOW_MINUTES = 15;
 
 export type BookingStatus =
   "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
@@ -173,6 +206,11 @@ export interface Booking {
   end_at: string;
   status: BookingStatus;
   price?: string | null;
+  city_id?: string | null;
+  // таймер подтверждения: до какого момента мастер должен подтвердить
+  confirm_deadline_at?: string | null;
+  cancel_reason?: string | null;
+  travel_minutes?: number | null;
 }
 
 export interface StaffMember {
@@ -194,6 +232,7 @@ export interface ServiceStat {
   completed: number;
   cancelled: number;
   no_show: number;
+  timed_out?: number;
   total_minutes: number;
   avg_minutes: number;
   revenue: string;
@@ -213,6 +252,7 @@ export interface MasterStat {
   completed: number;
   cancelled: number;
   no_show: number;
+  timed_out?: number;
   total_minutes: number;
   revenue: string;
   priced_jobs: number;
@@ -277,6 +317,7 @@ export interface AdminMaster {
   rating_count: number;
   // only the dispatcher gets it (docs/decisions.md «Диспетчер»)
   phone: string | null;
+  city_ids: string[];
 }
 
 export interface CreateMasterPayload {
@@ -285,6 +326,7 @@ export interface CreateMasterPayload {
   password: string;
   travel_buffer_minutes: number;
   phone: string | null;
+  city_ids: string[];
 }
 
 export interface TelegramLink {
@@ -448,7 +490,11 @@ export const api = {
     request<Service[]>(`/api/services?lang=${encodeURIComponent(lang)}`),
   // Sorted by rating server-side (see app/main.py's list_providers) — the
   // master-picker screen renders this order as-is, no client-side re-sort.
-  listProviders: () => request<Provider[]>("/api/providers"),
+  listProviders: (city?: string) =>
+    request<Provider[]>(
+      `/api/providers${city ? `?city=${encodeURIComponent(city)}` : ""}`,
+    ),
+  listCities: () => request<City[]>("/api/cities"),
   // One master's own offered services, for the booking flow once a master
   // has been picked (components/MasterPicker.tsx).
   listProviderServices: (providerId: string, lang: string) =>
@@ -623,16 +669,21 @@ export const api = {
     request<Booking[]>(
       `/api/bookings${statusFilter ? `?status=${statusFilter}` : ""}`,
     ),
+  // confirmed требует travel_minutes (иначе 422), completed — цена работы
   updateBookingStatus: (
     bookingId: string,
     status: BookingStatus,
-    price?: number,
+    extra?: { price?: number; travel_minutes?: number },
   ) =>
     request<Booking>(`/api/bookings/${bookingId}/status`, {
       method: "PATCH",
-      body: JSON.stringify(
-        price !== undefined ? { status, price } : { status },
-      ),
+      body: JSON.stringify({ status, ...extra }),
+    }),
+  getMyCities: () => request<MyCity[]>("/api/providers/me/cities"),
+  updateMyCities: (cityIds: string[]) =>
+    request<MyCity[]>("/api/providers/me/cities", {
+      method: "PUT",
+      body: JSON.stringify({ city_ids: cityIds }),
     }),
   // Этап 4 — one fresh GPS fix from lib/useLocationSharing.ts's foreground
   // watch. Fire-and-forget from the caller's point of view: the backend
@@ -769,6 +820,25 @@ export const api = {
       }`,
     ),
   listMasters: () => request<AdminMaster[]>("/admin/masters"),
+  adminListCities: () => request<AdminCity[]>("/admin/cities"),
+  adminCreateCity: (body: { slug: string; name_pl: string; name_en: string }) =>
+    request<AdminCity>("/admin/cities", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  adminUpdateCity: (
+    cityId: string,
+    body: Partial<Pick<AdminCity, "name_pl" | "name_en" | "is_active" | "sort_order">>,
+  ) =>
+    request<AdminCity>(`/admin/cities/${cityId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  setMasterCities: (masterUserId: string, cityIds: string[]) =>
+    request<AdminMaster>(`/admin/masters/${masterUserId}/cities`, {
+      method: "PUT",
+      body: JSON.stringify({ city_ids: cityIds }),
+    }),
   createMaster: (payload: CreateMasterPayload) =>
     request<{ provider_id: string; master_user_id: string }>("/admin/masters", {
       method: "POST",

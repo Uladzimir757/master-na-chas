@@ -370,6 +370,29 @@ export interface Translations {
   reviewsSectionTitle: string;
   reviewsEmpty: string;
   reviewsLoadError: string;
+  cityPickTitle: string;
+  cityChange: string;
+  cityCurrent: (city: string) => string;
+  noCities: string;
+  bookingConfirmWithin: (n: number) => string;
+  bookingConfirmAfter: (time: string) => string;
+  confirmCountdown: (time: string) => string;
+  confirmWaitsForHours: (time: string) => string;
+  confirmExpired: string;
+  confirmDeadlinePassedError: string;
+  travelPickTitle: string;
+  travelMinutesChip: (n: number) => string;
+  travelInfo: (n: number, time: string) => string;
+  myCitiesTitle: string;
+  myCitiesHint: string;
+  myCitiesSave: string;
+  myCitiesSaved: string;
+  myCitiesError: string;
+  myCitiesMinOne: string;
+  myBookingTravel: (n: number) => string;
+  myBookingTimedOut: string;
+  bookAnotherMaster: string;
+  analyticsColTimedOut: string;
 }
 
 export function buildTranslations(map: TranslationMap): Translations {
@@ -756,5 +779,36 @@ export function buildTranslations(map: TranslationMap): Translations {
     reviewsSectionTitle: pick(map, "reviewsSectionTitle"),
     reviewsEmpty: pick(map, "reviewsEmpty"),
     reviewsLoadError: pick(map, "reviewsLoadError"),
+    cityPickTitle: pick(map, "cityPickTitle"),
+    cityChange: pick(map, "cityChange"),
+    cityCurrent: (city) =>
+      interpolate(pick(map, "cityCurrent"), { city }),
+    noCities: pick(map, "noCities"),
+    bookingConfirmWithin: (n) =>
+      interpolate(pick(map, "bookingConfirmWithin"), { n }),
+    bookingConfirmAfter: (time) =>
+      interpolate(pick(map, "bookingConfirmAfter"), { time }),
+    confirmCountdown: (time) =>
+      interpolate(pick(map, "confirmCountdown"), { time }),
+    confirmWaitsForHours: (time) =>
+      interpolate(pick(map, "confirmWaitsForHours"), { time }),
+    confirmExpired: pick(map, "confirmExpired"),
+    confirmDeadlinePassedError: pick(map, "confirmDeadlinePassedError"),
+    travelPickTitle: pick(map, "travelPickTitle"),
+    travelMinutesChip: (n) =>
+      interpolate(pick(map, "travelMinutesChip"), { n }),
+    travelInfo: (n, time) =>
+      interpolate(pick(map, "travelInfo"), { n, time }),
+    myCitiesTitle: pick(map, "myCitiesTitle"),
+    myCitiesHint: pick(map, "myCitiesHint"),
+    myCitiesSave: pick(map, "myCitiesSave"),
+    myCitiesSaved: pick(map, "myCitiesSaved"),
+    myCitiesError: pick(map, "myCitiesError"),
+    myCitiesMinOne: pick(map, "myCitiesMinOne"),
+    myBookingTravel: (n) =>
+      interpolate(pick(map, "myBookingTravel"), { n }),
+    myBookingTimedOut: pick(map, "myBookingTimedOut"),
+    bookAnotherMaster: pick(map, "bookAnotherMaster"),
+    analyticsColTimedOut: pick(map, "analyticsColTimedOut"),
   };
 }

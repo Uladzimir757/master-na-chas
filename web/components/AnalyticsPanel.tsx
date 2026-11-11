@@ -103,6 +103,8 @@ export default function AnalyticsPanel() {
                 <dd className="text-right">{s.cancelled}</dd>
                 <dt className="text-ink-2">{t.analyticsColNoShow}</dt>
                 <dd className="text-right">{s.no_show}</dd>
+                <dt className="text-ink-2">{t.analyticsColTimedOut}</dt>
+                <dd className="text-right">{s.timed_out ?? 0}</dd>
               </dl>
             </div>
           ))}

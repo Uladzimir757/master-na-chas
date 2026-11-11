@@ -17,10 +17,12 @@
  * ~350px-wide modal is exactly what was overflowing the box before.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   api,
   ApiError,
+  CONFIRM_WINDOW_MINUTES,
+  TRAVEL_MINUTES,
   type BookingStatus,
   type ServiceToggle,
 } from "@/lib/api";
@@ -377,6 +379,35 @@ export function BlockForm({
   );
 }
 
+/** Time left for the master to confirm a pending booking, ticking every
+ * second; before his working hours start (a booking made at night) — when
+ * the countdown will begin. */
+function ConfirmCountdown({ t, deadline }: { t: Translations; deadline: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  const end = new Date(deadline).getTime();
+  const start = end - CONFIRM_WINDOW_MINUTES * 60_000;
+  let text: string;
+  if (now >= end) {
+    text = t.confirmExpired;
+  } else if (now < start) {
+    const hm = businessHourMinute(new Date(start).toISOString());
+    text = t.confirmWaitsForHours(timeToHhmm(hm.hour, hm.minute));
+  } else {
+    const left = Math.ceil((end - now) / 1000);
+    const mmss = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+    text = t.confirmCountdown(mmss);
+  }
+  return (
+    <p className="mb-3 text-sm font-medium text-ink" role="timer">
+      {text}
+    </p>
+  );
+}
+
 export function EventDetailsModal({
   t,
   locale,
@@ -402,20 +433,39 @@ export function EventDetailsModal({
 
   const [price, setPrice] = useState("");
   const [completing, setCompleting] = useState(false);
+  // «Подтвердить» сначала спрашивает время доезда — подтверждение вторым
+  // тапом по чипу, без молчаливого сохранения.
+  const [confirming, setConfirming] = useState(false);
 
-  const handleStatus = async (status: BookingStatus, jobPrice?: number) => {
+  const handleStatus = async (
+    status: BookingStatus,
+    extra?: { price?: number; travel_minutes?: number },
+  ) => {
     if (event.kind !== "booking") return;
     setBusy(true);
     setError(null);
     try {
-      await api.updateBookingStatus(event.id, status, jobPrice);
+      await api.updateBookingStatus(event.id, status, extra);
       onChanged();
-    } catch {
-      setError(t.bookingActionError);
+    } catch (err) {
+      setError(
+        err instanceof ApiError && err.status === 409
+          ? t.confirmDeadlinePassedError
+          : t.bookingActionError,
+      );
     } finally {
       setBusy(false);
     }
   };
+
+  const departure =
+    event.kind === "booking" && event.travel_minutes
+      ? businessHourMinute(
+          new Date(
+            new Date(event.start_at).getTime() - event.travel_minutes * 60_000,
+          ).toISOString(),
+        )
+      : null;
 
   const handleDeleteBlock = async () => {
     if (event.kind !== "block") return;
@@ -467,12 +517,50 @@ export function EventDetailsModal({
           >
             {t.bookingStatusLabel[event.status] ?? event.status}
           </span>
+          {event.status === "pending" && event.confirm_deadline_at && (
+            <ConfirmCountdown t={t} deadline={event.confirm_deadline_at} />
+          )}
+          {event.travel_minutes && departure && (
+            <p className="mb-3 text-sm text-ink-2">
+              {t.travelInfo(
+                event.travel_minutes,
+                timeToHhmm(departure.hour, departure.minute),
+              )}
+            </p>
+          )}
           {error && <p className="mb-2 text-sm text-danger">{error}</p>}
+          {confirming && (
+            <div className="mb-3">
+              <p className="mb-2 text-sm font-medium text-ink">
+                {t.travelPickTitle}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {TRAVEL_MINUTES.map((n) => (
+                  <CompactButton
+                    key={n}
+                    disabled={busy}
+                    onClick={() =>
+                      handleStatus("confirmed", { travel_minutes: n })
+                    }
+                  >
+                    {t.travelMinutesChip(n)}
+                  </CompactButton>
+                ))}
+                <CompactButton
+                  variant="secondary"
+                  disabled={busy}
+                  onClick={() => setConfirming(false)}
+                >
+                  {t.serviceCancelButton}
+                </CompactButton>
+              </div>
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
-            {event.status === "pending" && (
+            {event.status === "pending" && !confirming && (
               <CompactButton
                 disabled={busy}
-                onClick={() => handleStatus("confirmed")}
+                onClick={() => setConfirming(true)}
               >
                 {t.confirmBookingButton}
               </CompactButton>
@@ -504,7 +592,7 @@ export function EventDetailsModal({
                   onClick={() =>
                     handleStatus(
                       "completed",
-                      price.trim() === "" ? undefined : Number(price),
+                      price.trim() === "" ? undefined : { price: Number(price) },
                     )
                   }
                 >
