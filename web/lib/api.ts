@@ -113,6 +113,14 @@ export interface MyBooking {
   confirm_deadline_at?: string | null;
   // с этого момента на странице видна живая точка мастера
   tracking_from?: string | null;
+  // расчётный приезд: начало записи или «предыдущая работа + дорога»
+  expected_arrival_at?: string | null;
+}
+
+export interface ArrivalPreview {
+  expected_arrival_at: string;
+  previous_end_at: string | null;
+  late_minutes: number;
 }
 
 export interface MyBookingHistoryItem {
@@ -687,6 +695,11 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ status, ...extra }),
     }),
+  // перед подтверждением: успевает ли мастер после предыдущей работы
+  arrivalPreview: (bookingId: string, travelMinutes: number) =>
+    request<ArrivalPreview>(
+      `/api/bookings/${bookingId}/arrival?travel_minutes=${travelMinutes}`,
+    ),
   getMyCities: () => request<MyCity[]>("/api/providers/me/cities"),
   updateMyCities: (cityIds: string[]) =>
     request<MyCity[]>("/api/providers/me/cities", {

@@ -436,6 +436,16 @@ export function EventDetailsModal({
   // «Подтвердить» сначала спрашивает время доезда — подтверждение вторым
   // тапом по чипу, без молчаливого сохранения.
   const [confirming, setConfirming] = useState(false);
+  // не успевает после предыдущей работы — показываем, решает мастер
+  const [lateWarning, setLateWarning] = useState<{
+    travel: number;
+    text: string;
+  } | null>(null);
+
+  const hm = (iso: string) => {
+    const v = businessHourMinute(iso);
+    return timeToHhmm(v.hour, v.minute);
+  };
 
   const handleStatus = async (
     status: BookingStatus,
@@ -456,6 +466,31 @@ export function EventDetailsModal({
     } finally {
       setBusy(false);
     }
+  };
+
+  const pickTravel = async (travel: number) => {
+    if (event.kind !== "booking") return;
+    setBusy(true);
+    setError(null);
+    try {
+      const preview = await api.arrivalPreview(event.id, travel);
+      if (preview.late_minutes > 0 && preview.previous_end_at) {
+        setLateWarning({
+          travel,
+          text: t.travelLateWarning(
+            hm(preview.previous_end_at),
+            hm(preview.expected_arrival_at),
+            preview.late_minutes,
+          ),
+        });
+        setBusy(false);
+        return;
+      }
+    } catch {
+      /* без прогноза — подтверждаем как раньше */
+    }
+    setBusy(false);
+    await handleStatus("confirmed", { travel_minutes: travel });
   };
 
   const departure =
@@ -535,24 +570,49 @@ export function EventDetailsModal({
                 {t.travelPickTitle}
               </p>
               <div className="flex flex-wrap gap-2">
-                {TRAVEL_MINUTES.map((n) => (
-                  <CompactButton
-                    key={n}
-                    disabled={busy}
-                    onClick={() =>
-                      handleStatus("confirmed", { travel_minutes: n })
-                    }
-                  >
-                    {t.travelMinutesChip(n)}
-                  </CompactButton>
-                ))}
-                <CompactButton
-                  variant="secondary"
-                  disabled={busy}
-                  onClick={() => setConfirming(false)}
-                >
-                  {t.serviceCancelButton}
-                </CompactButton>
+                {lateWarning ? (
+                  <>
+                    <p className="w-full text-sm text-danger" role="alert">
+                      {lateWarning.text}
+                    </p>
+                    <CompactButton
+                      disabled={busy}
+                      onClick={() =>
+                        handleStatus("confirmed", {
+                          travel_minutes: lateWarning.travel,
+                        })
+                      }
+                    >
+                      {t.travelConfirmAnyway}
+                    </CompactButton>
+                    <CompactButton
+                      variant="secondary"
+                      disabled={busy}
+                      onClick={() => setLateWarning(null)}
+                    >
+                      {t.serviceCancelButton}
+                    </CompactButton>
+                  </>
+                ) : (
+                  <>
+                    {TRAVEL_MINUTES.map((n) => (
+                      <CompactButton
+                        key={n}
+                        disabled={busy}
+                        onClick={() => void pickTravel(n)}
+                      >
+                        {t.travelMinutesChip(n)}
+                      </CompactButton>
+                    ))}
+                    <CompactButton
+                      variant="secondary"
+                      disabled={busy}
+                      onClick={() => setConfirming(false)}
+                    >
+                      {t.serviceCancelButton}
+                    </CompactButton>
+                  </>
+                )}
               </div>
             </div>
           )}

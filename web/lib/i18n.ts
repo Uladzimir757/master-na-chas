@@ -370,6 +370,9 @@ export interface Translations {
   reviewsSectionTitle: string;
   reviewsEmpty: string;
   reviewsLoadError: string;
+  travelLateWarning: (prev: string, arrive: string, late: number) => string;
+  travelConfirmAnyway: string;
+  myBookingLate: (n: number) => string;
   cityUseLocation: string;
   cityLocating: string;
   cityLocationError: string;
@@ -792,6 +795,11 @@ export function buildTranslations(map: TranslationMap): Translations {
     reviewsSectionTitle: pick(map, "reviewsSectionTitle"),
     reviewsEmpty: pick(map, "reviewsEmpty"),
     reviewsLoadError: pick(map, "reviewsLoadError"),
+    travelLateWarning: (prev, arrive, late) =>
+      interpolate(pick(map, "travelLateWarning"), { prev, arrive, late }),
+    travelConfirmAnyway: pick(map, "travelConfirmAnyway"),
+    myBookingLate: (n) =>
+      interpolate(pick(map, "myBookingLate"), { n }),
     cityUseLocation: pick(map, "cityUseLocation"),
     cityLocating: pick(map, "cityLocating"),
     cityLocationError: pick(map, "cityLocationError"),

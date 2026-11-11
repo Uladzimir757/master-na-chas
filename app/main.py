@@ -108,6 +108,7 @@ from app.schemas import (
     AdminMasterCitiesUpdate,
     MyCitiesUpdate,
     MyCityOut,
+    ArrivalPreviewOut,
     PublicCityOut,
     MasterStatOut,
     MyBookingHistoryItem,
@@ -926,6 +927,56 @@ async def list_my_bookings(
     return (await db.execute(stmt)).scalars().all()
 
 
+async def _previous_job_end(db: AsyncSession, booking: Booking) -> datetime | None:
+    """Конец последней работы мастера в тот же день до этой записи —
+    откуда он поедет к клиенту. None — до неё в этот день ничего нет."""
+    day_start = datetime.combine(booking.start_at.astimezone(BUSINESS_TZ).date(), time.min, tzinfo=BUSINESS_TZ)
+    return (
+        await db.execute(
+            select(func.max(Booking.end_at)).where(
+                Booking.provider_id == booking.provider_id,
+                Booking.id != booking.id,
+                Booking.status != BookingStatus.cancelled,
+                Booking.end_at <= booking.start_at,
+                Booking.end_at > day_start,
+            )
+        )
+    ).scalar_one_or_none()
+
+
+async def _expected_arrival(
+    db: AsyncSession, booking: Booking, travel_minutes: int | None
+) -> tuple[datetime, datetime | None] | None:
+    """(расчётный приезд, конец предыдущей работы). Приезд — начало записи
+    или «предыдущая работа + дорога», что позже: время доезда сверяется с
+    календарём, а не просто обещается (решение пользователя 11.11.2026)."""
+    if not travel_minutes:
+        return None
+    previous_end = await _previous_job_end(db, booking)
+    arrival = booking.start_at
+    if previous_end is not None:
+        arrival = max(arrival, previous_end + timedelta(minutes=travel_minutes))
+    return arrival, previous_end
+
+
+@app.get("/api/bookings/{booking_id}/arrival", response_model=ArrivalPreviewOut)
+async def arrival_preview(
+    booking_id: uuid.UUID,
+    travel_minutes: int = Query(ge=1, le=600),
+    db: AsyncSession = Depends(get_db),
+    master_user_id: str = Depends(require_master_user_id),
+) -> ArrivalPreviewOut:
+    """Перед подтверждением: успевает ли мастер к началу с этим временем
+    доезда после предыдущей работы. Опоздание он видит и решает сам."""
+    provider = await _get_own_provider(master_user_id, db, "bookings_status")
+    booking = await db.get(Booking, booking_id)
+    if booking is None or booking.provider_id != provider.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Booking not found")
+    arrival, previous_end = await _expected_arrival(db, booking, travel_minutes)
+    late = max(0, math.ceil((arrival - booking.start_at).total_seconds() / 60))
+    return ArrivalPreviewOut(expected_arrival_at=arrival, previous_end_at=previous_end, late_minutes=late)
+
+
 @app.patch("/api/bookings/{booking_id}/status", response_model=BookingOut)
 async def update_booking_status(
     booking_id: uuid.UUID,
@@ -963,6 +1014,8 @@ async def update_booking_status(
 
     if newly_confirmed and booking.client_phone:
         service = await db.get(Service, booking.service_id)
+        expected = await _expected_arrival(db, booking, booking.travel_minutes)
+        arrival_local = (expected[0] if expected else booking.start_at).astimezone(BUSINESS_TZ).strftime("%H:%M")
         run_in_background(
             notify_client(
                 phone=booking.client_phone,
@@ -970,13 +1023,14 @@ async def update_booking_status(
                 on_dead_fcm_tokens=_prune_dead_fcm_tokens,
                 purpose=(
                     "Tell the client that the master confirmed the booking for the given service and time, "
-                    "and how many minutes the master needs to drive to them."
+                    "and at what time the master will arrive (it can be later than the booked time)."
                 ),
                 facts={
                     "service": service.name if service else "",
                     **_when_facts(booking.start_at),
                     "master": provider.name,
                     "travel_minutes": booking.travel_minutes,
+                    "master_arrives_at": arrival_local,
                 },
                 must_include=_manage_url(booking),
             )
@@ -2010,6 +2064,7 @@ async def _my_booking_out(db: AsyncSession, booking: Booking, lang: str = DEFAUL
         and booking.start_at - timedelta(hours=settings.TRACK_WINDOW_HOURS) <= now <= booking.end_at
     ):
         location = await _resolve_provider_location(db, provider, now)
+    expected = await _expected_arrival(db, booking, booking.travel_minutes)
     return MyBookingOut(
         id=booking.id,
         service_name=_resolve_service_name(service, _resolve_lang(lang)) if service else "",
@@ -2024,6 +2079,7 @@ async def _my_booking_out(db: AsyncSession, booking: Booking, lang: str = DEFAUL
         cancel_reason=booking.cancel_reason,
         confirm_deadline_at=booking.confirm_deadline_at,
         tracking_from=booking.start_at - timedelta(hours=settings.TRACK_WINDOW_HOURS),
+        expected_arrival_at=expected[0] if expected else None,
     )
 
 

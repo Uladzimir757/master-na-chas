@@ -19,6 +19,7 @@ import {
   SLOT_A,
   SOPOT,
   t,
+  todayAt,
 } from "./mocks";
 
 // docs/confirm-timer-travel-cities-task.md: города на главной, таймер
@@ -150,6 +151,37 @@ test.describe("cabinet: confirmation timer and travel time", () => {
     await page.getByRole("button", { name: t.confirmBookingButton }).click();
     await page.getByRole("button", { name: t.travelMinutesChip(15), exact: true }).click();
     await expect(page.getByText(t.confirmDeadlinePassedError)).toBeVisible();
+  });
+
+  test("confirming warns when the previous job makes the master late", async ({ page }) => {
+    const booking = cabinetBooking({ status: "pending", confirm_deadline_at: inMinutes(10) });
+    await cabinet(page, booking);
+    await page.route("**/api/bookings/*/arrival**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          expected_arrival_at: todayAt(9, 15),
+          previous_end_at: todayAt(8, 30),
+          late_minutes: 15,
+        }),
+      }),
+    );
+    let sent: unknown = null;
+    await mockBookingStatusUpdate(page, (_id, status, payload) => {
+      sent = payload.travel_minutes;
+      return { status: 200, body: { ...booking, status } };
+    });
+
+    await page.goto("/cabinet/");
+    await page.getByText(booking.client_name, { exact: false }).click();
+    await page.getByRole("button", { name: t.confirmBookingButton }).click();
+    await page.getByRole("button", { name: t.travelMinutesChip(45), exact: true }).click();
+
+    await expect(page.getByText(t.travelLateWarning("08:30", "09:15", 15))).toBeVisible();
+    expect(sent).toBeNull(); // nothing confirmed yet — the master decides
+    await page.getByRole("button", { name: t.travelConfirmAnyway }).click();
+    await expect.poll(() => sent).toBe(45);
   });
 
   test("a confirmed booking shows travel time and when to leave", async ({ page }) => {

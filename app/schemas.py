@@ -80,6 +80,15 @@ class BookingCreatedOut(BookingOut):
 TravelMinutes = Literal[15, 30, 45, 60, 90]
 
 
+class ArrivalPreviewOut(BaseModel):
+    """GET /api/bookings/{id}/arrival — что будет с приездом при выбранном
+    времени доезда, до подтверждения: мастер видит опоздание заранее."""
+
+    expected_arrival_at: datetime
+    previous_end_at: datetime | None = None
+    late_minutes: int = 0
+
+
 class BookingStatusUpdate(BaseModel):
     status: BookingStatus
     # итоговая цена работы — при завершении (аналитика)
@@ -856,6 +865,9 @@ class MyBookingOut(BaseModel):
     # с какого момента клиенту показывается живая точка мастера на карте
     # (start_at - TRACK_WINDOW_HOURS) — страница говорит об этом заранее
     tracking_from: datetime | None = None
+    # расчётный приезд мастера: начало записи или «конец его предыдущей
+    # работы в этот день + дорога», что позже (app/main.py _expected_arrival)
+    expected_arrival_at: datetime | None = None
     location: ProviderLocationOut | None = None  # живая точка мастера (если можно показывать)
 
 

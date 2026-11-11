@@ -60,6 +60,13 @@ export default function MyBookingPage() {
       timeZone: "Europe/Warsaw",
     }).format(new Date(iso));
 
+  // расчётный приезд с учётом предыдущей работы мастера (сервер сверил
+  // время доезда с его календарём)
+  const arrivalAt = booking ? (booking.expected_arrival_at ?? booking.start_at) : "";
+  const lateMinutes = booking
+    ? Math.round((new Date(arrivalAt).getTime() - new Date(booking.start_at).getTime()) / 60_000)
+    : 0;
+
   const load = useCallback(async (bid: string, tok: string) => {
     try {
       setBooking(await api.getMyBooking(bid, tok, locale));
@@ -175,14 +182,15 @@ export default function MyBookingPage() {
                   <p className="mt-2 text-sm text-ink-2">
                     {t.myBookingTravel(
                       booking.travel_minutes,
-                      fmtTime(booking.start_at),
+                      fmtTime(arrivalAt),
                       fmtTime(
                         new Date(
-                          new Date(booking.start_at).getTime() -
+                          new Date(arrivalAt).getTime() -
                             booking.travel_minutes * 60_000,
                         ).toISOString(),
                       ),
                     )}
+                    {lateMinutes > 0 && <> {t.myBookingLate(lateMinutes)}</>}
                   </p>
                 )}
                 {(booking.status === "pending" ||
