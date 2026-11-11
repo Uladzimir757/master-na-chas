@@ -370,6 +370,11 @@ export interface Translations {
   reviewsSectionTitle: string;
   reviewsEmpty: string;
   reviewsLoadError: string;
+  cityUseLocation: string;
+  cityLocating: string;
+  cityLocationError: string;
+  cityNoMastersYet: string;
+  cityNoMasters: string;
   pushStatusTitle: string;
   pushStatusChecking: string;
   pushStatusOn: string;
@@ -786,6 +791,11 @@ export function buildTranslations(map: TranslationMap): Translations {
     reviewsSectionTitle: pick(map, "reviewsSectionTitle"),
     reviewsEmpty: pick(map, "reviewsEmpty"),
     reviewsLoadError: pick(map, "reviewsLoadError"),
+    cityUseLocation: pick(map, "cityUseLocation"),
+    cityLocating: pick(map, "cityLocating"),
+    cityLocationError: pick(map, "cityLocationError"),
+    cityNoMastersYet: pick(map, "cityNoMastersYet"),
+    cityNoMasters: pick(map, "cityNoMasters"),
     pushStatusTitle: pick(map, "pushStatusTitle"),
     pushStatusChecking: pick(map, "pushStatusChecking"),
     pushStatusOn: pick(map, "pushStatusOn"),

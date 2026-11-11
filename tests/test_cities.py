@@ -53,9 +53,13 @@ async def cityless_provider(db_session: AsyncSession, tenant: Tenant) -> Provide
 # ----------------------------------------------------------------------------
 
 
-async def test_cities_list_only_cities_with_masters(client: AsyncClient, provider_in_gdynia: Provider):
-    slugs = [c["slug"] for c in (await client.get("/api/cities")).json()]
-    assert slugs == ["gdynia"]
+async def test_cities_list_all_active_cities_with_a_masters_flag(client: AsyncClient, provider_in_gdynia: Provider):
+    # решение 11.11.2026: клиент видит все города, пустые — с пометкой
+    cities = {c["slug"]: c for c in (await client.get("/api/cities")).json()}
+    assert len(cities) == 20
+    assert cities["gdynia"]["has_masters"] is True
+    assert cities["sopot"]["has_masters"] is False
+    assert cities["gdynia"]["lat"] == 54.5189 and cities["gdynia"]["lng"] == 18.5305
 
 
 async def test_providers_filtered_by_city(
@@ -77,7 +81,7 @@ async def test_inactive_city_hides_its_masters(
 ):
     gdynia.is_active = False
     await db_session.commit()
-    assert (await client.get("/api/cities")).json() == []
+    assert "gdynia" not in {c["slug"] for c in (await client.get("/api/cities")).json()}
     assert (await client.get("/api/providers?city=gdynia")).json() == []
 
 

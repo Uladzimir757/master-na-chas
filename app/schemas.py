@@ -885,9 +885,18 @@ class CityOut(BaseModel):
     slug: str
     name_pl: str
     name_en: str
+    lat: float | None = None
+    lng: float | None = None
 
     class Config:
         from_attributes = True
+
+
+class PublicCityOut(CityOut):
+    """GET /api/cities: все активные города; has_masters=False — пока нет
+    ни одного мастера (клиент видит пометку и может выбрать другой)."""
+
+    has_masters: bool
 
 
 class AdminCityOut(CityOut):
@@ -910,6 +919,8 @@ class AdminCityCreate(BaseModel):
     name_pl: str = Field(min_length=1, max_length=100)
     name_en: str = Field(min_length=1, max_length=100)
     sort_order: int = 100
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
 
 
 class AdminCityUpdate(BaseModel):
@@ -917,6 +928,8 @@ class AdminCityUpdate(BaseModel):
     name_en: str | None = Field(default=None, min_length=1, max_length=100)
     is_active: bool | None = None
     sort_order: int | None = None
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
 
 
 class AdminMasterCitiesUpdate(BaseModel):

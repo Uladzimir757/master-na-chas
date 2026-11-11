@@ -128,6 +128,11 @@ export const TRANSLATIONS_FIXTURE: Record<string, string> = {
   reviewsCountFew: "{n} отзыва",
   reviewsCountMany: "{n} отзывов",
   newMaster: "Новый мастер",
+  cityUseLocation: "По моему местоположению",
+  cityLocating: "Определяем местоположение…",
+  cityLocationError: "Не удалось определить местоположение — выберите город из списка.",
+  cityNoMastersYet: "скоро",
+  cityNoMasters: "В этом городе пока нет мастеров. Выберите другой город.",
   pushStatusTitle: "Уведомления на этом телефоне",
   pushStatusChecking: "Проверяем…",
   pushStatusOn: "Включены — новые заказы придут сюда уведомлениями.",
@@ -295,12 +300,18 @@ export const GDYNIA = {
   slug: "gdynia",
   name_pl: "Gdynia",
   name_en: "Gdynia",
+  lat: 54.5189,
+  lng: 18.5305,
+  has_masters: true,
 };
 export const SOPOT = {
   id: "c2222222-2222-2222-2222-222222222222",
   slug: "sopot",
   name_pl: "Sopot",
   name_en: "Sopot",
+  lat: 54.4416,
+  lng: 18.5601,
+  has_masters: true,
 };
 
 export async function mockCatalog(
@@ -339,6 +350,17 @@ export async function mockCatalog(
   await page.route("**/api/cities", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(opts?.cities ?? [GDYNIA]) }),
   );
+  // The client always picks a city first now; specs that don't care about
+  // cities start as a returning client who already chose Gdynia.
+  if (!opts?.cities) {
+    await page.addInitScript(() => {
+      try {
+        if (!localStorage.getItem("zr_city")) localStorage.setItem("zr_city", "gdynia");
+      } catch {
+        /* ignore */
+      }
+    });
+  }
   const providers = opts?.providers ?? [PROVIDER];
   // a regex, not "**/api/providers": the list now carries ?city=<slug>
   await page.route(/\/api\/providers(\?.*)?$/, (route) => {

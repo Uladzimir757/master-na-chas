@@ -50,7 +50,7 @@ test.describe("city step on the home page", () => {
     await expect(page.getByRole("heading", { name: t.cityPickTitle })).toBeVisible();
   });
 
-  test("a single city needs no choosing, and the booking carries it", async ({ page }) => {
+  test("a remembered city skips the choice, and the booking carries it", async ({ page }) => {
     await mockCatalog(page);
     await mockAvailability(page, [SLOT_A]);
     let sent: Record<string, unknown> = {};
@@ -72,6 +72,35 @@ test.describe("city step on the home page", () => {
 
     await expect(page.getByText(t.bookingConfirmWithin(15))).toBeVisible();
     expect(sent.city_id).toBe(GDYNIA.id);
+  });
+
+  test("even a single city is offered for choosing, by list or by location", async ({ page, context }) => {
+    const KATOWICE = { ...SOPOT, id: "c3333333-3333-3333-3333-333333333333", slug: "katowice", name_pl: "Katowice", name_en: "Katowice", lat: 50.2649, lng: 19.0238, has_masters: false };
+    await mockCatalog(page, { cities: [GDYNIA, SOPOT, KATOWICE] });
+    const asked: string[] = [];
+    page.on("request", (r) => {
+      const url = new URL(r.url());
+      if (url.pathname.endsWith("/api/providers")) asked.push(url.searchParams.get("city") ?? "");
+    });
+    await context.grantPermissions(["geolocation"]);
+    await context.setGeolocation({ latitude: 54.445, longitude: 18.565 }); // Sopot
+
+    await page.goto("/");
+    await expect(page.getByRole("button", { name: new RegExp(`Katowice.*${t.cityNoMastersYet}`) })).toBeVisible();
+    await page.getByRole("button", { name: t.cityUseLocation }).click();
+    await expect(page.getByText(t.cityCurrent("Sopot"))).toBeVisible();
+    await expect.poll(() => asked).toContain("sopot");
+  });
+
+  test("a city without masters says so and offers to change it", async ({ page }) => {
+    const KATOWICE = { ...SOPOT, id: "c3333333-3333-3333-3333-333333333333", slug: "katowice", name_pl: "Katowice", name_en: "Katowice", has_masters: false };
+    await mockCatalog(page, { cities: [GDYNIA, KATOWICE], providers: [] });
+
+    await page.goto("/");
+    await page.getByRole("button", { name: new RegExp("Katowice") }).click();
+    await expect(page.getByText(t.cityNoMasters)).toBeVisible();
+    await page.getByRole("button", { name: t.cityChange }).last().click();
+    await expect(page.getByRole("heading", { name: t.cityPickTitle })).toBeVisible();
   });
 
   test("a booking made off-hours says when the master will confirm", async ({ page }) => {

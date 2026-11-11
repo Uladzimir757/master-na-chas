@@ -106,9 +106,9 @@ from app.schemas import (
     AdminCityOut,
     AdminCityUpdate,
     AdminMasterCitiesUpdate,
-    CityOut,
     MyCitiesUpdate,
     MyCityOut,
+    PublicCityOut,
     MasterStatOut,
     MyBookingHistoryItem,
     MyBookingOut,
@@ -429,25 +429,43 @@ async def list_providers(
     ])
 
 
-@app.get("/api/cities", response_model=list[CityOut])
-async def list_cities(response: Response, db: AsyncSession = Depends(get_db)) -> list[CityOut]:
-    """Города для выбора на главной: активные и только те, где есть хотя бы
-    один активный мастер — пустой город клиенту не показываем."""
+@app.get("/api/cities", response_model=list[PublicCityOut])
+async def list_cities(response: Response, db: AsyncSession = Depends(get_db)) -> list[PublicCityOut]:
+    """Все активные города для выбора на главной (решение пользователя
+    11.11.2026: клиент видит все города, а не только с мастерами). Город без
+    мастеров помечен has_masters=False — клиент видит пометку. lat/lng — для
+    выбора «по моей локации» (ближайший город)."""
     response.headers["Cache-Control"] = cache_control()
     cached = public_cache.get("cities")
     if not is_missing(cached):
         return cached
-    has_master = (
-        select(ProviderCity.city_id)
-        .join(Provider, Provider.id == ProviderCity.provider_id)
-        .where(Provider.is_active.is_(True))
+    has_master = set(
+        (
+            await db.execute(
+                select(ProviderCity.city_id)
+                .join(Provider, Provider.id == ProviderCity.provider_id)
+                .where(Provider.is_active.is_(True))
+            )
+        ).scalars().all()
     )
-    stmt = (
-        select(City)
-        .where(City.is_active.is_(True), City.id.in_(has_master))
-        .order_by(City.sort_order, City.name_pl)
+    cities = (
+        await db.execute(select(City).where(City.is_active.is_(True)).order_by(City.sort_order, City.name_pl))
+    ).scalars().all()
+    return public_cache.set(
+        "cities",
+        [
+            PublicCityOut(
+                id=c.id,
+                slug=c.slug,
+                name_pl=c.name_pl,
+                name_en=c.name_en,
+                lat=float(c.lat) if c.lat is not None else None,
+                lng=float(c.lng) if c.lng is not None else None,
+                has_masters=c.id in has_master,
+            )
+            for c in cities
+        ],
     )
-    return public_cache.set("cities", [CityOut.model_validate(c) for c in (await db.execute(stmt)).scalars().all()])
 
 
 async def _provider_works_in(db: AsyncSession, provider_id: uuid.UUID, city_id: uuid.UUID) -> bool:

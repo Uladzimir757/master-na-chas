@@ -185,6 +185,9 @@ class City(Base):
     name_en: Mapped[str] = mapped_column(String)
     is_active: Mapped[bool] = mapped_column(default=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    # центр города — выбор «по моей локации» на главной; NULL = не участвует
+    lat: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    lng: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
 
 
 class ProviderCity(Base):

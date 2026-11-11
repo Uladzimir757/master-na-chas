@@ -175,6 +175,13 @@ export interface City {
   name_en: string;
 }
 
+// GET /api/cities: все активные города; has_masters=false — пока пусто.
+export interface PublicCity extends City {
+  lat: number | null;
+  lng: number | null;
+  has_masters: boolean;
+}
+
 export interface MyCity extends City {
   selected: boolean;
 }
@@ -493,7 +500,7 @@ export const api = {
     request<Provider[]>(
       `/api/providers${city ? `?city=${encodeURIComponent(city)}` : ""}`,
     ),
-  listCities: () => request<City[]>("/api/cities"),
+  listCities: () => request<PublicCity[]>("/api/cities"),
   // One master's own offered services, for the booking flow once a master
   // has been picked (components/MasterPicker.tsx).
   listProviderServices: (providerId: string, lang: string) =>
