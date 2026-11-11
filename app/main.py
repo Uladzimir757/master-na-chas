@@ -587,12 +587,11 @@ async def create_booking(request: Request, payload: BookingCreate, db: AsyncSess
     if overlaps_provider_busy_range(provider, payload.start_at, end_at):
         raise HTTPException(status.HTTP_409_CONFLICT, "Provider is currently busy")
 
-    # each master's own switch (mvp-task.md / Этап 2): confirmed straight
-    # away if he's turned off manual confirmation, pending (needs his
-    # PATCH .../status) otherwise — see Provider.requires_booking_confirmation.
-    initial_status = (
-        BookingStatus.pending if provider.requires_booking_confirmation else BookingStatus.confirmed
-    )
+    # Всегда pending: мастер подтверждает каждый заказ сам (таймер, время
+    # доезда). Свой переключатель мастера убран 11.11.2026 — пока тик не
+    # настроен (free tier), автоподтверждение обходило бы весь этот поток;
+    # Provider.requires_booking_confirmation больше не читается.
+    initial_status = BookingStatus.pending
 
     # Таймер подтверждения (app/confirm_timer.py). Заказ вне рабочих часов
     # ждёт их начала: уведомление мастеру уйдёт тогда из тика, не ночью.
@@ -1079,7 +1078,7 @@ def _provider_settings_out(provider: Provider) -> ProviderSettingsOut:
     return ProviderSettingsOut(
         id=provider.id,
         name=provider.name,
-        requires_booking_confirmation=provider.requires_booking_confirmation,
+        requires_booking_confirmation=True,  # всегда вручную, см. create_booking
         call_out_fee=float(provider.call_out_fee) if provider.call_out_fee is not None else None,
         share_location=provider.share_location,
         busy_started_at=provider.busy_started_at,
@@ -1112,7 +1111,6 @@ async def update_my_provider_settings(
     db: AsyncSession = Depends(get_db),
 ) -> ProviderSettingsOut:
     provider = await _get_own_provider(master_user_id, db, "settings_edit")
-    provider.requires_booking_confirmation = payload.requires_booking_confirmation
     provider.call_out_fee = payload.call_out_fee
     provider.share_location = payload.share_location
     await db.commit()

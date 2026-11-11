@@ -291,7 +291,6 @@ export interface ProviderBusy {
 }
 
 export interface UpdateProviderSettingsPayload {
-  requires_booking_confirmation: boolean;
   // Always sent explicitly (never omitted) — the backend replaces the full
   // value each PATCH, so `null` here really does clear a previously-set
   // fee rather than leaving it untouched. See ProviderSettingsUpdate in

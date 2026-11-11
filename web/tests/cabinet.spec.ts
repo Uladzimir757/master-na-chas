@@ -104,8 +104,6 @@ test("successful login loads the dashboard with settings and bookings", async ({
   await openTab(page, t.servicesOfferedTitle);
   await expect(page.getByRole("checkbox", { name: SERVICE.name })).toBeChecked();
 
-  await openTab(page, t.settingsTitle);
-  await expect(page.getByRole("checkbox", { name: t.requiresConfirmationLabel })).toBeChecked();
 });
 
 test("an empty calendar loads cleanly, with no stray booking chips", async ({ page }) => {
@@ -120,7 +118,9 @@ test("an empty calendar loads cleanly, with no stray booking chips", async ({ pa
   await expect(page.getByText(t.calendarLoadError)).not.toBeVisible();
 });
 
-test("toggling the confirmation setting saves the new value", async ({ page }) => {
+// Подтверждение всегда ручное (11.11.2026): у мастера больше нет своего
+// переключателя, отказ от ручного шага обходил бы таймер и время доезда.
+test("the cabinet has no switch to turn confirmation off", async ({ page }) => {
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle()]);
   await mockProviderSettings(page, { requiresConfirmation: true });
@@ -128,31 +128,12 @@ test("toggling the confirmation setting saves the new value", async ({ page }) =
 
   await page.goto("/cabinet/");
   await openTab(page, t.settingsTitle);
-  const checkbox = page.getByRole("checkbox", { name: t.requiresConfirmationLabel });
-  await expect(checkbox).toBeChecked();
-
-  await checkbox.click();
-
-  await expect(checkbox).not.toBeChecked();
-  await expect(page.getByText(t.settingsSaveError)).not.toBeVisible();
-});
-
-test("a failed settings save shows an error message", async ({ page }) => {
-  await mockAuthMe(page, { loggedIn: true });
-  await mockMyServices(page, [serviceToggle()]);
-  await mockProviderSettings(page, { requiresConfirmation: true, patchStatus: 500 });
-  await mockMyCalendar(page, {});
-
-  await page.goto("/cabinet/");
-  await openTab(page, t.settingsTitle);
-  await page.getByRole("checkbox", { name: t.requiresConfirmationLabel }).click();
-
-  await expect(page.getByText(t.settingsSaveError)).toBeVisible();
+  await expect(page.getByText(t.callOutFeeLabel)).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: t.requiresConfirmationLabel })).toHaveCount(0);
 });
 
 // Этап 4 — live location dot. share_location itself is just another
-// settings toggle (same PATCH /api/providers/me/settings as
-// requires_booking_confirmation above); lib/useLocationSharing.ts's actual
+// settings toggle (PATCH /api/providers/me/settings); lib/useLocationSharing.ts's actual
 // GPS watch is exercised separately below.
 test("toggling share_location saves the new value", async ({ page }) => {
   await mockAuthMe(page, { loggedIn: true });
@@ -318,7 +299,7 @@ test("turning a service on saves it", async ({ page }) => {
   await expect(page.getByText(t.servicesSaveError)).not.toBeVisible();
 });
 
-test("turning a service off saves it, independently of the confirmation checkbox", async ({ page }) => {
+test("turning a service off saves it", async ({ page }) => {
   await mockAuthMe(page, { loggedIn: true });
   await mockMyServices(page, [serviceToggle({ is_offered: true })]);
   await mockProviderSettings(page, { requiresConfirmation: true });
@@ -330,11 +311,6 @@ test("turning a service off saves it, independently of the confirmation checkbox
 
   await serviceCheckbox.click();
   await expect(serviceCheckbox).not.toBeChecked();
-
-  // toggling one didn't touch the other — they save through two different
-  // endpoints (PUT .../services vs PATCH .../settings)
-  await openTab(page, t.settingsTitle);
-  await expect(page.getByRole("checkbox", { name: t.requiresConfirmationLabel })).toBeChecked();
 });
 
 test("a failed services save shows an error message", async ({ page }) => {

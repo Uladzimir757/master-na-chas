@@ -344,11 +344,12 @@ class ProviderSettingsOut(BaseModel):
 
 
 class ProviderSettingsUpdate(BaseModel):
-    requires_booking_confirmation: bool
+    # Принимается от старых версий кабинета и игнорируется: подтверждение
+    # теперь всегда ручное (app/main.py create_booking).
+    requires_booking_confirmation: bool | None = None
     # Required (not Optional-with-a-default) so a PATCH always states the
     # full desired value explicitly — sending null clears a previously-set
-    # fee back to "none", same as any other value would set it. Matches
-    # requires_booking_confirmation's own always-send-the-full-value shape.
+    # fee back to "none", same as any other value would set it.
     call_out_fee: float | None
     # Same always-send-the-full-value shape — see Provider.share_location's
     # docstring in app/models.py.

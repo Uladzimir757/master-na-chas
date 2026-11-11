@@ -112,9 +112,10 @@ async def test_booking_starts_pending_when_provider_requires_confirmation(
     assert resp.json()["status"] == "pending"
 
 
-async def test_booking_auto_confirms_when_provider_does_not_require_confirmation(
+async def test_booking_is_pending_even_if_the_old_flag_is_off(
     client: AsyncClient, bookable_provider, service, db_session
 ):
+    # подтверждение всегда ручное (11.11.2026): старый флаг мастера не читается
     bookable_provider.requires_booking_confirmation = False
     await db_session.commit()
 
@@ -123,4 +124,4 @@ async def test_booking_auto_confirms_when_provider_does_not_require_confirmation
     )
 
     assert resp.status_code == 201, resp.text
-    assert resp.json()["status"] == "confirmed"
+    assert resp.json()["status"] == "pending"

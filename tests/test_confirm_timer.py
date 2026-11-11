@@ -118,14 +118,14 @@ async def test_client_booking_gets_a_deadline(client: AsyncClient, bookable_prov
     assert body["status"] == "pending" and body["confirm_deadline_at"] is not None
 
 
-async def test_auto_confirmed_booking_has_no_timer(
+async def test_old_auto_confirm_flag_no_longer_skips_the_timer(
     client: AsyncClient, db_session: AsyncSession, bookable_provider: Provider, service: Service
 ):
     bookable_provider.requires_booking_confirmation = False
     await db_session.commit()
     resp = await client.post("/api/bookings", json=_payload(service_id=service.id, provider_id=bookable_provider.id, start=time(12, 0)))
     assert resp.status_code == 201, resp.text
-    assert resp.json()["status"] == "confirmed" and resp.json()["confirm_deadline_at"] is None
+    assert resp.json()["status"] == "pending" and resp.json()["confirm_deadline_at"] is not None
 
 
 # ----------------------------------------------------------------------------
