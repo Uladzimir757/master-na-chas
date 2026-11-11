@@ -53,6 +53,17 @@ assert NEXT_MONDAY.weekday() == 0
 
 
 @pytest.fixture(autouse=True)
+def _fresh_public_cache():
+    """Каждый тест сидит свои строки — кэш каталога от прошлого теста
+    (app/public_cache.py) не должен их подменять."""
+    from app.public_cache import public_cache
+
+    public_cache.clear()
+    yield
+    public_cache.clear()
+
+
+@pytest.fixture(autouse=True)
 def _no_real_llm_calls(monkeypatch: pytest.MonkeyPatch) -> None:
     """В .env разработчика лежат реальные ключи LLM — тесты не должны тратить
     по ним деньги. Тесты, которым нужен ключ, выставляют свой фейковый."""

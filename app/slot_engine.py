@@ -117,8 +117,13 @@ async def _slots_for_one_provider(
     date_from: date,
     date_to: date,
     step_minutes: int = 15,
+    duration_minutes: int | None = None,
 ) -> list[SlotOut]:
-    duration = timedelta(minutes=await provider_service_duration(db, provider.id, service))
+    # duration_minutes: already known by the caller (get_availability reads
+    # the ProviderService row anyway) — saves a round trip to the DB.
+    if duration_minutes is None:
+        duration_minutes = await provider_service_duration(db, provider.id, service)
+    duration = timedelta(minutes=duration_minutes)
     buffer = timedelta(minutes=provider.travel_buffer_minutes)
     step = timedelta(minutes=step_minutes)
 
@@ -350,9 +355,22 @@ async def get_availability(
     slots from every eligible provider, each tagged with its provider_id so
     the client can show/pick who they'll actually get."""
     if provider is not None:
-        if not await provider_offers_service(db, provider.id, service.id):
+        # one query for both "does he offer it" and "how long does it take him"
+        link = (
+            await db.execute(
+                select(ProviderService).where(
+                    ProviderService.provider_id == provider.id,
+                    ProviderService.service_id == service.id,
+                    ProviderService.is_active.is_(True),
+                )
+            )
+        ).scalar_one_or_none()
+        if link is None:
             return []
-        return await _slots_for_one_provider(db, provider, service, date_from, date_to)
+        return await _slots_for_one_provider(
+            db, provider, service, date_from, date_to,
+            duration_minutes=link.duration_minutes or service.duration_minutes,
+        )
 
     providers = await list_providers_for_service(db, service)
     all_slots: list[SlotOut] = []
