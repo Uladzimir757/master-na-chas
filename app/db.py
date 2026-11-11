@@ -38,7 +38,13 @@ def _prepare_asyncpg_url(url: str) -> tuple[str, dict]:
 
 
 _clean_database_url, _connect_args = _prepare_asyncpg_url(settings.DATABASE_URL)
-engine = create_async_engine(_clean_database_url, pool_pre_ping=True, connect_args=_connect_args)
+engine = create_async_engine(
+    _clean_database_url,
+    pool_pre_ping=True,
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    connect_args=_connect_args,
+)
 async_session_factory = async_sessionmaker(engine, expire_on_commit=False)
 
 

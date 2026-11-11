@@ -53,6 +53,7 @@ Routes:
 from __future__ import annotations
 
 import logging
+import time as _time
 import math
 import secrets
 import uuid
@@ -60,7 +61,7 @@ from contextlib import asynccontextmanager
 from decimal import Decimal
 from datetime import date, datetime, time, timedelta, timezone
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -98,6 +99,7 @@ from app.models import (
     WorkingHoursException,
 )
 from app.notifications import notify_client, notify_master, reply_telegram, run_in_background
+from app.public_cache import cache_control, is_missing, public_cache, write_invalidates
 from app.schemas import (
     AdminAnalyticsOut,
     AdminCityCreate,
@@ -251,6 +253,30 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def _timing_and_cache(request: Request, call_next):
+    """Время ответа по эндпоинтам (docs/load-readiness.md, п.6): заголовок
+    Server-Timing на каждом ответе, медленные — в лог WARNING с шаблоном
+    маршрута, чтобы их можно было сгруппировать. Плюс сброс кэша публичного
+    каталога после записей, которые могли его изменить (app/public_cache.py)."""
+    started = _time.perf_counter()
+    response = await call_next(request)
+    elapsed_ms = (_time.perf_counter() - started) * 1000
+    response.headers["Server-Timing"] = f"app;dur={elapsed_ms:.0f}"
+    if elapsed_ms >= settings.SLOW_REQUEST_MS:
+        route = request.scope.get("route")
+        logger.warning(
+            "slow_request %s %s %s %.0fms",
+            request.method,
+            getattr(route, "path", request.url.path),
+            response.status_code,
+            elapsed_ms,
+        )
+    if response.status_code < 400 and write_invalidates(request.method, request.url.path):
+        public_cache.clear()
+    return response
+
+
 def require_admin(request: Request, x_admin_secret: str = Header(default="")) -> None:
     """Two ways in, same gate: an X-Admin-Secret header (scripts/curl, the
     original shape) or an admin session cookie set by POST /admin/login (the
@@ -342,14 +368,23 @@ def _providers_in_city(slug: str):
 
 
 @app.get("/api/providers", response_model=list[ProviderOut])
-async def list_providers(city: str | None = None, db: AsyncSession = Depends(get_db)) -> list[ProviderOut]:
+async def list_providers(
+    response: Response, city: str | None = None, db: AsyncSession = Depends(get_db)
+) -> list[ProviderOut]:
     """Sorted by rating (best first, unrated last — nulls_last, not a 0)
     for the master-picker screen; name as the tiebreaker so unrated masters
     still list in a stable order rather than shuffling on every request.
 
     `city` (slug) — only masters of that city; a master with no cities is
     never in a city's list. Without it — every active master, for an older
-    cached page that doesn't ask for a city yet."""
+    cached page that doesn't ask for a city yet.
+
+    Кэшируется на PUBLIC_CACHE_SECONDS вместе с живой точкой мастера: она
+    и так «свежая» в пределах LOCATION_FRESHNESS (15 мин)."""
+    response.headers["Cache-Control"] = cache_control()
+    cached = public_cache.get(("providers", city))
+    if not is_missing(cached):
+        return cached
     stmt = (
         select(Provider)
         .where(Provider.is_active.is_(True))
@@ -374,7 +409,7 @@ async def list_providers(city: str | None = None, db: AsyncSession = Depends(get
             price_from[link.provider_id] = min(float(price), price_from.get(link.provider_id, float(price)))
         if svc.category:
             cats.setdefault(link.provider_id, set()).add(svc.category)
-    return [
+    return public_cache.set(("providers", city), [
         ProviderOut(
             id=p.id,
             name=p.name,
@@ -386,13 +421,17 @@ async def list_providers(city: str | None = None, db: AsyncSession = Depends(get
             categories=sorted(cats.get(p.id, set())),
         )
         for p in providers
-    ]
+    ])
 
 
 @app.get("/api/cities", response_model=list[CityOut])
-async def list_cities(db: AsyncSession = Depends(get_db)) -> list[City]:
+async def list_cities(response: Response, db: AsyncSession = Depends(get_db)) -> list[CityOut]:
     """Города для выбора на главной: активные и только те, где есть хотя бы
     один активный мастер — пустой город клиенту не показываем."""
+    response.headers["Cache-Control"] = cache_control()
+    cached = public_cache.get("cities")
+    if not is_missing(cached):
+        return cached
     has_master = (
         select(ProviderCity.city_id)
         .join(Provider, Provider.id == ProviderCity.provider_id)
@@ -403,7 +442,7 @@ async def list_cities(db: AsyncSession = Depends(get_db)) -> list[City]:
         .where(City.is_active.is_(True), City.id.in_(has_master))
         .order_by(City.sort_order, City.name_pl)
     )
-    return list((await db.execute(stmt)).scalars().all())
+    return public_cache.set("cities", [CityOut.model_validate(c) for c in (await db.execute(stmt)).scalars().all()])
 
 
 async def _provider_works_in(db: AsyncSession, provider_id: uuid.UUID, city_id: uuid.UUID) -> bool:
@@ -1823,6 +1862,7 @@ async def delete_provider_block(
 @app.get("/api/providers/{provider_id}/services", response_model=list[ProviderServiceOut])
 async def list_provider_services(
     provider_id: uuid.UUID,
+    response: Response,
     lang: str = Query(default=DEFAULT_LANG),
     db: AsyncSession = Depends(get_db),
 ) -> list[ProviderServiceOut]:
@@ -1838,6 +1878,10 @@ async def list_provider_services(
     placed before the fixed "me" path would otherwise swallow every request
     to it, trying (and failing, 422) to parse the literal "me" as a UUID."""
     lang = _resolve_lang(lang)
+    response.headers["Cache-Control"] = cache_control()
+    cached = public_cache.get(("provider_services", provider_id, lang))
+    if not is_missing(cached):
+        return cached
     provider = await db.get(Provider, provider_id)
     if provider is None or not provider.is_active:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Provider not found")
@@ -1854,7 +1898,7 @@ async def list_provider_services(
             .order_by(Service.name)
         )
     ).all()
-    return [
+    return public_cache.set(("provider_services", provider_id, lang), [
         ProviderServiceOut(
             id=service.id,
             name=_resolve_service_name(service, lang),
@@ -1864,7 +1908,7 @@ async def list_provider_services(
             description=link.description,
         )
         for service, link in rows
-    ]
+    ])
 
 
 # ============================================================================

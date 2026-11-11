@@ -138,6 +138,17 @@ class Settings(BaseSettings):
     # app/notifications.py, no code change needed.
     LOG_LEVEL: str = "INFO"
 
+    # Нагрузка (docs/load-readiness.md). Пул SQLAlchemy на процесс uvicorn:
+    # при --workers N соединений до Neon будет N * (POOL_SIZE + MAX_OVERFLOW);
+    # через пулер Neon (-pooler в DATABASE_URL) это не упирается в
+    # max_connections самой базы.
+    DB_POOL_SIZE: int = 10
+    DB_MAX_OVERFLOW: int = 10
+    # Кэш публичного каталога (app/public_cache.py), секунды; 0 = выключен.
+    PUBLIC_CACHE_SECONDS: int = 60
+    # Запросы дольше этого порога логируются как WARNING (app/main.py).
+    SLOW_REQUEST_MS: int = 1000
+
     @property
     def cors_allowed_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ALLOWED_ORIGINS.split(",") if o.strip()]
