@@ -150,6 +150,13 @@ API сейчас на **free tier** (засыпает без трафика, Cro
 - Python на Windows пишет файлы с CRLF — `.gitattributes` нормализует в LF,
   это не ошибка.
 - Никогда не коммитить keystore и креды.
+- Сборка Android на этой машине: Capacitor 8 требует JDK 21, а JAVA_HOME
+  по умолчанию — 17 («invalid source release: 21»). И `npm run android:apk`
+  не находит `gradlew` из своей оболочки. Рабочий способ: `npx cap sync
+  android`, затем в PowerShell `$env:JAVA_HOME = "C:\Program Files\Eclipse
+  Adoptium\jdk-21.0.11.10-hotspot"` и `& D:\ZR\web\android\gradlew.bat
+  assembleDebug` (или `bundleRelease`). Firebase (`google-services.json`) в
+  сборке с 11.11.2026 — пуши работают только в сборках не старее этой.
 
 ## Открытые вопросы / статус
 
