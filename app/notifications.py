@@ -230,9 +230,11 @@ async def notify_master(
     facts: dict | None = None,
     fcm_tokens: list[str] | None = None,
     on_dead_fcm_tokens: DeadTokensCallback | None = None,
+    url: str = "/cabinet/",
 ) -> None:
     """Один текст на все каналы: первая строка — заголовок пуша (web push и
-    FCM), Telegram получает сообщение целиком."""
+    FCM), Telegram получает сообщение целиком. url — куда ведёт тап по пушу
+    (детали конкретной брони или просто кабинет)."""
     telegram_on = bool(telegram_chat_id and settings.TELEGRAM_BOT_TOKEN)
     push_on = bool(push_subscriptions and settings.WEB_PUSH_ENABLED)
     fcm_on = bool(fcm_tokens and settings.FCM_ENABLED)
@@ -259,11 +261,11 @@ async def notify_master(
                 endpoint=sub["endpoint"],
                 p256dh=sub["p256dh"],
                 auth=sub["auth"],
-                payload={"title": title, "body": body},
+                payload={"title": title, "body": body, "url": url},
             )
     if fcm_on:
         await _send_fcm_all(
-            fcm_tokens, title=title, body=body, data={"url": "/cabinet/"}, on_dead=on_dead_fcm_tokens
+            fcm_tokens, title=title, body=body, data={"url": url}, on_dead=on_dead_fcm_tokens
         )
 
 

@@ -363,7 +363,7 @@ async def test_master_notification_splits_title_for_push_and_sends_full_text_to_
 
     assert sent.composed[0]["language"] == "Russian" and sent.composed[0]["with_title"] is True
     assert sent.telegram == [("42", "Tytuł\n\nTreść wiadomości")]
-    assert sent.push == [("https://push/1", {"title": "Tytuł", "body": "Treść wiadomości"})]
+    assert sent.push == [("https://push/1", {"title": "Tytuł", "body": "Treść wiadomości", "url": "/cabinet/"})]
 
 
 async def test_reply_telegram_skipped_without_token(sent, monkeypatch: pytest.MonkeyPatch):

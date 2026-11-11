@@ -11,10 +11,15 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiError, type AdminMaster } from "@/lib/api";
+import { api, ApiError, type AdminCity, type AdminMaster } from "@/lib/api";
 import { Card, Centered, Button } from "@/components/ui";
 import AdminAnalyticsPanel from "@/components/AdminAnalytics";
 import { PasswordInput } from "@/components/PasswordInput";
+import {
+  CityCheckboxes,
+  CityDirectory,
+  MasterCitiesEditor,
+} from "@/components/AdminCities";
 
 type AuthState = "checking" | "anon" | "authed";
 
@@ -105,6 +110,7 @@ function AdminLogin({ onLoggedIn }: { onLoggedIn: () => void }) {
 
 function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [masters, setMasters] = useState<AdminMaster[] | null>(null);
+  const [cities, setCities] = useState<AdminCity[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [linkByMaster, setLinkByMaster] = useState<Record<string, string>>({});
@@ -127,7 +133,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   const load = useCallback(async () => {
     try {
-      setMasters(await api.listMasters());
+      const [list, cityList] = await Promise.all([
+        api.listMasters(),
+        api.adminListCities(),
+      ]);
+      setMasters(list);
+      setCities(cityList);
       setLoadError(null);
     } catch {
       setLoadError("Не удалось загрузить список мастеров");
@@ -294,6 +305,19 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   Буфер выезда: {m.travel_buffer_minutes} мин
                 </div>
 
+                <MasterCitiesEditor
+                  key={`${m.master_user_id}-cities-${m.city_ids.join(",")}`}
+                  master={m}
+                  cities={cities}
+                  onSaved={(updated) =>
+                    setMasters((prev) =>
+                      prev?.map((x) =>
+                        x.master_user_id === updated.master_user_id ? updated : x,
+                      ) ?? prev,
+                    )
+                  }
+                />
+
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <span className="text-ink-2">Рейтинг</span>
                   <input
@@ -412,17 +436,26 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
       <AdminAnalyticsPanel masters={masters} />
 
-      <CreateMasterForm onCreated={load} />
+      <CreateMasterForm cities={cities} onCreated={load} />
+
+      <CityDirectory cities={cities} onChanged={setCities} />
     </div>
   );
 }
 
-function CreateMasterForm({ onCreated }: { onCreated: () => void }) {
+function CreateMasterForm({
+  cities,
+  onCreated,
+}: {
+  cities: AdminCity[];
+  onCreated: () => void;
+}) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [travelBufferMinutes, setTravelBufferMinutes] = useState("30");
   const [phone, setPhone] = useState("");
+  const [cityIds, setCityIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -432,6 +465,10 @@ function CreateMasterForm({ onCreated }: { onCreated: () => void }) {
       e.preventDefault();
       setError(null);
       setSuccess(false);
+      if (cityIds.length === 0) {
+        setError("Отметьте хотя бы один город — без него клиенты мастера не увидят");
+        return;
+      }
       setSubmitting(true);
       try {
         await api.createMaster({
@@ -440,12 +477,14 @@ function CreateMasterForm({ onCreated }: { onCreated: () => void }) {
           password,
           travel_buffer_minutes: Number(travelBufferMinutes) || 0,
           phone: phone.trim() || null,
+          city_ids: cityIds,
         });
         setName("");
         setEmail("");
         setPassword("");
         setTravelBufferMinutes("30");
         setPhone("");
+        setCityIds([]);
         setSuccess(true);
         onCreated();
       } catch (err) {
@@ -462,7 +501,7 @@ function CreateMasterForm({ onCreated }: { onCreated: () => void }) {
         setSubmitting(false);
       }
     },
-    [name, email, password, travelBufferMinutes, phone, onCreated],
+    [name, email, password, travelBufferMinutes, phone, cityIds, onCreated],
   );
 
   return (
@@ -506,6 +545,10 @@ function CreateMasterForm({ onCreated }: { onCreated: () => void }) {
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
         />
+        <div className="text-sm">
+          <div className="mb-1 text-ink-2">Города, где работает мастер</div>
+          <CityCheckboxes cities={cities} value={cityIds} onChange={setCityIds} />
+        </div>
         <label className="flex items-center gap-2 text-sm text-ink-2">
           Буфер на дорогу между заказами (мин)
           <input

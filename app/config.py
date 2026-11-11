@@ -16,6 +16,11 @@ class Settings(BaseSettings):
 
     SESSION_SECRET: str = "change-me-in-prod"  # itsdangerous signing key for the session cookie
     ADMIN_SECRET: str = "change-me-in-prod"  # shared secret for /admin/* — you're the only superadmin
+    # POST /internal/tick (app/confirm_timer.py): напоминания мастеру о
+    # неподтверждённом заказе. Render free tier засыпает, поэтому тик раз в
+    # минуту дёргает внешний пингер с заголовком X-Tick-Secret. Пусто = тик
+    # выключен (403).
+    TICK_SECRET: str = ""
 
     # The master's login cookie (app/main.py's SessionMiddleware). Local dev
     # keeps the browser default (Lax, not Secure) because `npm run dev`'s

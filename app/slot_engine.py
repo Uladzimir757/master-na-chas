@@ -44,6 +44,12 @@ BUSINESS_TZ = ZoneInfo("Europe/Warsaw")
 # a stale point disappear within a client's patience, not hours later.
 LOCATION_FRESHNESS = timedelta(minutes=15)
 
+# Таймер подтверждения заказа (app/confirm_timer.py,
+# docs/confirm-timer-travel-cities-task.md): мастер должен подтвердить
+# pending-заказ за CONFIRM_WINDOW, напоминания — каждые CONFIRM_REMINDER_STEP.
+CONFIRM_WINDOW = timedelta(minutes=15)
+CONFIRM_REMINDER_STEP = timedelta(minutes=5)
+
 # Fixed buffer added after a master-given work-time estimate (see
 # provider_busy_range below) — deliberately not provider.travel_buffer_minutes
 # (that's per-provider and configurable; this one was asked for as a flat
@@ -243,18 +249,9 @@ async def overlaps_any_provider_block(
     return (await db.execute(stmt)).scalar_one_or_none() is not None
 
 
-async def is_within_working_hours(db: AsyncSession, provider_id: uuid.UUID, at: datetime) -> bool:
-    """True iff `at` falls inside this provider's working hours for that
-    specific calendar day in BUSINESS_TZ — the same source of truth
-    _slots_for_one_provider's day_windows uses (a WorkingHoursException for
-    that date overrides the weekday template; is_available=False on the
-    exception means no hours at all that day), just evaluated at one instant
-    instead of expanded into a list of bookable slots. Used to gate the
-    public live-location dot (Этап 4) — a client should never see "мастер
-    поблизости" outside the hours he could actually be out on a job."""
-    local = at.astimezone(BUSINESS_TZ)
-    day = local.date()
-
+async def _windows_for_day(db: AsyncSession, provider_id: uuid.UUID, day: date) -> list[tuple[time, time]]:
+    """Working windows of one calendar day — a WorkingHoursException for that
+    date overrides the weekday template (is_available=False = no hours)."""
     exception = (
         await db.execute(
             select(WorkingHoursException).where(
@@ -266,21 +263,47 @@ async def is_within_working_hours(db: AsyncSession, provider_id: uuid.UUID, at: 
 
     if exception is not None:
         if not exception.is_available:
-            return False
-        windows = [(exception.start_time, exception.end_time)] if exception.start_time else []
-    else:
-        rows = (
-            await db.execute(
-                select(WorkingHours).where(
-                    WorkingHours.provider_id == provider_id,
-                    WorkingHours.weekday == day.weekday(),
-                )
+            return []
+        return [(exception.start_time, exception.end_time)] if exception.start_time else []
+    rows = (
+        await db.execute(
+            select(WorkingHours).where(
+                WorkingHours.provider_id == provider_id,
+                WorkingHours.weekday == day.weekday(),
             )
-        ).scalars().all()
-        windows = [(w.start_time, w.end_time) for w in rows]
+        )
+    ).scalars().all()
+    return sorted((w.start_time, w.end_time) for w in rows)
 
+
+async def is_within_working_hours(db: AsyncSession, provider_id: uuid.UUID, at: datetime) -> bool:
+    """True iff `at` falls inside this provider's working hours for that
+    specific calendar day in BUSINESS_TZ — the same source of truth
+    _slots_for_one_provider's day_windows uses, just evaluated at one instant
+    instead of expanded into a list of bookable slots. Used to gate the
+    public live-location dot (Этап 4) — a client should never see "мастер
+    поблизости" outside the hours he could actually be out on a job."""
+    local = at.astimezone(BUSINESS_TZ)
     local_time = local.time()
-    return any(start <= local_time < end for start, end in windows)
+    return any(start <= local_time < end for start, end in await _windows_for_day(db, provider_id, local.date()))
+
+
+async def next_working_start(
+    db: AsyncSession, provider_id: uuid.UUID, at: datetime, *, horizon_days: int = 14
+) -> datetime | None:
+    """`at` itself if it's inside working hours, otherwise the start of the
+    provider's next working window — when the confirmation timer of a booking
+    made off-hours starts (app/confirm_timer.py). None if he has no hours in
+    the next `horizon_days`."""
+    local = at.astimezone(BUSINESS_TZ)
+    for offset in range(horizon_days + 1):
+        day = local.date() + timedelta(days=offset)
+        for window_start, window_end in await _windows_for_day(db, provider_id, day):
+            start = datetime.combine(day, window_start, tzinfo=BUSINESS_TZ)
+            end = datetime.combine(day, window_end, tzinfo=BUSINESS_TZ)
+            if end > at:
+                return max(start, at)
+    return None
 
 
 async def list_providers_for_service(db: AsyncSession, service: Service) -> list[Provider]:

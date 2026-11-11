@@ -172,6 +172,30 @@ class Service(Base):
     owner_provider_id: Mapped[uuid.UUID | None] = _uuid_col(fk="provider.id")
 
 
+class City(Base):
+    """Город, где работают мастера (docs/confirm-timer-travel-cities-task.md).
+    Клиент сначала выбирает город и видит только его мастеров. Справочник
+    ведёт суперадмин; названия здесь, не в translation_entry."""
+
+    __tablename__ = "city"
+
+    id: Mapped[uuid.UUID] = _uuid_col(primary_key=True)
+    slug: Mapped[str] = mapped_column(String, unique=True)
+    name_pl: Mapped[str] = mapped_column(String)
+    name_en: Mapped[str] = mapped_column(String)
+    is_active: Mapped[bool] = mapped_column(default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class ProviderCity(Base):
+    """Города мастера (несколько). Мастер без городов публично не виден."""
+
+    __tablename__ = "provider_city"
+
+    provider_id: Mapped[uuid.UUID] = _uuid_col(primary_key=True, fk="provider.id")
+    city_id: Mapped[uuid.UUID] = _uuid_col(primary_key=True, fk="city.id")
+
+
 class ProviderService(Base):
     """Which provider offers which service — now toggleable per-master from
     the cabinet (PUT /api/providers/me/services), not just seed-script-only.
@@ -293,6 +317,15 @@ class Booking(Base):
     price: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     # Секрет ссылки «моя запись» (отмена/перенос/история/трекинг) из SMS клиенту.
     manage_token: Mapped[str | None] = mapped_column(String, unique=True)
+    city_id: Mapped[uuid.UUID | None] = _uuid_col(fk="city.id")
+    # Таймер подтверждения (app/confirm_timer.py). NULL = таймера нет.
+    confirm_deadline_at: Mapped[datetime | None] = mapped_column(TZDateTime)
+    # 0 = уведомление о заказе ещё не ушло (ждёт рабочих часов), 1 = ушло,
+    # 2 и 3 = первое и второе напоминание.
+    confirm_notices_sent: Mapped[int] = mapped_column(SmallInteger, default=0)
+    cancel_reason: Mapped[str | None] = mapped_column(String)
+    # Время доезда до клиента — мастер выбирает при подтверждении.
+    travel_minutes: Mapped[int | None] = mapped_column(SmallInteger)
 
 
 class MasterUser(Base):

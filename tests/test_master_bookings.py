@@ -142,7 +142,7 @@ async def test_list_bookings_status_filter(
 async def test_update_booking_status_requires_login(client: AsyncClient, db_session: AsyncSession, provider: Provider, service):
     booking = await _make_booking(db_session, provider_id=provider.id, service_id=service.id, hour=9)
 
-    resp = await client.patch(f"/api/bookings/{booking.id}/status", json={"status": "confirmed"})
+    resp = await client.patch(f"/api/bookings/{booking.id}/status", json={"status": "confirmed", "travel_minutes": 30})
 
     assert resp.status_code == 401
 
@@ -158,7 +158,7 @@ async def test_update_booking_status_rejects_another_masters_booking(
         db_session, provider_id=other_provider.id, service_id=service.id, hour=9, status=BookingStatus.pending
     )
 
-    resp = await logged_in_client.patch(f"/api/bookings/{theirs.id}/status", json={"status": "confirmed"})
+    resp = await logged_in_client.patch(f"/api/bookings/{theirs.id}/status", json={"status": "confirmed", "travel_minutes": 30})
 
     assert resp.status_code == 404, resp.text
 
@@ -174,7 +174,7 @@ async def test_update_booking_status_succeeds_for_own_booking(
         db_session, provider_id=provider.id, service_id=service.id, hour=9, status=BookingStatus.pending
     )
 
-    resp = await logged_in_client.patch(f"/api/bookings/{mine.id}/status", json={"status": "confirmed"})
+    resp = await logged_in_client.patch(f"/api/bookings/{mine.id}/status", json={"status": "confirmed", "travel_minutes": 30})
 
     assert resp.status_code == 200, resp.text
     assert resp.json()["status"] == "confirmed"

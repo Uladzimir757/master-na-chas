@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { api, type Provider, type ProviderServiceOffering } from "@/lib/api";
+import {
+  api,
+  cityName,
+  type City,
+  type Provider,
+  type ProviderServiceOffering,
+} from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import { Card, Centered } from "@/components/ui";
 import { ChevronRightIcon, IconBadge, WrenchIcon } from "@/components/icons";
@@ -12,7 +18,29 @@ import SlotPicker from "@/components/SlotPicker";
 // The element on the home page that wraps this flow.
 export const BOOKING_ID = "masters";
 
-// Master-first flow (this segment): pick a master (sorted by rating) ->
+// The client's city, remembered between visits (a per-device convenience,
+// see docs/confirm-timer-travel-cities-task.md).
+const CITY_KEY = "zr_city";
+
+function readStoredCity(): string | null {
+  try {
+    return window.localStorage.getItem(CITY_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storeCity(slug: string | null): void {
+  try {
+    if (slug) window.localStorage.setItem(CITY_KEY, slug);
+    else window.localStorage.removeItem(CITY_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+// City first (only that city's masters are shown), then the master-first
+// flow: pick a master (sorted by rating) ->
 // pick one of THAT master's own offered services (his own price +
 // description) -> pick a slot. Previously this started on a flat,
 // combined-across-providers service list — see MasterPicker.tsx and
@@ -20,6 +48,8 @@ export const BOOKING_ID = "masters";
 export default function BookingFlow() {
   const { locale, t, ready } = useLocale();
 
+  const [cities, setCities] = useState<City[] | null>(null);
+  const [city, setCity] = useState<City | null>(null);
   const [providersLoaded, setProvidersLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -34,14 +64,19 @@ export default function BookingFlow() {
   const [selectedService, setSelectedService] =
     useState<ProviderServiceOffering | null>(null);
 
+  // The remembered city if it's still offered; a single city needs no
+  // choosing at all.
   useEffect(() => {
     if (!ready) return;
     (async () => {
-      setProvidersLoaded(false);
       try {
-        const prov = await api.listProviders();
-        setProviders(prov);
-        setProvidersLoaded(true);
+        const list = await api.listCities();
+        setCities(list);
+        const stored = readStoredCity();
+        setCity(
+          list.find((c) => c.slug === stored) ??
+            (list.length === 1 ? list[0] : null),
+        );
       } catch {
         setLoadError(t.masterListLoadError);
       }
@@ -51,6 +86,34 @@ export default function BookingFlow() {
     // effect only ever needs to run once ready flips true).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
+
+  useEffect(() => {
+    if (!ready || !city) return;
+    (async () => {
+      setProvidersLoaded(false);
+      try {
+        const prov = await api.listProviders(city.slug);
+        setProviders(prov);
+        setProvidersLoaded(true);
+      } catch {
+        setLoadError(t.masterListLoadError);
+      }
+    })();
+    // Same rationale as above — t tracked via `locale` already.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, city]);
+
+  const pickCity = useCallback((c: City) => {
+    storeCity(c.slug);
+    setCity(c);
+  }, []);
+  const changeCity = useCallback(() => {
+    storeCity(null);
+    setCity(null);
+    setSelectedProvider(null);
+    setProviderServices(null);
+    setSelectedService(null);
+  }, []);
 
   // Reloads whenever the resolved locale changes (switcher click) — names
   // are resolved server-side per lang, same as the old flat list was.
@@ -124,12 +187,56 @@ export default function BookingFlow() {
     return <Centered>{loadError}</Centered>;
   }
 
+  if (cities === null) {
+    return <Centered>{t.loading}</Centered>;
+  }
+
+  if (!city) {
+    return (
+      <Card>
+        <h1 className="mb-5 text-[1.75rem] leading-tight font-extrabold tracking-[-0.015em] sm:text-4xl">
+          {t.cityPickTitle}
+        </h1>
+        {cities.length === 0 ? (
+          <Centered>{t.noCities}</Centered>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {cities.map((c) => (
+              <button
+                key={c.id}
+                className="min-h-11 rounded-full border border-line bg-surface px-5 py-2 text-base font-medium transition hover:border-accent hover:text-accent-2"
+                onClick={() => pickCity(c)}
+              >
+                {cityName(c, locale)}
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
+    );
+  }
+
   if (!providersLoaded) {
     return <Centered>{t.loading}</Centered>;
   }
 
   if (!selectedProvider) {
-    return <MasterPicker providers={providers} onSelect={pickProvider} />;
+    return (
+      <>
+        <div className="mx-3 mb-2 flex flex-wrap items-center gap-x-3 text-base text-ink-2 sm:mx-6">
+          <span>{t.cityCurrent(cityName(city, locale))}</span>
+          {cities.length > 1 && (
+            <button
+              className="min-h-11 text-accent underline-offset-4 hover:underline"
+              onClick={changeCity}
+            >
+              {t.cityChange}
+            </button>
+          )}
+        </div>
+        <MasterPicker providers={providers} onSelect={pickProvider} />
+      </>
+    );
   }
 
   if (!selectedService) {
@@ -217,6 +324,7 @@ export default function BookingFlow() {
         service={selectedService}
         providers={[selectedProvider]}
         providerId={selectedProvider.id}
+        cityId={city.id}
         description={selectedService.description}
         showChangeService={multipleServices}
         onChangeService={goBack}

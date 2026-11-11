@@ -118,6 +118,25 @@ export default function MasterCalendar() {
     })();
   }, [load]);
 
+  // A push about a booking opens /cabinet/?booking=<id> (app/main.py's
+  // _cabinet_booking_url): show that booking's day with its details open.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("booking");
+    if (!id) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    (async () => {
+      try {
+        const booking = (await api.listMyBookings()).find((b) => b.id === id);
+        if (!booking) return;
+        setView("day");
+        setAnchor(new Date(booking.start_at));
+        setSelected(toEvents([booking], [])[0]);
+      } catch {
+        /* the calendar itself still loads; nothing to open */
+      }
+    })();
+  }, []);
+
   const serviceName = useCallback(
     (id: string) => serviceToggles.find((s) => s.service_id === id)?.name ?? "",
     [serviceToggles],
