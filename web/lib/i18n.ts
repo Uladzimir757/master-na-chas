@@ -370,6 +370,13 @@ export interface Translations {
   reviewsSectionTitle: string;
   reviewsEmpty: string;
   reviewsLoadError: string;
+  pushStatusTitle: string;
+  pushStatusChecking: string;
+  pushStatusOn: string;
+  pushStatusDenied: string;
+  pushStatusUnavailable: string;
+  pushStatusError: (message: string) => string;
+  pushEnableButton: string;
   cityPickTitle: string;
   cityChange: string;
   cityCurrent: (city: string) => string;
@@ -779,6 +786,14 @@ export function buildTranslations(map: TranslationMap): Translations {
     reviewsSectionTitle: pick(map, "reviewsSectionTitle"),
     reviewsEmpty: pick(map, "reviewsEmpty"),
     reviewsLoadError: pick(map, "reviewsLoadError"),
+    pushStatusTitle: pick(map, "pushStatusTitle"),
+    pushStatusChecking: pick(map, "pushStatusChecking"),
+    pushStatusOn: pick(map, "pushStatusOn"),
+    pushStatusDenied: pick(map, "pushStatusDenied"),
+    pushStatusUnavailable: pick(map, "pushStatusUnavailable"),
+    pushStatusError: (message) =>
+      interpolate(pick(map, "pushStatusError"), { message }),
+    pushEnableButton: pick(map, "pushEnableButton"),
     cityPickTitle: pick(map, "cityPickTitle"),
     cityChange: pick(map, "cityChange"),
     cityCurrent: (city) =>

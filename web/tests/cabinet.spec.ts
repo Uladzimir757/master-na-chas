@@ -3,6 +3,7 @@ import {
   cabinetBooking,
   mockAuthMe,
   mockBookingStatusUpdate,
+  mockCatalog,
   mockLogin,
   mockLogout,
   mockMyCalendar,
@@ -481,7 +482,26 @@ test.describe("auto-open cabinet on launch", () => {
     await expect(page.getByRole("heading", { name: t.cabinetTitle(PROVIDER.name) })).toBeVisible();
   });
 
-  test("going back to the home page in the same session doesn't bounce again", async ({ page }) => {
+  test("following the cabinet's link to the home page doesn't bounce back", async ({ page }) => {
+    await withSavedToken(page, "saved-token");
+    await mockAuthMe(page, { loggedIn: true });
+    await mockMyServices(page, [serviceToggle()]);
+    await mockProviderSettings(page);
+    await mockMyCalendar(page, {});
+    await mockCatalog(page);
+
+    await page.goto("/");
+    await expect(page).toHaveURL(/\/cabinet\/$/);
+    // календарь над ссылкой ещё перестраивается — «stable» не дождаться
+    await page.getByRole("link", { name: t.backToBooking }).dispatchEvent("click");
+    await expect(page.getByRole("link", { name: t.cabinetLink })).toBeVisible();
+    await expect(page).not.toHaveURL(/cabinet/);
+  });
+
+  // Тап по уведомлению геолокации заново открывает окно приложения с главной,
+  // пока процесс жив (sessionStorage при этом сохранялся) — каждая свежая
+  // загрузка должна вести мастера в кабинет.
+  test("every fresh load of the home page opens the cabinet again", async ({ page }) => {
     await withSavedToken(page, "saved-token");
     await mockAuthMe(page, { loggedIn: true });
     await mockMyServices(page, [serviceToggle()]);
@@ -491,8 +511,7 @@ test.describe("auto-open cabinet on launch", () => {
     await page.goto("/");
     await expect(page).toHaveURL(/\/cabinet\/$/);
     await page.goto("/");
-    await expect(page.getByRole("link", { name: t.cabinetLink })).toBeVisible();
-    await expect(page).not.toHaveURL(/cabinet/);
+    await expect(page).toHaveURL(/\/cabinet\/$/);
   });
 
   test("without a saved login the client sees the home page", async ({ page }) => {

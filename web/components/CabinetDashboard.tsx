@@ -15,7 +15,7 @@ import {
   type LocationSharingStatus,
 } from "@/lib/useLocationSharing";
 import type { Translations } from "@/lib/i18n";
-import { isNativeApp, registerNativePush } from "@/lib/native";
+import { isNativeApp, registerNativePush, type PushStatus as NativePushStatus } from "@/lib/native";
 import ClosedPeriods from "@/components/ClosedPeriods";
 import AnalyticsPanel from "@/components/AnalyticsPanel";
 import StaffManager from "@/components/StaffManager";
@@ -35,6 +35,7 @@ import {
 } from "@/components/OwnServices";
 import MasterCalendar from "@/components/MasterCalendar";
 import MyCities from "@/components/MyCities";
+import PushStatus from "@/components/PushStatus";
 
 type CabinetTab =
   "calendar" | "services" | "settings" | "analytics" | "team" | "password";
@@ -95,6 +96,7 @@ export default function CabinetDashboard({
   // права текущего сотрудника (роль + чекбоксы) -> какие вкладки показывать;
   // сервер всё равно проверяет каждое действие (403), это только UI.
   const [perms, setPerms] = useState<string[] | null>(null);
+  const [pushStatus, setPushStatus] = useState<NativePushStatus | null>(null);
   useEffect(() => {
     api
       .me()
@@ -102,7 +104,7 @@ export default function CabinetDashboard({
       .catch(() => setPerms([]));
     // В приложении — FCM-токен этого устройства к вошедшему мастеру
     // (no-op в браузере, lib/native.ts).
-    void registerNativePush({ kind: "master" });
+    void registerNativePush({ kind: "master" }).then(setPushStatus);
   }, []);
   // isNativeApp() — константа на всё время жизни страницы, но на сервере
   // (статический экспорт) false; читаем после монтирования.
@@ -833,6 +835,17 @@ export default function CabinetDashboard({
               <p className="mt-2 text-sm text-danger">{settingsError}</p>
             )}
           </section>
+
+          {native && (
+            <section className="border-t border-line pt-5">
+              <PushStatus
+                status={pushStatus}
+                onRetry={async () =>
+                  setPushStatus(await registerNativePush({ kind: "master" }))
+                }
+              />
+            </section>
+          )}
 
           <section className="border-t border-line pt-5">
             <MyCities />
