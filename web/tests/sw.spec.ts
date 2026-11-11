@@ -138,6 +138,17 @@ test("an uncached page offline falls back to the cached home page", async () => 
   expect(await text(await sw.fetchEvent(nav("/never-visited/")))).toBe("home");
 });
 
+// Ссылка внутри сайта (клиентская навигация Next) тянет RSC-описание
+// страницы — со старым описанием открывался код прошлого деплоя.
+test("a page's RSC payload for in-site navigation comes fresh from the network", async () => {
+  const sw = loadWorker(page("tree-v1"));
+  expect(await text(await sw.fetchEvent(req("/index.txt?_rsc=abc")))).toBe("tree-v1");
+
+  sw.setNetwork(page("tree-v2"));
+
+  expect(await text(await sw.fetchEvent(req("/index.txt?_rsc=abc")))).toBe("tree-v2");
+});
+
 test("content-hashed Next assets are served from the cache without asking the network", async () => {
   const sw = loadWorker(page("chunk"));
   await sw.fetchEvent(req("/_next/static/chunks/abc.js"));

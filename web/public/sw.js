@@ -1,7 +1,7 @@
 // PWA service worker. Placeholder-brand build — bump CACHE_VERSION whenever
 // this file or APP_SHELL changes, so returning visitors drop the old cache
 // instead of running stale logic forever.
-const CACHE_VERSION = "zr-v3";
+const CACHE_VERSION = "zr-v4";
 const APP_SHELL = [
   "/",
   "/cabinet/",
@@ -95,7 +95,17 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (request.mode === "navigate") {
+  // Next.js client navigation fetches the next page's RSC payload
+  // (?_rsc=… / *.txt, header RSC: 1). It names the page's JS chunks — served
+  // stale, a link inside the site ran the previous deploy's code
+  // (found on a phone 12.11.2026: a fixed redirect kept bouncing). Network
+  // first, like pages.
+  const isRsc =
+    url.searchParams.has("_rsc") ||
+    url.pathname.endsWith(".txt") ||
+    request.headers?.get?.("RSC") === "1";
+
+  if (request.mode === "navigate" || isRsc) {
     event.respondWith(networkFirst(request));
   } else if (url.pathname.startsWith("/_next/static/")) {
     event.respondWith(cacheFirst(request));
