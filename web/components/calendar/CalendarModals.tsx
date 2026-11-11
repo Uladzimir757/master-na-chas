@@ -590,7 +590,7 @@ export function EventDetailsModal({
                       disabled={busy}
                       onClick={() => setLateWarning(null)}
                     >
-                      {t.serviceCancelButton}
+                      {t.travelBack}
                     </CompactButton>
                   </>
                 ) : (
@@ -609,7 +609,7 @@ export function EventDetailsModal({
                       disabled={busy}
                       onClick={() => setConfirming(false)}
                     >
-                      {t.serviceCancelButton}
+                      {t.travelBack}
                     </CompactButton>
                   </>
                 )}
@@ -660,7 +660,10 @@ export function EventDetailsModal({
                 </CompactButton>
               </div>
             )}
-            {(event.status === "pending" || event.status === "confirmed") && (
+            {/* пока выбирается дорога — без «Anuluj» записи рядом: два
+                «Anuluj» на экране путали «назад» с отменой заказа */}
+            {!confirming &&
+              (event.status === "pending" || event.status === "confirmed") && (
               <CompactButton
                 variant="secondary"
                 disabled={busy}
@@ -670,7 +673,8 @@ export function EventDetailsModal({
               </CompactButton>
             )}
             {/* переносить имеет смысл только живую запись */}
-            {(event.status === "pending" || event.status === "confirmed") && (
+            {!confirming &&
+              (event.status === "pending" || event.status === "confirmed") && (
               <CompactButton
                 variant="secondary"
                 disabled={busy}
