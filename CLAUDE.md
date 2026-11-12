@@ -289,9 +289,19 @@ Service worker (`web/public/sw.js`): страницы и RSC-описания с
 - Этапы 1–2 (API, интерфейс клиента, кабинет, админка) работают на проде.
 - Этап 3 частично: pl/en переводы, тексты уведомлений через LLM, отзывы —
   есть; см. `docs/ai-and-reviews.md`.
-- Ждут пользователя: keystore для подписанного AAB (`create-upload-key.ps1`),
-  проект Firebase, аккаунты Codemagic и Apple, окончательный app id
-  (`pl.zr.app` временный), платный тариф Render + тик (см. выше).
+- Сделано: upload-keystore и подписанный AAB (Play Console $25 отложен),
+  Firebase-проект `zlotren` (пуши на Android работают).
+- **iPhone-сборка** (статус 12.11.2026): код готов (`web/ios`,
+  `codemagic.yaml` → TestFlight по тегу `ios-v*`), ни разу не собиралась.
+  Ждём пользователя: Apple Developer Program ($99) ещё не оформлен. Потом:
+  аккаунт Codemagic + репо, App Store Connect API key (App Manager) и запись
+  приложения (`APP_STORE_APPLE_ID` в `codemagic.yaml`), APNs-ключ .p8 в
+  Firebase, `web/GoogleService-Info.plist.b64` → `GOOGLE_SERVICE_INFO_PLIST`
+  (группа `firebase`). Предложено: пока ждём Apple — неподписанная
+  simulator-сборка в Codemagic, чтобы проверить компиляцию iOS-проекта.
+  Шаги — `docs/mobile-app-handoff.md`, «iOS / Codemagic».
+- Ждут пользователя также: окончательный app id (`pl.zr.app` временный —
+  решить до первой загрузки в стор), платный тариф Render + тик (см. выше).
 - Проверить на живом телефоне: таймер/подтверждение с временем доезда,
   смена города в кабинете (`docs/confirm-timer-travel-cities-task.md`).
 - `brand-naming-rejected.md` — отклонённые варианты названия, не предлагать
