@@ -70,6 +70,18 @@ export interface Translations {
   homeCancelSure: string;
   homeKeepBooking: string;
   homeHistoryTitle: string;
+  phoneInvalid: string;
+  clientPhoneVisibleLabel: string;
+  masterPhone: string;
+  myPhoneTitle: string;
+  myPhonePlaceholder: string;
+  myPhoneVisAlways: string;
+  myPhoneVisAfterBooking: string;
+  myPhoneVisAfterConfirm: string;
+  myPhoneSave: string;
+  myPhoneSaved: string;
+  myPhoneError: string;
+  geoKeepAliveHint: string;
   cabinetLoading: string;
   cabinetLoginTitle: string;
   emailPlaceholder: string;
@@ -463,6 +475,18 @@ export function buildTranslations(map: TranslationMap): Translations {
     homeCancelSure: pick(map, "homeCancelSure"),
     homeKeepBooking: pick(map, "homeKeepBooking"),
     homeHistoryTitle: pick(map, "homeHistoryTitle"),
+    phoneInvalid: pick(map, "phoneInvalid"),
+    clientPhoneVisibleLabel: pick(map, "clientPhoneVisibleLabel"),
+    masterPhone: pick(map, "masterPhone"),
+    myPhoneTitle: pick(map, "myPhoneTitle"),
+    myPhonePlaceholder: pick(map, "myPhonePlaceholder"),
+    myPhoneVisAlways: pick(map, "myPhoneVisAlways"),
+    myPhoneVisAfterBooking: pick(map, "myPhoneVisAfterBooking"),
+    myPhoneVisAfterConfirm: pick(map, "myPhoneVisAfterConfirm"),
+    myPhoneSave: pick(map, "myPhoneSave"),
+    myPhoneSaved: pick(map, "myPhoneSaved"),
+    myPhoneError: pick(map, "myPhoneError"),
+    geoKeepAliveHint: pick(map, "geoKeepAliveHint"),
     cabinetLoading: pick(map, "cabinetLoading"),
     cabinetLoginTitle: pick(map, "cabinetLoginTitle"),
     emailPlaceholder: pick(map, "emailPlaceholder"),

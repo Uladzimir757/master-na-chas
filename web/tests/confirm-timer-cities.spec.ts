@@ -233,12 +233,12 @@ test.describe("cabinet: my cities", () => {
 
     await page.getByRole("checkbox", { name: "Gdynia" }).uncheck();
     expect(saved).toBeNull(); // nothing saved by just ticking
-    await page.getByRole("button", { name: t.myCitiesSave }).click();
+    await page.getByRole("button", { name: t.myCitiesSave, exact: true }).click();
     await expect(page.getByText(t.myCitiesMinOne)).toBeVisible();
     expect(saved).toBeNull();
 
     await page.getByRole("checkbox", { name: "Sopot" }).check();
-    await page.getByRole("button", { name: t.myCitiesSave }).click();
+    await page.getByRole("button", { name: t.myCitiesSave, exact: true }).click();
     await expect(page.getByText(t.myCitiesSaved)).toBeVisible();
     expect(saved).toEqual([SOPOT.id]);
   });

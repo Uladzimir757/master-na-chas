@@ -50,7 +50,10 @@ def is_missing(value: Any) -> bool:
 
 
 def cache_control() -> str:
-    return f"public, max-age={int(public_cache.ttl)}" if public_cache.ttl > 0 else "no-store"
+    # no-cache, а не max-age: браузер/WebView держал старый список до минуты —
+    # мастер добавил город, а клиент его не видел (12.11.2026). Быстроту даёт
+    # кэш на сервере (сбрасывается при записи), не браузерный.
+    return "no-cache"
 
 
 # Записи, после которых публичный каталог мог измениться. Частые записи, не

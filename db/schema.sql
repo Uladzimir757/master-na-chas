@@ -60,6 +60,9 @@ CREATE TABLE provider (
     -- location_updated_at is fresh enough AND it's currently this provider's
     -- working hours — see app/main.py's _resolve_provider_location.
     share_location          boolean NOT NULL DEFAULT false,
+    -- когда клиент видит телефон мастера: всегда / после заказа / после подтверждения
+    phone_visibility        text NOT NULL DEFAULT 'after_confirm'
+        CHECK (phone_visibility IN ('always', 'after_booking', 'after_confirm')),
     location_lat            numeric(9,6) CHECK (location_lat IS NULL OR (location_lat >= -90 AND location_lat <= 90)),
     location_lng            numeric(9,6) CHECK (location_lng IS NULL OR (location_lng >= -180 AND location_lng <= 180)),
     location_updated_at     timestamptz,
@@ -312,6 +315,7 @@ CREATE TABLE booking (
     confirm_notices_sent  smallint NOT NULL DEFAULT 0,
     cancel_reason         text,      -- 'provider_timeout' = мастер не ответил вовремя
     travel_minutes        smallint CHECK (travel_minutes IS NULL OR travel_minutes > 0),  -- время доезда, мастер при подтверждении
+    client_phone_visible  boolean NOT NULL DEFAULT true,  -- клиент разрешил показать свой номер мастеру
     created_at    timestamptz NOT NULL DEFAULT now(),
 
     -- THE important line: Postgres itself refuses to let two active bookings

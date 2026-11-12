@@ -1,6 +1,7 @@
 "use client";
 
 import { rememberBooking, rememberClient, savedClient } from "@/lib/myBookings";
+import { isValidPhone, normalizePhone } from "@/lib/phone";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
@@ -92,6 +93,8 @@ export default function SlotPicker({
 
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
+  const [phoneVisible, setPhoneVisible] = useState(true);
+  const phoneBad = clientPhone.trim() !== "" && !isValidPhone(clientPhone);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   // приложение помнит имя и телефон клиента (lib/myBookings.ts); читаем
@@ -105,7 +108,7 @@ export default function SlotPicker({
     })();
   }, []);
   const [booking, setBooking] = useState<
-    (Booking & { manage_token?: string | null }) | null
+    (Booking & { manage_token?: string | null; provider_phone?: string | null }) | null
   >(null);
   // «Мастер подтвердит в течение 15 минут» / «…после 09:00» — worked out
   // once at booking time from the confirmation deadline.
@@ -221,7 +224,7 @@ export default function SlotPicker({
   }, [slotsForSelectedDay, t]);
 
   async function submitBooking() {
-    if (!selectedSlot || clientName.trim().length === 0) return;
+    if (!selectedSlot || clientName.trim().length === 0 || phoneBad) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -230,7 +233,8 @@ export default function SlotPicker({
         provider_id: selectedSlot.provider_id,
         start_at: selectedSlot.start_at,
         client_name: clientName.trim(),
-        client_phone: clientPhone.trim() || undefined,
+        client_phone: normalizePhone(clientPhone) ?? undefined,
+        client_phone_visible: phoneVisible,
         city_id: cityId,
       });
       setBooking(result);
@@ -267,8 +271,9 @@ export default function SlotPicker({
   function bookAgain() {
     setBooking(null);
     setSelectedSlot(null);
-    setClientName("");
-    setClientPhone("");
+    // приложение помнит клиента — форма снова заполнена
+    setClientName(savedClient()?.name ?? "");
+    setClientPhone(savedClient()?.phone ?? "");
     setSubmitError(null);
     loadAvailability();
   }
@@ -297,6 +302,14 @@ export default function SlotPicker({
                 ? t.bookingPending
                 : t.bookingConfirmed)}
           </p>
+          {booking.provider_phone && (
+            <p className="text-base">
+              {t.masterPhone}:{" "}
+              <a className="font-semibold text-accent underline" href={`tel:${booking.provider_phone}`}>
+                {booking.provider_phone}
+              </a>
+            </p>
+          )}
           {booking.manage_token && (
             <a
               className="text-base text-accent underline"
@@ -478,11 +491,24 @@ export default function SlotPicker({
                 placeholder={t.phonePlaceholder}
                 type="tel"
                 value={clientPhone}
+                aria-invalid={phoneBad}
                 onChange={(e) => setClientPhone(e.target.value)}
               />
+              {phoneBad && <p className="text-sm text-danger">{t.phoneInvalid}</p>}
+              {clientPhone.trim() !== "" && (
+                <label className="flex min-h-10 items-center gap-2 text-base">
+                  <input
+                    type="checkbox"
+                    className="h-5 w-5 accent-accent"
+                    checked={phoneVisible}
+                    onChange={(e) => setPhoneVisible(e.target.checked)}
+                  />
+                  {t.clientPhoneVisibleLabel}
+                </label>
+              )}
               <Button
                 className="mt-1"
-                disabled={clientName.trim().length === 0 || submitting}
+                disabled={clientName.trim().length === 0 || phoneBad || submitting}
                 onClick={submitBooking}
               >
                 {submitting ? t.submitting : t.submitBooking}

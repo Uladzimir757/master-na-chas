@@ -23,7 +23,7 @@ async def test_public_catalog_sends_cache_headers(client: AsyncClient, provider:
     for url in ("/api/cities", "/api/providers?city=gdynia", f"/api/providers/{provider.id}/services"):
         resp = await client.get(url)
         assert resp.status_code == 200, url
-        assert resp.headers["cache-control"].startswith("public, max-age="), url
+        assert resp.headers["cache-control"] == "no-cache", url
         assert "app;dur=" in resp.headers["server-timing"]
 
 

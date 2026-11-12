@@ -10,6 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 from app.models import BookingStatus
+from app.phone import normalize_phone
 
 
 def _require_tz_aware(v: datetime) -> datetime:
@@ -34,7 +35,15 @@ class BookingCreate(BaseModel):
     start_at: datetime
     client_name: str = Field(min_length=1, max_length=200)
     client_phone: str | None = None
+    # галочка «показать мой номер мастеру»; без неё мастер номера не видит
+    # (SMS клиенту всё равно уходят)
+    client_phone_visible: bool = True
     notes: str | None = None
+
+    @field_validator("client_phone")
+    @classmethod
+    def _phone(cls, v: str | None) -> str | None:
+        return normalize_phone(v)
     # None = "любой доступный мастер" (docs/mvp-task.md #3)
     provider_id: uuid.UUID | None = None
     # Город заказа (выбор клиента на главной). None — старый клиент без
@@ -63,9 +72,17 @@ class BookingOut(BaseModel):
     confirm_deadline_at: datetime | None = None
     cancel_reason: str | None = None
     travel_minutes: int | None = None
+    client_phone_visible: bool = True
 
     class Config:
         from_attributes = True
+
+    @model_validator(mode="after")
+    def _hide_phone(self):
+        # клиент не разрешил показывать номер мастеру
+        if not self.client_phone_visible:
+            self.client_phone = None
+        return self
 
 
 class BookingCreatedOut(BookingOut):
@@ -73,6 +90,12 @@ class BookingCreatedOut(BookingOut):
     (его же получает клиент в SMS) — SMS пока может быть не подключён."""
 
     manage_token: str | None = None
+    # телефон мастера, если его настройка разрешает показать после заказа
+    provider_phone: str | None = None
+
+
+# Когда клиент видит телефон мастера (настройка в кабинете).
+PhoneVisibility = Literal["always", "after_booking", "after_confirm"]
 
 
 # Время доезда до клиента, которое мастер выбирает при подтверждении заказа
@@ -133,6 +156,11 @@ class ManualBookingCreate(BaseModel):
     client_name: str = Field(min_length=1, max_length=200)
     client_phone: str | None = None
     notes: str | None = None
+
+    @field_validator("client_phone")
+    @classmethod
+    def _phone(cls, v: str | None) -> str | None:
+        return normalize_phone(v)
     status: BookingStatus = BookingStatus.confirmed
     # время доезда — у ручной брони необязательно
     travel_minutes: TravelMinutes | None = None
@@ -326,6 +354,8 @@ class ProviderOut(BaseModel):
     # для фильтра/сортировки на странице выбора мастера
     price_from: float | None = None
     categories: list[str] = []
+    # только если мастер выбрал «виден всегда»
+    phone: str | None = None
 
     class Config:
         from_attributes = True
@@ -337,6 +367,8 @@ class ProviderSettingsOut(BaseModel):
     requires_booking_confirmation: bool
     call_out_fee: float | None = None
     share_location: bool
+    phone: str | None = None
+    phone_visibility: PhoneVisibility = "after_confirm"
     # "Занят сейчас" — read-only here (see ProviderBusyOut/the dedicated
     # /api/providers/me/busy/* endpoints below for changing it); included on
     # the settings GET so the cabinet knows the current state on page load
@@ -350,6 +382,19 @@ class ProviderSettingsOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class MyPhoneUpdate(BaseModel):
+    """PUT /api/providers/me/phone — свой номер мастера и когда его видит
+    клиент. Пустой номер стирает его."""
+
+    phone: str | None = None
+    phone_visibility: PhoneVisibility
+
+    @field_validator("phone")
+    @classmethod
+    def _phone(cls, v: str | None) -> str | None:
+        return normalize_phone(v)
 
 
 class ProviderSettingsUpdate(BaseModel):
@@ -869,6 +914,7 @@ class MyBookingOut(BaseModel):
     # работы в этот день + дорога», что позже (app/main.py _expected_arrival)
     expected_arrival_at: datetime | None = None
     location: ProviderLocationOut | None = None  # живая точка мастера (если можно показывать)
+    provider_phone: str | None = None  # по настройке мастера (_visible_master_phone)
 
 
 class MyBookingReschedule(BaseModel):

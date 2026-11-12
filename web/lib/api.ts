@@ -115,6 +115,8 @@ export interface MyBooking {
   tracking_from?: string | null;
   // расчётный приезд: начало записи или «предыдущая работа + дорога»
   expected_arrival_at?: string | null;
+  // телефон мастера — если его настройка разрешает
+  provider_phone?: string | null;
 }
 
 export interface ArrivalPreview {
@@ -148,6 +150,8 @@ export interface Provider {
   location: ProviderLocation | null;
   price_from?: number | null;
   categories?: string[];
+  // только если мастер выбрал «виден всегда»
+  phone?: string | null;
 }
 
 // One service a specific master offers, with HIS OWN price/description —
@@ -174,9 +178,14 @@ export interface BookingCreate {
   start_at: string;
   client_name: string;
   client_phone?: string;
+  // галочка «показать мой номер мастеру»
+  client_phone_visible?: boolean;
   notes?: string;
   city_id?: string;
 }
+
+// Когда клиент видит телефон мастера (настройка в кабинете).
+export type PhoneVisibility = "always" | "after_booking" | "after_confirm";
 
 // Города (docs/confirm-timer-travel-cities-task.md) — справочник ведёт
 // суперадмин, названия не через translation_entry.
@@ -291,6 +300,8 @@ export interface ProviderSettings {
   requires_booking_confirmation: boolean;
   call_out_fee: number | null;
   share_location: boolean;
+  phone?: string | null;
+  phone_visibility?: PhoneVisibility;
   // "Занят сейчас" — read-only here, changed via the busy* endpoints below.
   // See ProviderSettingsOut/ProviderBusyOut in app/schemas.py: busy_until is
   // computed (null means either not busy, or busy with no estimate yet —
@@ -533,7 +544,7 @@ export const api = {
       ).toString()}`,
     ),
   createBooking: (payload: BookingCreate) =>
-    request<Booking & { manage_token?: string | null }>("/api/bookings", {
+    request<Booking & { manage_token?: string | null; provider_phone?: string | null }>("/api/bookings", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
@@ -631,6 +642,11 @@ export const api = {
       }),
     }),
   getMySettings: () => request<ProviderSettings>("/api/providers/me"),
+  updateMyPhone: (phone: string | null, phone_visibility: PhoneVisibility) =>
+    request<ProviderSettings>("/api/providers/me/phone", {
+      method: "PUT",
+      body: JSON.stringify({ phone, phone_visibility }),
+    }),
   updateMySettings: (payload: UpdateProviderSettingsPayload) =>
     request<ProviderSettings>("/api/providers/me/settings", {
       method: "PATCH",

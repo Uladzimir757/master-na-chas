@@ -85,6 +85,7 @@ async def test_phone_set_in_admin_reaches_the_dispatcher(client: AsyncClient, db
     await db_session.commit()
     r = await client.get("/api/dispatcher/masters", params={"category": "handyman", **GDYNIA})
     assert r.json()[0]["phone"] == "+48 600 100 200"
-    # the public master list still has no phone
+    # the public master list shows it only if the master chose «always»
+    # (default after_confirm — app/main.py _visible_master_phone)
     public = await client.get("/api/providers")
-    assert all("phone" not in p for p in public.json())
+    assert all(p.get("phone") is None for p in public.json())

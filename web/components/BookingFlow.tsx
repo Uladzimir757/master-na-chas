@@ -197,18 +197,25 @@ export default function BookingFlow() {
     return <Centered>{t.loading}</Centered>;
   }
 
+  // Город и «Zmień miasto» — на каждом шаге после выбора города: раньше
+  // кнопка была только в списке мастеров, и с экрана мастера/услуги/слотов
+  // сменить город было нельзя (12.11.2026).
+  const cityBar = (
+    <div className="mx-3 mb-2 flex flex-wrap items-center gap-x-3 text-base text-ink-2 sm:mx-6">
+      <span>{t.cityCurrent(cityName(city, locale))}</span>
+      <button
+        className="min-h-11 text-accent underline-offset-4 hover:underline"
+        onClick={changeCity}
+      >
+        {t.cityChange}
+      </button>
+    </div>
+  );
+
   if (!selectedProvider) {
     return (
       <>
-        <div className="mx-3 mb-2 flex flex-wrap items-center gap-x-3 text-base text-ink-2 sm:mx-6">
-          <span>{t.cityCurrent(cityName(city, locale))}</span>
-          <button
-            className="min-h-11 text-accent underline-offset-4 hover:underline"
-            onClick={changeCity}
-          >
-            {t.cityChange}
-          </button>
-        </div>
+        {cityBar}
         {providers.length === 0 ? (
           <Card>
             <p className="mb-4 text-base">{t.cityNoMasters}</p>
@@ -228,64 +235,71 @@ export default function BookingFlow() {
 
   if (!selectedService) {
     return (
-      <Card>
-        <button
-          className="mb-3 min-h-11 text-base text-ink-3 hover:text-accent-2"
-          onClick={goBack}
-        >
-          {t.backToMasters}
-        </button>
-        <h1 className="mb-5 text-2xl font-bold tracking-[-0.01em] sm:text-3xl">
-          {selectedProvider.name}
-        </h1>
+      <>
+        {cityBar}
+        <Card>
+          <button
+            className="mb-3 min-h-11 text-base text-ink-3 hover:text-accent-2"
+            onClick={goBack}
+          >
+            {t.backToMasters}
+          </button>
+          <h1 className="mb-5 text-2xl font-bold tracking-[-0.01em] sm:text-3xl">
+            {selectedProvider.name}
+          </h1>
 
-        {servicesError && <Centered>{servicesError}</Centered>}
-        {!servicesError && providerServices === null && (
-          <Centered>{t.loading}</Centered>
-        )}
-        {!servicesError &&
-          providerServices !== null &&
-          providerServices.length === 0 && (
-            <Centered>{t.noServicesOffered}</Centered>
+          {servicesError && <Centered>{servicesError}</Centered>}
+          {!servicesError && providerServices === null && (
+            <Centered>{t.loading}</Centered>
           )}
-        {!servicesError &&
-          providerServices !== null &&
-          providerServices.length > 0 && (
-            <div className="flex flex-col gap-3">
-              {providerServices.map((s) => (
-                <button
-                  key={s.id}
-                  className="flex items-center gap-4 rounded-2xl border border-line-soft bg-surface p-5 text-left shadow-card transition hover:border-accent"
-                  onClick={() => pickService(s)}
-                >
-                  <IconBadge>
-                    <WrenchIcon />
-                  </IconBadge>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-lg font-semibold">{s.name}</div>
-                    <div className="text-base text-ink-2">
-                      {t.durationMinutes(s.duration_minutes)}
-                      {s.price_min != null || s.price_max != null ? (
-                        <>
-                          {" · "}
-                          <PriceLabel min={s.price_min} max={s.price_max} t={t} />
-                        </>
-                      ) : null}
-                    </div>
-                    {s.description && (
-                      <div className="mt-1 text-base text-ink-2">
-                        {s.description}
+          {!servicesError &&
+            providerServices !== null &&
+            providerServices.length === 0 && (
+              <Centered>{t.noServicesOffered}</Centered>
+            )}
+          {!servicesError &&
+            providerServices !== null &&
+            providerServices.length > 0 && (
+              <div className="flex flex-col gap-3">
+                {providerServices.map((s) => (
+                  <button
+                    key={s.id}
+                    className="flex items-center gap-4 rounded-2xl border border-line-soft bg-surface p-5 text-left shadow-card transition hover:border-accent"
+                    onClick={() => pickService(s)}
+                  >
+                    <IconBadge>
+                      <WrenchIcon />
+                    </IconBadge>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-lg font-semibold">{s.name}</div>
+                      <div className="text-base text-ink-2">
+                        {t.durationMinutes(s.duration_minutes)}
+                        {s.price_min != null || s.price_max != null ? (
+                          <>
+                            {" · "}
+                            <PriceLabel
+                              min={s.price_min}
+                              max={s.price_max}
+                              t={t}
+                            />
+                          </>
+                        ) : null}
                       </div>
-                    )}
-                  </div>
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-accent text-on-accent">
-                    <ChevronRightIcon className="h-6 w-6" />
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-      </Card>
+                      {s.description && (
+                        <div className="mt-1 text-base text-ink-2">
+                          {s.description}
+                        </div>
+                      )}
+                    </div>
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-accent text-on-accent">
+                      <ChevronRightIcon className="h-6 w-6" />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+        </Card>
+      </>
     );
   }
 
@@ -296,6 +310,7 @@ export default function BookingFlow() {
     providerServices !== null && providerServices.length > 1;
   return (
     <>
+      {cityBar}
       {/* With several services SlotPicker shows its own "change service"
         control; with one (auto-picked) there was no way back at all. */}
       {!multipleServices && (

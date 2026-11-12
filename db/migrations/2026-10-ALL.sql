@@ -125,3 +125,10 @@ UPDATE city SET lat = 53.0138, lng = 18.5984 WHERE slug = 'torun' AND lat IS NUL
 UPDATE city SET lat = 52.2297, lng = 21.0122 WHERE slug = 'warszawa' AND lat IS NULL;
 UPDATE city SET lat = 51.1079, lng = 17.0385 WHERE slug = 'wroclaw' AND lat IS NULL;
 UPDATE city SET lat = 51.9356, lng = 15.5062 WHERE slug = 'zielona-gora' AND lat IS NULL;
+
+-- Видимость телефонов (решение пользователя 12.11.2026):
+-- мастер выбирает, когда клиент видит его номер; клиент при заказе решает,
+-- показывать ли свой номер мастеру. Идемпотентно.
+ALTER TABLE provider ADD COLUMN IF NOT EXISTS phone_visibility text NOT NULL DEFAULT 'after_confirm'
+    CHECK (phone_visibility IN ('always', 'after_booking', 'after_confirm'));
+ALTER TABLE booking ADD COLUMN IF NOT EXISTS client_phone_visible boolean NOT NULL DEFAULT true;

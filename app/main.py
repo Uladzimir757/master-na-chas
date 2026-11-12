@@ -113,6 +113,7 @@ from app.schemas import (
     MasterStatOut,
     MyBookingHistoryItem,
     MyBookingOut,
+    MyPhoneUpdate,
     MyBookingReschedule,
     AnalyticsOut,
     RolesMetaOut,
@@ -425,6 +426,7 @@ async def list_providers(
             location=await _resolve_provider_location(db, p, now),
             price_from=price_from.get(p.id),
             categories=sorted(cats.get(p.id, set())),
+            phone=_visible_master_phone(p),
         )
         for p in providers
     ])
@@ -594,7 +596,7 @@ async def get_availability_endpoint(
 
 @app.post("/api/bookings", response_model=BookingCreatedOut, status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
-async def create_booking(request: Request, payload: BookingCreate, db: AsyncSession = Depends(get_db)) -> Booking:
+async def create_booking(request: Request, payload: BookingCreate, db: AsyncSession = Depends(get_db)) -> BookingCreatedOut:
     service = await db.get(Service, payload.service_id)
     if service is None or not service.is_active:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Service not found")
@@ -675,6 +677,7 @@ async def create_booking(request: Request, payload: BookingCreate, db: AsyncSess
         service_id=payload.service_id,
         client_name=payload.client_name,
         client_phone=payload.client_phone,
+        client_phone_visible=payload.client_phone_visible,
         start_at=payload.start_at,
         end_at=end_at,
         notes=payload.notes,
@@ -696,7 +699,28 @@ async def create_booking(request: Request, payload: BookingCreate, db: AsyncSess
 
     await _notify_new_booking(db, booking, service, staff=notify_master_now)
 
-    return booking
+    out = BookingCreatedOut.model_validate(booking)
+    out.provider_phone = _visible_master_phone(await db.get(Provider, booking.provider_id), booking)
+    return out
+
+
+def _visible_master_phone(provider: Provider | None, booking: Booking | None = None) -> str | None:
+    """Телефон мастера для клиента — по его настройке phone_visibility:
+    'always' — везде, включая список мастеров; 'after_booking' — у активного
+    заказа; 'after_confirm' — только у подтверждённого."""
+    if provider is None or not provider.phone:
+        return None
+    if provider.phone_visibility == "always":
+        return provider.phone
+    if booking is None or booking.status not in (BookingStatus.pending, BookingStatus.confirmed):
+        return None
+    if provider.phone_visibility == "after_booking":
+        return provider.phone
+    return provider.phone if booking.status == BookingStatus.confirmed else None
+
+
+def _client_phone_for_master(booking: Booking) -> str | None:
+    return booking.client_phone if booking.client_phone_visible else None
 
 
 def _cabinet_booking_url(booking_id: uuid.UUID) -> str:
@@ -767,7 +791,7 @@ async def _notify_master_of_booking(db: AsyncSession, booking: Booking, service_
         "service": service_name,
         **_when_facts(booking.start_at),
         "client_name": booking.client_name,
-        "client_phone": booking.client_phone,
+        "client_phone": _client_phone_for_master(booking),
     }
     purpose = (
         "Tell the master that a client has just booked a new job and give the job, the time and how to reach the client."
@@ -1023,7 +1047,8 @@ async def update_booking_status(
                 on_dead_fcm_tokens=_prune_dead_fcm_tokens,
                 purpose=(
                     "Tell the client that the master confirmed the booking for the given service and time, "
-                    "and at what time the master will arrive (it can be later than the booked time)."
+                    "and at what time the master will arrive (it can be later than the booked time). "
+                    "If master_phone is given, include it."
                 ),
                 facts={
                     "service": service.name if service else "",
@@ -1031,6 +1056,7 @@ async def update_booking_status(
                     "master": provider.name,
                     "travel_minutes": booking.travel_minutes,
                     "master_arrives_at": arrival_local,
+                    "master_phone": _visible_master_phone(provider, booking),
                 },
                 must_include=_manage_url(booking),
             )
@@ -1260,6 +1286,8 @@ def _provider_settings_out(provider: Provider) -> ProviderSettingsOut:
         requires_booking_confirmation=True,  # всегда вручную, см. create_booking
         call_out_fee=float(provider.call_out_fee) if provider.call_out_fee is not None else None,
         share_location=provider.share_location,
+        phone=provider.phone,
+        phone_visibility=provider.phone_visibility,
         busy_started_at=provider.busy_started_at,
         busy_estimated_minutes=provider.busy_estimated_minutes,
         busy_until=_busy_until(provider),
@@ -1280,6 +1308,21 @@ async def get_my_provider_settings(
     db: AsyncSession = Depends(get_db),
 ) -> ProviderSettingsOut:
     provider = await _get_own_provider(master_user_id, db)
+    return _provider_settings_out(provider)
+
+
+@app.put("/api/providers/me/phone", response_model=ProviderSettingsOut)
+async def update_my_phone(
+    payload: MyPhoneUpdate,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> ProviderSettingsOut:
+    """Свой номер мастера и когда его видит клиент (решение 12.11.2026)."""
+    provider = await _get_own_provider(master_user_id, db, "settings_edit")
+    provider.phone = payload.phone
+    provider.phone_visibility = payload.phone_visibility
+    await db.commit()
+    await db.refresh(provider)
     return _provider_settings_out(provider)
 
 
@@ -2107,6 +2150,7 @@ async def _my_booking_out(db: AsyncSession, booking: Booking, lang: str = DEFAUL
         confirm_deadline_at=booking.confirm_deadline_at,
         tracking_from=booking.start_at - timedelta(hours=settings.TRACK_WINDOW_HOURS),
         expected_arrival_at=expected[0] if expected else None,
+        provider_phone=_visible_master_phone(provider, booking),
     )
 
 
@@ -2145,7 +2189,7 @@ async def cancel_my_booking(
             "date": start_local.date().isoformat(),
             "time": start_local.strftime("%H:%M"),
             "client_name": booking.client_name,
-            "client_phone": booking.client_phone,
+            "client_phone": _client_phone_for_master(booking),
         },
         url=_cabinet_booking_url(booking.id),
     )
@@ -2204,7 +2248,7 @@ async def reschedule_my_booking(
             "new_date": new_local.date().isoformat(),
             "new_time": new_local.strftime("%H:%M"),
             "client_name": booking.client_name,
-            "client_phone": booking.client_phone,
+            "client_phone": _client_phone_for_master(booking),
         },
         url=_cabinet_booking_url(booking.id),
     )

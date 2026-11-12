@@ -143,6 +143,14 @@ export default function MasterPicker({
                     <span>{t.newMaster}</span>
                   )}
                 </div>
+                {p.phone && (
+                  <a
+                    className="text-base font-semibold text-accent underline"
+                    href={`tel:${p.phone}`}
+                  >
+                    {p.phone}
+                  </a>
+                )}
               </div>
             </div>
             <div className="flex items-center justify-between gap-4 sm:justify-end">

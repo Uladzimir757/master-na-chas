@@ -23,28 +23,24 @@ export default function PushStatus({
   const { t } = useLocale();
   const [busy, setBusy] = useState(false);
 
+  // Всё в порядке (или ещё проверяем) — блока нет: это была просто
+  // информация (решение пользователя 12.11.2026). Виден только при проблеме.
+  if (status === null || status.state === "registered") return null;
+
   const text =
-    status === null
-      ? t.pushStatusChecking
-      : status.state === "registered"
-        ? t.pushStatusOn
-        : status.state === "denied"
-          ? t.pushStatusDenied
-          : status.state === "unavailable"
-            ? t.pushStatusUnavailable
-            : t.pushStatusError(status.message);
+    status.state === "denied"
+      ? t.pushStatusDenied
+      : status.state === "unavailable"
+        ? t.pushStatusUnavailable
+        : t.pushStatusError(status.message);
 
   return (
     <div>
       <h2 className="mb-2 text-sm font-medium text-ink-2">{t.pushStatusTitle}</h2>
-      <p
-        className={`mb-2 text-sm ${status?.state === "registered" ? "text-ink" : status === null ? "text-ink-2" : "text-danger"}`}
-        role="status"
-      >
+      <p className="mb-2 text-sm text-danger" role="status">
         {text}
       </p>
-      {status !== null && status.state !== "registered" && (
-        <CompactButton
+      <CompactButton
           type="button"
           disabled={busy}
           onClick={async () => {
@@ -58,7 +54,6 @@ export default function PushStatus({
         >
           {t.pushEnableButton}
         </CompactButton>
-      )}
     </div>
   );
 }

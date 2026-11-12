@@ -191,6 +191,17 @@ export default function MyBookingPage() {
                   {booking.provider_name} · {fmt(booking.start_at)}–
                   {fmtTime(booking.end_at)}
                 </div>
+                {booking.provider_phone && (
+                  <div className="mt-1 text-sm">
+                    {t.masterPhone}:{" "}
+                    <a
+                      className="font-semibold text-accent underline"
+                      href={`tel:${booking.provider_phone}`}
+                    >
+                      {booking.provider_phone}
+                    </a>
+                  </div>
+                )}
                 <span className="mt-2 inline-block rounded-full bg-bg px-2.5 py-1 text-xs">
                   {t.bookingStatusLabel[booking.status] ?? booking.status}
                 </span>

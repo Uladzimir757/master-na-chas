@@ -94,6 +94,9 @@ class Provider(Base):
     # the cabinet tab (or the working day ending) makes the dot disappear on
     # its own within that freshness window, nothing to remember to turn off.
     share_location: Mapped[bool] = mapped_column(default=False)
+    # когда клиент видит телефон мастера: 'always' | 'after_booking' |
+    # 'after_confirm' (app/main.py _visible_master_phone)
+    phone_visibility: Mapped[str] = mapped_column(String, default="after_confirm")
     location_lat: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
     location_lng: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
     location_updated_at: Mapped[datetime | None] = mapped_column(TZDateTime)
@@ -329,6 +332,8 @@ class Booking(Base):
     cancel_reason: Mapped[str | None] = mapped_column(String)
     # Время доезда до клиента — мастер выбирает при подтверждении.
     travel_minutes: Mapped[int | None] = mapped_column(SmallInteger)
+    # клиент разрешил показать свой номер мастеру (галочка в форме заказа)
+    client_phone_visible: Mapped[bool] = mapped_column(default=True)
 
 
 class MasterUser(Base):

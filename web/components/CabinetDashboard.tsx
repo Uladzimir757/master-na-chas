@@ -36,6 +36,7 @@ import {
 import MasterCalendar from "@/components/MasterCalendar";
 import MyCities from "@/components/MyCities";
 import PushStatus from "@/components/PushStatus";
+import MyPhone from "@/components/MyPhone";
 
 type CabinetTab =
   "calendar" | "services" | "settings" | "analytics" | "team" | "password";
@@ -818,6 +819,14 @@ export default function CabinetDashboard({
                         {locationStatusText(locationStatus, t, native)}
                       </span>
                     )}
+                  {/* смахивание из недавних убивает процесс на Xiaomi и др. —
+                      сервис геолокации умирает вместе с ним; код это не
+                      обходит, помогают только настройки телефона */}
+                  {native && settings.share_location && (
+                    <span className="mt-1 block text-sm text-ink-2">
+                      {t.geoKeepAliveHint}
+                    </span>
+                  )}
                   {settings.share_location && locationNeedsAlways && (
                     <span className="mt-2 block text-sm">
                       <span className="block text-ink-2">
@@ -844,7 +853,11 @@ export default function CabinetDashboard({
             )}
           </section>
 
-          {native && (
+          <section className="border-t border-line pt-5">
+            <MyPhone />
+          </section>
+
+          {native && pushStatus !== null && pushStatus.state !== "registered" && (
             <section className="border-t border-line pt-5">
               <PushStatus
                 status={pushStatus}
