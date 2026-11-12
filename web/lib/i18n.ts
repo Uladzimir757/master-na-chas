@@ -64,6 +64,9 @@ export interface Translations {
   defaultMasterName: string;
 
   cabinetLink: string;
+  homeWhereIsMaster: string;
+  homeBookingPending: string;
+  homeBookingConfirmed: string;
   cabinetLoading: string;
   cabinetLoginTitle: string;
   emailPlaceholder: string;
@@ -451,6 +454,9 @@ export function buildTranslations(map: TranslationMap): Translations {
     defaultMasterName: pick(map, "defaultMasterName"),
 
     cabinetLink: pick(map, "cabinetLink"),
+    homeWhereIsMaster: pick(map, "homeWhereIsMaster"),
+    homeBookingPending: pick(map, "homeBookingPending"),
+    homeBookingConfirmed: pick(map, "homeBookingConfirmed"),
     cabinetLoading: pick(map, "cabinetLoading"),
     cabinetLoginTitle: pick(map, "cabinetLoginTitle"),
     emailPlaceholder: pick(map, "emailPlaceholder"),

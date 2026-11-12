@@ -8,6 +8,7 @@
  * живую точку мастера по пути и историю своих прошлых заказов.
  */
 
+import { rememberBooking } from "@/lib/myBookings";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -91,6 +92,8 @@ export default function MyBookingPage() {
         return;
       }
       void load(bid, tok);
+      // запомнить на устройстве — кнопка «Где мой мастер?» на главной
+      rememberBooking(bid, tok);
       // В приложении — пуши об этой и следующих записях на этот телефон
       // (no-op в браузере; неверная ссылка просто отклоняется сервером).
       void registerNativePush({ kind: "client", bookingId: bid, token: tok });

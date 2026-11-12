@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { PROVIDER, SERVICE, t } from "./mocks";
+import { mockCatalog, PROVIDER, SERVICE, t } from "./mocks";
 
 // «Моя запись» (app/booking/page.tsx) — страница клиента по ссылке из SMS.
 // Отменённая или прошедшая запись не должна быть тупиком.
@@ -77,4 +77,30 @@ test("a late master shows the honest arrival time", async ({ page }) => {
 
   await expect(page.getByText(t.myBookingTravel(45, "09:15", "08:30"), { exact: false })).toBeVisible();
   await expect(page.getByText(t.myBookingLate(15), { exact: false })).toBeVisible();
+});
+
+// «Где мой мастер?» — клиент, ушедший на главную, возвращается к заказу.
+test("the home page links back to a booking opened on this device", async ({ page }) => {
+  await mockCatalog(page);
+  await mockMyBooking(page, { status: "confirmed" });
+  await page.goto(`/booking/?id=${ID}&token=secret`);
+  await expect(page.getByText(SERVICE.name).first()).toBeVisible();
+
+  await page.goto("/");
+  const card = page.getByRole("link", { name: new RegExp(t.homeWhereIsMaster.replace("?", "\?")) });
+  await expect(card).toBeVisible();
+  await expect(card).toHaveAttribute("href", `/booking/?id=${ID}&token=secret`);
+});
+
+test("a cancelled booking is not offered on the home page", async ({ page }) => {
+  await mockCatalog(page);
+  await mockMyBooking(page, { status: "cancelled" });
+  await page.goto(`/booking/?id=${ID}&token=secret`);
+  await expect(page.getByRole("link", { name: t.bookAgain })).toBeVisible();
+
+  const checked = page.waitForResponse((r) => r.url().includes(`/api/my-booking/${ID}?`));
+  await page.goto("/");
+  await checked;
+  await page.waitForTimeout(300); // карточка рисуется после ответа
+  await expect(page.getByText(t.homeWhereIsMaster)).toHaveCount(0);
 });

@@ -1,5 +1,6 @@
 "use client";
 
+import { rememberBooking } from "@/lib/myBookings";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
@@ -223,6 +224,7 @@ export default function SlotPicker({
         city_id: cityId,
       });
       setBooking(result);
+      if (result.manage_token) rememberBooking(result.id, result.manage_token);
       setConfirmNote(pendingNote(result));
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {

@@ -7,6 +7,7 @@ import BookingFlow, { BOOKING_ID } from "@/components/BookingFlow";
 import Hero from "@/components/Hero";
 import { HowItWorks, TrustBar } from "@/components/HomeSections";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import MyBookingCard from "@/components/MyBookingCard";
 import { WrenchIcon } from "@/components/icons";
 import { useLocale } from "@/lib/LocaleContext";
 import { shouldAutoOpenCabinet } from "@/lib/autoOpenCabinet";
@@ -42,6 +43,9 @@ export default function Home() {
         </div>
       </header>
 
+      <div className="mx-auto w-full max-w-5xl px-4 pt-4 empty:hidden sm:px-6">
+        <MyBookingCard />
+      </div>
       <Hero targetId={BOOKING_ID} />
       <TrustBar />
 
