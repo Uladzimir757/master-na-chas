@@ -208,15 +208,32 @@ export function useLocationSharing(
         // Only native delivery (url) survives without the WebView, so only
         // then is a native restart meaningful.
         await setShouldShare(Boolean(bearer));
+        // Не ждать первой точки: без «Всегда» её может долго не быть
+        // (12.11.2026 кнопка «Zawsze» не показывалась, пока висело
+        // «Ustalamy…»), а именно тогда подсказка и нужна.
+        if (!cancelled) setNeedsAlways(await checkNeedsAlways().catch(() => false));
       }).catch(() => {
         if (!cancelled) setStatus("error");
       });
+      // Вернулся из системных настроек (разрешил или отозвал «Всегда») —
+      // перепроверить сразу, не дожидаясь следующей точки.
+      const onVisible = () => {
+        if (document.visibilityState !== "visible") return;
+        checkNeedsAlways().then(
+          (v) => {
+            if (!cancelled) setNeedsAlways(v);
+          },
+          () => {},
+        );
+      };
+      document.addEventListener("visibilitychange", onVisible);
       // No stop() on unmount: in the app the service is meant to outlive the
       // cabinet page (the master browses elsewhere, the app is backgrounded).
       // Only an explicit off — enabled turning false, or logout
       // (stopNativeLocationSharing) — ends it.
       return () => {
         cancelled = true;
+        document.removeEventListener("visibilitychange", onVisible);
       };
     }
 
