@@ -26,7 +26,8 @@
  * stopping the watch: the freshness gate hides the dot by itself.
  */
 
-import { Capacitor, registerPlugin } from "@capacitor/core";
+import { Capacitor } from "@capacitor/core";
+import { ZrGeoRestart } from "@/lib/zrGeoPlugin";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { API_URL, api } from "@/lib/api";
 import { getToken } from "@/lib/authToken";
@@ -80,9 +81,6 @@ function runNative<T>(job: (plugin: BackgroundGeolocationPlugin) => Promise<T>):
 // BootReceiver and MainActivity.onResume read it to bring the plugin's
 // service back after the process was killed — the plugin itself doesn't
 // (docs/geo-service-restart-task.md).
-const ZrGeoRestart = registerPlugin<{
-  setShouldShare(options: { value: boolean }): Promise<void>;
-}>("ZrGeoRestart");
 
 async function setShouldShare(value: boolean): Promise<void> {
   if (Capacitor.getPlatform() !== "android") return;

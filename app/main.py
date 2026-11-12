@@ -98,6 +98,7 @@ from app.models import (
     WorkingHours,
     WorkingHoursException,
 )
+from app.geo_watchdog import run_geo_watchdog
 from app.notifications import notify_client, notify_master, reply_telegram, run_in_background
 from app.public_cache import cache_control, is_missing, public_cache, write_invalidates
 from app.schemas import (
@@ -873,7 +874,8 @@ async def tick(x_tick_secret: str = Header(default=""), db: AsyncSession = Depen
         x_tick_secret.encode("utf-8"), settings.TICK_SECRET.encode("utf-8")
     ):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Forbidden")
-    return {"ok": True, "notices": await _run_confirm_timer(db)}
+    notices = await _run_confirm_timer(db)
+    return {"ok": True, "notices": notices, "geo_wakes": await run_geo_watchdog(db, datetime.now(timezone.utc))}
 
 
 async def _run_confirm_timer(db: AsyncSession) -> int:
@@ -910,6 +912,11 @@ async def _confirm_timer_sweep() -> None:
             await _run_confirm_timer(session)
         except Exception:  # best-effort: следующий запрос попробует снова
             logger.exception("confirm_timer_sweep failed")
+            await session.rollback()
+        try:
+            await run_geo_watchdog(session, datetime.now(timezone.utc))
+        except Exception:
+            logger.exception("geo_watchdog sweep failed")
 
 
 def _maybe_sweep_confirm_timer() -> None:

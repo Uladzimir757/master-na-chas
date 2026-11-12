@@ -82,6 +82,11 @@ export interface Translations {
   myPhoneSaved: string;
   myPhoneError: string;
   geoKeepAliveHint: string;
+  geoKeepAliveBattery: string;
+  geoKeepAliveBatteryOk: string;
+  geoKeepAliveAutostart: string;
+  geoKeepAliveAutostartHint: string;
+  geoKeepAliveLock: string;
   cabinetLoading: string;
   cabinetLoginTitle: string;
   emailPlaceholder: string;
@@ -487,6 +492,11 @@ export function buildTranslations(map: TranslationMap): Translations {
     myPhoneSaved: pick(map, "myPhoneSaved"),
     myPhoneError: pick(map, "myPhoneError"),
     geoKeepAliveHint: pick(map, "geoKeepAliveHint"),
+    geoKeepAliveBattery: pick(map, "geoKeepAliveBattery"),
+    geoKeepAliveBatteryOk: pick(map, "geoKeepAliveBatteryOk"),
+    geoKeepAliveAutostart: pick(map, "geoKeepAliveAutostart"),
+    geoKeepAliveAutostartHint: pick(map, "geoKeepAliveAutostartHint"),
+    geoKeepAliveLock: pick(map, "geoKeepAliveLock"),
     cabinetLoading: pick(map, "cabinetLoading"),
     cabinetLoginTitle: pick(map, "cabinetLoginTitle"),
     emailPlaceholder: pick(map, "emailPlaceholder"),

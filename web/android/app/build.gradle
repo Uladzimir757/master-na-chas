@@ -61,6 +61,9 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+    // ZrMessagingService наследует сервис плагина @capacitor-firebase/messaging
+    // и сам читает RemoteMessage — та же версия, что у плагина.
+    implementation "com.google.firebase:firebase-messaging:25.0.1"
 }
 
 apply from: 'capacitor.build.gradle'

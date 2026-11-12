@@ -163,6 +163,36 @@ async def send_fcm(*, token: str, title: str, body: str, data: dict[str, str] | 
     return True
 
 
+async def send_fcm_data(*, token: str, data: dict[str, str], ttl_seconds: int = 600) -> bool:
+    """Тихий пуш без уведомления (data-only, Android high priority): его
+    получает сам код приложения — ZrMessagingService — даже когда процесс
+    убит, и решает, что показать. Возврат — как у send_fcm."""
+    if not settings.FCM_ENABLED:
+        logger.info("fcm_disabled, skipping data send")
+        return True
+    try:
+        info = json.loads(settings.FCM_SERVICE_ACCOUNT_JSON)
+        message = {
+            "token": token,
+            "data": data,
+            "android": {"priority": "high", "ttl": f"{ttl_seconds}s"},
+        }
+        async with httpx.AsyncClient(timeout=10) as client:
+            access_token = await _get_fcm_access_token(client, info)
+            response = await client.post(
+                f"https://fcm.googleapis.com/v1/projects/{info['project_id']}/messages:send",
+                headers={"Authorization": f"Bearer {access_token}"},
+                json={"message": message},
+            )
+        if response.status_code == 404:
+            logger.info("fcm_token_unregistered token=%s", token[:16])
+            return False
+        response.raise_for_status()
+    except Exception:
+        logger.exception("fcm_data_send_failed token=%s", token[:16])
+    return True
+
+
 async def _send_fcm_all(
     tokens: list[str], *, title: str, body: str, data: dict[str, str] | None, on_dead: DeadTokensCallback | None
 ) -> None:
