@@ -1,6 +1,6 @@
 "use client";
 
-import { rememberBooking } from "@/lib/myBookings";
+import { rememberBooking, rememberClient, savedClient } from "@/lib/myBookings";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
@@ -94,6 +94,16 @@ export default function SlotPicker({
   const [clientPhone, setClientPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // приложение помнит имя и телефон клиента (lib/myBookings.ts); читаем
+  // после гидратации — статический экспорт рендерит форму пустой
+  useEffect(() => {
+    const c = savedClient();
+    if (!c) return;
+    (async () => {
+      setClientName((v) => v || c.name);
+      setClientPhone((v) => v || c.phone);
+    })();
+  }, []);
   const [booking, setBooking] = useState<
     (Booking & { manage_token?: string | null }) | null
   >(null);
@@ -225,6 +235,7 @@ export default function SlotPicker({
       });
       setBooking(result);
       if (result.manage_token) rememberBooking(result.id, result.manage_token);
+      rememberClient(clientName.trim(), clientPhone.trim());
       setConfirmNote(pendingNote(result));
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {

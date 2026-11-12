@@ -1115,10 +1115,15 @@ async def reschedule_booking(
     booking = await db.get(Booking, booking_id)
     if booking is None or booking.provider_id != provider.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Booking not found")
+    # отменённый/выполненный заказ не двигаем (перетаскивание в календаре
+    # раньше это позволяло — решение пользователя 12.11.2026)
+    if booking.status not in (BookingStatus.pending, BookingStatus.confirmed):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Only an active booking can be moved")
 
     if await overlaps_any_provider_block(db, provider.id, payload.start_at, payload.end_at):
         raise HTTPException(status.HTTP_409_CONFLICT, "You have blocked this time on your calendar")
 
+    old_start = booking.start_at
     booking.start_at = payload.start_at
     booking.end_at = payload.end_at
     try:
@@ -1129,6 +1134,28 @@ async def reschedule_booking(
             raise HTTPException(status.HTTP_409_CONFLICT, "You already have a booking during this time") from exc
         raise
     await db.refresh(booking)
+
+    # Клиент должен узнать о новом времени — раньше перенос мастером
+    # проходил молча (и кнопкой, и перетаскиванием).
+    if booking.start_at != old_start and booking.client_phone:
+        service = await db.get(Service, booking.service_id)
+        old_local = old_start.astimezone(BUSINESS_TZ)
+        run_in_background(
+            notify_client(
+                phone=booking.client_phone,
+                fcm_tokens=await _client_fcm_tokens(db, booking.client_phone),
+                on_dead_fcm_tokens=_prune_dead_fcm_tokens,
+                purpose="Tell the client that the master moved the booking to a new date and time.",
+                facts={
+                    "service": service.name if service else "",
+                    "old_date": old_local.date().isoformat(),
+                    "old_time": old_local.strftime("%H:%M"),
+                    **_when_facts(booking.start_at),
+                    "master": provider.name,
+                },
+                must_include=_manage_url(booking) if booking.manage_token else None,
+            )
+        )
     return booking
 
 
@@ -2227,6 +2254,7 @@ async def my_booking_history(
             start_at=b.start_at,
             status=b.status,
             price=b.price,
+            manage_token=b.manage_token,
         )
         for b, svc, pn in rows
     ]

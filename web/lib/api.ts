@@ -130,6 +130,8 @@ export interface MyBookingHistoryItem {
   start_at: string;
   status: BookingStatus;
   price: string | null;
+  // ссылка на этот заказ (тот же телефон) — null у ручных записей мастера
+  manage_token?: string | null;
 }
 
 export interface Provider {

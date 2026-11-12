@@ -35,6 +35,10 @@ export function EventChip({
   const height = eventHeight(event);
   const widthPct = 100 / totalCols;
   const leftPct = col * widthPct;
+  // отменённую/выполненную запись не двигаем — только открыть (сервер
+  // тоже отвечает 409, решение 12.11.2026)
+  const movable =
+    event.kind !== "booking" || event.status === "pending" || event.status === "confirmed";
 
   const handlePointerDown = (ev: React.PointerEvent<HTMLDivElement>) => {
     if (ev.button !== 0 && ev.pointerType === "mouse") return;
@@ -48,7 +52,7 @@ export function EventChip({
     if (!drag || drag.pointerId !== ev.pointerId) return;
     const dx = ev.clientX - drag.startX;
     const dy = ev.clientY - drag.startY;
-    if (Math.abs(dx) > DRAG_THRESHOLD_PX || Math.abs(dy) > DRAG_THRESHOLD_PX) drag.moved = true;
+    if (movable && (Math.abs(dx) > DRAG_THRESHOLD_PX || Math.abs(dy) > DRAG_THRESHOLD_PX)) drag.moved = true;
     if (drag.moved) setPreview({ dx, dy });
   };
 
@@ -96,7 +100,7 @@ export function EventChip({
         transform: preview ? `translate(${preview.dx}px, ${preview.dy}px)` : undefined,
         zIndex: preview ? 20 : 1,
         touchAction: "none",
-        cursor: "grab",
+        cursor: movable ? "grab" : "pointer",
       }}
       className={`overflow-hidden rounded-md px-1.5 py-0.5 text-[11px] leading-tight shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing ${
         event.kind === "booking" ? statusClasses(event.status) : "border border-dashed border-ink/30 bg-ink/5 text-ink-2"

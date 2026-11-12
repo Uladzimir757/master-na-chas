@@ -407,3 +407,51 @@ async def test_block_removes_the_time_from_public_availability(
     assert not any(_dt(9) <= s.start_at < _dt(11) for s in slots)
     # hours outside the block are still offered as normal
     assert any(s.start_at == _dt(11) for s in slots)
+
+
+async def test_reschedule_rejects_a_cancelled_booking(
+    logged_in_client: AsyncClient, db_session: AsyncSession, provider: Provider, service: Service
+):
+    """Перетаскивание отменённой/выполненной записи — 409 (решение 12.11.2026)."""
+    for hour, st in ((8, BookingStatus.cancelled), (10, BookingStatus.completed), (12, BookingStatus.no_show)):
+        booking = await _make_booking(db_session, provider_id=provider.id, service_id=service.id, start=_dt(hour), status=st)
+        resp = await logged_in_client.patch(
+            f"/api/bookings/{booking.id}/reschedule",
+            json={"start_at": _dt(14).isoformat(), "end_at": _dt(15).isoformat()},
+        )
+        assert resp.status_code == 409, (st, resp.text)
+        await db_session.refresh(booking)
+        assert booking.start_at == _dt(hour)
+
+
+async def test_reschedule_by_master_notifies_the_client(
+    logged_in_client: AsyncClient, db_session: AsyncSession, provider: Provider, service: Service, monkeypatch
+):
+    import app.main as main_module
+
+    sent: list[dict] = []
+
+    async def fake_notify_client(**kwargs):
+        sent.append(kwargs)
+
+    monkeypatch.setattr(main_module, "notify_client", fake_notify_client)
+    scheduled = []
+    monkeypatch.setattr(main_module, "run_in_background", scheduled.append)
+
+    booking = await _make_booking(
+        db_session, provider_id=provider.id, service_id=service.id, start=_dt(9), status=BookingStatus.pending
+    )
+    booking.client_phone = "+48500100200"
+    booking.manage_token = "tok-move"
+    await db_session.commit()
+
+    resp = await logged_in_client.patch(
+        f"/api/bookings/{booking.id}/reschedule",
+        json={"start_at": _dt(14).isoformat(), "end_at": _dt(15).isoformat()},
+    )
+    assert resp.status_code == 200, resp.text
+    assert len(scheduled) == 1
+    await scheduled[0]
+    assert sent[0]["phone"] == "+48500100200"
+    assert sent[0]["facts"]["old_time"] == "09:00"
+    assert "tok-move" in sent[0]["must_include"]

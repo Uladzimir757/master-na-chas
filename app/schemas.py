@@ -888,6 +888,9 @@ class MyBookingHistoryItem(BaseModel):
     start_at: datetime
     status: BookingStatus
     price: Decimal | None = None
+    # ссылка на этот заказ для того же клиента (тот же телефон) — главная
+    # приложения находит по ней остальные его заказы; None у ручных записей
+    manage_token: str | None = None
 
 
 # ============================================================================

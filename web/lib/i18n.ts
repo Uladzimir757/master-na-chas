@@ -67,6 +67,9 @@ export interface Translations {
   homeWhereIsMaster: string;
   homeBookingPending: string;
   homeBookingConfirmed: string;
+  homeCancelSure: string;
+  homeKeepBooking: string;
+  homeHistoryTitle: string;
   cabinetLoading: string;
   cabinetLoginTitle: string;
   emailPlaceholder: string;
@@ -457,6 +460,9 @@ export function buildTranslations(map: TranslationMap): Translations {
     homeWhereIsMaster: pick(map, "homeWhereIsMaster"),
     homeBookingPending: pick(map, "homeBookingPending"),
     homeBookingConfirmed: pick(map, "homeBookingConfirmed"),
+    homeCancelSure: pick(map, "homeCancelSure"),
+    homeKeepBooking: pick(map, "homeKeepBooking"),
+    homeHistoryTitle: pick(map, "homeHistoryTitle"),
     cabinetLoading: pick(map, "cabinetLoading"),
     cabinetLoginTitle: pick(map, "cabinetLoginTitle"),
     emailPlaceholder: pick(map, "emailPlaceholder"),

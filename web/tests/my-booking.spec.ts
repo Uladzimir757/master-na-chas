@@ -104,3 +104,72 @@ test("a cancelled booking is not offered on the home page", async ({ page }) => 
   await page.waitForTimeout(300); // карточка рисуется после ответа
   await expect(page.getByText(t.homeWhereIsMaster)).toHaveCount(0);
 });
+
+test("the home card lets the client change or cancel while there is time", async ({ page }) => {
+  await mockCatalog(page);
+  await mockMyBooking(page, { status: "confirmed", can_change: true });
+  let cancelled = false;
+  await page.route(`**/api/my-booking/${ID}/cancel**`, (route) => {
+    cancelled = true;
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ id: ID, status: "cancelled" }),
+    });
+  });
+  await page.goto(`/booking/?id=${ID}&token=secret`);
+  await expect(page.getByText(SERVICE.name).first()).toBeVisible();
+
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: t.myBookingRescheduleButton })).toHaveAttribute(
+    "href",
+    `/booking/?id=${ID}&token=secret&do=reschedule`,
+  );
+  await page.getByRole("button", { name: t.myBookingCancelButton }).click();
+  await page.getByRole("button", { name: t.homeCancelSure }).click();
+  await expect.poll(() => cancelled).toBe(true);
+});
+
+test("«change time» from the home card opens the free-slot picker", async ({ page }) => {
+  await mockMyBooking(page, { status: "confirmed", can_change: true });
+  await page.route(`**/api/my-booking/${ID}/slots**`, (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
+  );
+  await page.goto(`/booking/?id=${ID}&token=secret&do=reschedule`);
+  await expect(page.getByText(t.myBookingPickNewTime)).toBeVisible();
+});
+
+test("other bookings of the same phone are found through a live link", async ({ page }) => {
+  const OTHER = "0b0d6f0e-5a52-4c4b-9a52-2f1d7c1a9e11";
+  await mockCatalog(page);
+  await mockMyBooking(page, { status: "cancelled" });
+  await page.route(`**/api/my-booking/${ID}/history**`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([
+        { id: OTHER, service_name: SERVICE.name, provider_name: PROVIDER.name,
+          start_at: "2027-06-09T09:00:00+02:00", status: "pending", price: null, manage_token: "tok2" },
+        { id: ID, service_name: SERVICE.name, provider_name: PROVIDER.name,
+          start_at: "2027-06-07T09:00:00+02:00", status: "cancelled", price: null, manage_token: "secret" },
+      ]),
+    }),
+  );
+  await page.route(`**/api/my-booking/${OTHER}?**`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: OTHER, service_name: SERVICE.name, provider_name: PROVIDER.name,
+        start_at: "2027-06-09T09:00:00+02:00", end_at: "2027-06-09T10:00:00+02:00",
+        status: "pending", can_change: false, change_deadline: "2027-06-09T07:00:00+02:00", location: null,
+      }),
+    }),
+  );
+  await page.goto(`/booking/?id=${ID}&token=secret`);
+  await expect(page.getByRole("link", { name: t.bookAgain })).toBeVisible();
+
+  await page.goto("/");
+  const card = page.getByRole("link", { name: new RegExp(t.homeWhereIsMaster.replace("?", "\?")) });
+  await expect(card).toHaveAttribute("href", `/booking/?id=${OTHER}&token=tok2`);
+});

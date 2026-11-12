@@ -9,7 +9,7 @@
  */
 
 import { rememberBooking } from "@/lib/myBookings";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   api,
@@ -130,6 +130,19 @@ export default function MyBookingPage() {
       setSlots([]);
     }
   };
+
+  // «Zmień termin» с главной (MyBookingCard) — сразу открыть выбор слота
+  const autoPicked = useRef(false);
+  useEffect(() => {
+    if (autoPicked.current || !booking?.can_change) return;
+    if (new URLSearchParams(window.location.search).get("do") !== "reschedule") return;
+    autoPicked.current = true;
+    (async () => {
+      await startPicking();
+    })();
+    // startPicking читает id/token, которые уже выставлены к этому моменту
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [booking]);
 
   const slotsByDay = useMemo(() => {
     const out = new Map<string, Slot[]>();
