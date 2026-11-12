@@ -297,8 +297,10 @@ Service worker (`web/public/sw.js`): страницы и RSC-описания с
   аккаунт Codemagic + репо, App Store Connect API key (App Manager) и запись
   приложения (`APP_STORE_APPLE_ID` в `codemagic.yaml`), APNs-ключ .p8 в
   Firebase, `web/GoogleService-Info.plist.b64` → `GOOGLE_SERVICE_INFO_PLIST`
-  (группа `firebase`). Предложено: пока ждём Apple — неподписанная
-  simulator-сборка в Codemagic, чтобы проверить компиляцию iOS-проекта.
+  (группа `firebase`). Пока ждём Apple — workflow `ios-simulator-check`
+  в `codemagic.yaml` (без подписи и аккаунтов, запуск вручную в UI или
+  тегом `ios-check-*`); 12.11.2026 из `project.pbxproj` убрана битая строка
+  в Sources, ломавшая любую iOS-сборку. Первый прогон ещё не делался.
   Шаги — `docs/mobile-app-handoff.md`, «iOS / Codemagic».
 - Ждут пользователя также: окончательный app id (`pl.zr.app` временный —
   решить до первой загрузки в стор), платный тариф Render + тик (см. выше).

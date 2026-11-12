@@ -14,6 +14,61 @@
 #     (отмечено Secure — не потому что секрет, а чтобы не светилось в логах).
 
 workflows:
+  # Проверка компиляции без аккаунта Apple: сборка под симулятор, без
+  # подписи. На iPhone её не поставить — только ловит ошибки проекта до
+  # оплаты Apple Developer. Запуск — вручную из UI Codemagic (Start new build
+  # → ios-simulator-check) или пушем тега `ios-check-*`.
+  ios-simulator-check:
+    name: iOS — проверка сборки (симулятор)
+    instance_type: mac_mini_m2
+    max_build_duration: 45
+    environment:
+      node: 22
+      xcode: latest
+    triggering:
+      events:
+        - tag
+      tag_patterns:
+        - pattern: "ios-check-*"
+    scripts:
+      - name: npm ci
+        script: cd web && npm ci
+      - name: Firebase-конфиг (заглушка, если группы firebase нет)
+        # Xcode требует файл в ресурсах. Для проверки компиляции подойдёт
+        # заглушка; Firebase при запуске с ней не заработает — и не нужно.
+        script: |
+          PLIST=web/ios/App/App/GoogleService-Info.plist
+          if [ -n "$GOOGLE_SERVICE_INFO_PLIST" ]; then
+            echo "$GOOGLE_SERVICE_INFO_PLIST" | base64 --decode > "$PLIST"
+          else
+            cat > "$PLIST" <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict><key>BUNDLE_ID</key><string>pl.zr.app</string></dict></plist>
+          EOF
+          fi
+      - name: Capacitor sync (iOS)
+        script: cd web && npx cap sync ios
+      - name: Сборка под симулятор (без подписи)
+        script: |
+          set -o pipefail
+          xcodebuild \
+            -project web/ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath build/derived \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tee /tmp/xcodebuild.log
+      - name: Упаковать .app
+        script: |
+          cd build/derived/Build/Products/Debug-iphonesimulator
+          zip -qr "$CM_BUILD_DIR/ZR-simulator.zip" App.app
+    artifacts:
+      - ZR-simulator.zip
+      - /tmp/xcodebuild.log
+
   ios-release:
     name: iOS → TestFlight
     instance_type: mac_mini_m2

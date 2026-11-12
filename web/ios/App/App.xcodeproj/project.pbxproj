@@ -165,8 +165,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
-				A1F0C0022F00000000000001 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A1F0C0012F00000000000001 /* GoogleService-Info.plist */; };
-		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
+				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
