@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     # минуту дёргает внешний пингер с заголовком X-Tick-Secret. Пусто = тик
     # выключен (403).
     TICK_SECRET: str = ""
+    # GET /api/dispatcher/masters отдаёт телефоны мастеров — только диспетчеру
+    # (zlecai), с заголовком `Authorization: Bearer <ключ>`. Тот же ключ у
+    # zlecai-api в env OWN_MASTERS_API_KEY. Пусто = эндпоинт закрыт (401).
+    OWN_MASTERS_API_KEY: str = ""
     # Без тика таймер подтверждения прогоняется попутно после обычных
     # запросов, не чаще раза в столько секунд (app/main.py
     # _maybe_sweep_confirm_timer). 0 = выключено.

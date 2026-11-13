@@ -8,14 +8,24 @@ from __future__ import annotations
 import uuid
 from decimal import Decimal
 
+import pytest
 import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.models import Provider, ProviderService, Service, Tenant
 
+KEY = "test-own-masters-key"
 GDYNIA = {"lat": 54.519, "lng": 18.531}
 WARSAW = {"lat": 52.23, "lng": 21.01}
+
+
+@pytest.fixture(autouse=True)
+def _dispatcher_key(monkeypatch: pytest.MonkeyPatch, client: AsyncClient) -> None:
+    """The endpoint is for the dispatcher only (Bearer OWN_MASTERS_API_KEY)."""
+    monkeypatch.setattr(settings, "OWN_MASTERS_API_KEY", KEY)
+    client.headers["Authorization"] = f"Bearer {KEY}"
 
 
 async def _master(db: AsyncSession, tenant: Tenant, name: str, category: str, rating: str | None = None) -> Provider:
@@ -89,3 +99,18 @@ async def test_phone_set_in_admin_reaches_the_dispatcher(client: AsyncClient, db
     # (default after_confirm — app/main.py _visible_master_phone)
     public = await client.get("/api/providers")
     assert all(p.get("phone") is None for p in public.json())
+
+
+async def test_without_or_with_wrong_key_is_401(client: AsyncClient, masters):
+    params = {"category": "handyman", **GDYNIA}
+    for auth in ("", f"Bearer {KEY}x", KEY, "Basic " + KEY):
+        r = await client.get("/api/dispatcher/masters", params=params, headers={"Authorization": auth})
+        assert r.status_code == 401, auth
+    del client.headers["Authorization"]
+    assert (await client.get("/api/dispatcher/masters", params=params)).status_code == 401
+
+
+async def test_no_key_configured_means_closed(client: AsyncClient, masters, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(settings, "OWN_MASTERS_API_KEY", "")
+    r = await client.get("/api/dispatcher/masters", params={"category": "handyman", **GDYNIA}, headers={"Authorization": "Bearer "})
+    assert r.status_code == 401

@@ -25,7 +25,7 @@ Routes:
   PATCH /api/providers/me/busy                (logged-in master only — set/clear estimate)
   POST  /api/providers/me/busy/finish         (logged-in master only — "занят сейчас" off)
   GET   /api/translations                     (public — approved UI strings for a lang)
-  GET   /api/dispatcher/masters               (public — masters for the dispatcher project's results)
+  GET   /api/dispatcher/masters               (Bearer OWN_MASTERS_API_KEY — masters for the dispatcher project's results)
   POST  /auth/login
   POST  /auth/logout
   GET   /auth/me
@@ -516,6 +516,7 @@ async def dispatcher_masters(
     lat: float | None = Query(default=None, ge=-90, le=90),
     lng: float | None = Query(default=None, ge=-180, le=180),
     lang: str = Query(default=DEFAULT_LANG),
+    authorization: str = Header(default=""),
     db: AsyncSession = Depends(get_db),
 ) -> list[DispatcherMasterOut]:
     """Our masters for one request of the dispatcher (a separate project that
@@ -524,7 +525,17 @@ async def dispatcher_masters(
     place outside SERVICE_AREA_* — the dispatcher then shows Google Places
     only. A subcategory we don't have (e.g. painting) doesn't narrow the list:
     any handyman can be asked. `lang` is accepted for the dispatcher's sake;
-    the booking page picks its own language."""
+    the booking page picks its own language.
+
+    Only for the dispatcher: `Authorization: Bearer <OWN_MASTERS_API_KEY>`
+    (the list carries masters' phones). No key configured = closed."""
+    scheme, _, token = authorization.partition(" ")
+    if (
+        not settings.OWN_MASTERS_API_KEY
+        or scheme.lower() != "bearer"
+        or not secrets.compare_digest(token.strip().encode("utf-8"), settings.OWN_MASTERS_API_KEY.encode("utf-8"))
+    ):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Unauthorized", headers={"WWW-Authenticate": "Bearer"})
     if category not in DISPATCHER_CATEGORIES or not _in_service_area(lat, lng, city):
         return []
     stmt = (
