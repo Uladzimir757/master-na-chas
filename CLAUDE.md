@@ -300,7 +300,10 @@ Service worker (`web/public/sw.js`): страницы и RSC-описания с
   (группа `firebase`). Пока ждём Apple — workflow `ios-simulator-check`
   в `codemagic.yaml` (без подписи и аккаунтов, запуск вручную в UI или
   тегом `ios-check-*`); 12.11.2026 из `project.pbxproj` убрана битая строка
-  в Sources, ломавшая любую iOS-сборку. Первый прогон ещё не делался.
+  в Sources, ломавшая любую iOS-сборку. **13.11.2026 `ios-simulator-check`
+  в Codemagic прошёл** — проект компилируется. Codemagic отвергает пустые
+  `vars` (`""`) — валится проверка всего файла; `APP_STORE_APPLE_ID`
+  закомментирован до создания записи в App Store Connect.
   Шаги — `docs/mobile-app-handoff.md`, «iOS / Codemagic».
 - Ждут пользователя также: окончательный app id (`pl.zr.app` временный —
   решить до первой загрузки в стор), платный тариф Render + тик (см. выше).
