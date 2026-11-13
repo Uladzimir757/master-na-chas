@@ -86,7 +86,10 @@ workflows:
       vars:
         XCODE_PROJECT: web/ios/App/App.xcodeproj
         XCODE_SCHEME: App
-        APP_STORE_APPLE_ID: "" # числовой Apple ID приложения из App Store Connect (после создания записи)
+        # После создания записи в App Store Connect раскомментировать и
+        # вписать числовой Apple ID приложения (пустую строку Codemagic не
+        # принимает — валится проверка всего файла):
+        # APP_STORE_APPLE_ID: 1234567890
     triggering:
       # Только вручную/по тегу — не на каждый пуш в main: 500 бесплатных
       # минут в месяц, iOS-сборка ~15-20 мин.
