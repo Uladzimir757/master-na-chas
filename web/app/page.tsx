@@ -8,6 +8,7 @@ import Hero from "@/components/Hero";
 import { HowItWorks, TrustBar } from "@/components/HomeSections";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import MyBookingCard from "@/components/MyBookingCard";
+import FindMyBookings from "@/components/FindMyBookings";
 import { WrenchIcon } from "@/components/icons";
 import { useLocale } from "@/lib/LocaleContext";
 import { shouldAutoOpenCabinet } from "@/lib/autoOpenCabinet";
@@ -58,6 +59,9 @@ export default function Home() {
         </div>
         <div id={BOOKING_ID} className="w-full scroll-mt-4">
           <BookingFlow />
+        </div>
+        <div className="w-full px-3 sm:px-6">
+          <FindMyBookings />
         </div>
         {ready && (
           <Link

@@ -150,6 +150,21 @@ export interface Translations {
   locationAlwaysHint: string;
   locationAlwaysButton: string;
   masterLocationTitle: string;
+  // клиент подтверждает выполнение (app/review) и ищет заказы по номеру
+  jobDoneQuestion: string;
+  jobDoneConfirm: string;
+  jobDoneProblem: string;
+  jobProblemPlaceholder: string;
+  jobProblemSend: string;
+  jobProblemSent: string;
+  jobAnswerError: string;
+  findBookingsTitle: string;
+  findBookingsHint: string;
+  findBookingsButton: string;
+  findBookingsPhonePlaceholder: string;
+  findBookingsSent: string;
+  clientConfirmedJob: string;
+  clientReportedProblem: string;
   // components/OrderSummary.tsx
   orderSummaryTitle: string;
   summaryService: string;
@@ -571,6 +586,20 @@ export function buildTranslations(map: TranslationMap): Translations {
     locationAlwaysHint: pick(map, "locationAlwaysHint"),
     locationAlwaysButton: pick(map, "locationAlwaysButton"),
     masterLocationTitle: pick(map, "masterLocationTitle"),
+    jobDoneQuestion: pick(map, "jobDoneQuestion"),
+    jobDoneConfirm: pick(map, "jobDoneConfirm"),
+    jobDoneProblem: pick(map, "jobDoneProblem"),
+    jobProblemPlaceholder: pick(map, "jobProblemPlaceholder"),
+    jobProblemSend: pick(map, "jobProblemSend"),
+    jobProblemSent: pick(map, "jobProblemSent"),
+    jobAnswerError: pick(map, "jobAnswerError"),
+    findBookingsTitle: pick(map, "findBookingsTitle"),
+    findBookingsHint: pick(map, "findBookingsHint"),
+    findBookingsButton: pick(map, "findBookingsButton"),
+    findBookingsPhonePlaceholder: pick(map, "findBookingsPhonePlaceholder"),
+    findBookingsSent: pick(map, "findBookingsSent"),
+    clientConfirmedJob: pick(map, "clientConfirmedJob"),
+    clientReportedProblem: pick(map, "clientReportedProblem"),
     orderSummaryTitle: pick(map, "orderSummaryTitle"),
     summaryService: pick(map, "summaryService"),
     summaryMaster: pick(map, "summaryMaster"),

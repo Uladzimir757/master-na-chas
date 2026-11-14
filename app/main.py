@@ -101,7 +101,10 @@ from app.models import (
 from app.geo_watchdog import run_geo_watchdog
 from app.notifications import notify_client, notify_master, reply_telegram, run_in_background
 from app.public_cache import cache_control, is_missing, public_cache, write_invalidates
+from app.phone import normalize_phone
 from app.schemas import (
+    ClientConfirmationIn,
+    MyBookingsLinkIn,
     AdminAnalyticsOut,
     AdminCityCreate,
     AdminCityOut,
@@ -2289,6 +2292,51 @@ async def my_booking_slots(
     return await get_availability(db, service, date_from, date_to, provider=provider)
 
 
+# Клиент без ссылки (новый телефон, удалил SMS) вводит номер на главной —
+# ссылка на его заказы уходит SMS на этот номер, на экран ничего (решение
+# 14.11.2026): чужой номер ничего не открывает. Не чаще раза в
+# MY_BOOKINGS_LINK_EVERY на номер (в памяти процесса — один инстанс) плюс
+# лимит по IP.
+MY_BOOKINGS_LINK_EVERY = timedelta(minutes=10)
+_my_bookings_link_sent: dict[str, datetime] = {}
+
+
+@app.post("/api/my-bookings/link", status_code=status.HTTP_202_ACCEPTED)
+@limiter.limit("3/minute")
+async def send_my_bookings_link(
+    request: Request, payload: MyBookingsLinkIn, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Ответ всегда один и тот же — есть заказы у номера или нет."""
+    try:
+        phone = normalize_phone(payload.phone)
+    except ValueError:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid phone number")
+    now = datetime.now(timezone.utc)
+    last = _my_bookings_link_sent.get(phone) if phone else None
+    if phone and (last is None or now - last >= MY_BOOKINGS_LINK_EVERY):
+        booking = (
+            await db.execute(
+                select(Booking)
+                .where(Booking.client_phone == phone, Booking.manage_token.is_not(None))
+                .order_by(Booking.start_at.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if booking is not None:
+            _my_bookings_link_sent[phone] = now
+            run_in_background(
+                notify_client(
+                    phone=phone,
+                    fcm_tokens=[],
+                    on_dead_fcm_tokens=_prune_dead_fcm_tokens,
+                    purpose="Give the client the link where they can see all their bookings with us.",
+                    facts={},
+                    must_include=_manage_url(booking),
+                )
+            )
+    return {"ok": True}
+
+
 @app.get("/api/my-booking/{booking_id}/history", response_model=list[MyBookingHistoryItem])
 async def my_booking_history(
     booking_id: uuid.UUID, token: str, lang: str = Query(default=DEFAULT_LANG), db: AsyncSession = Depends(get_db)
@@ -2369,7 +2417,10 @@ async def _issue_review_invite(db: AsyncSession, booking: Booking, provider: Pro
             phone=booking.client_phone,
             fcm_tokens=await _client_fcm_tokens(db, booking.client_phone),
             on_dead_fcm_tokens=_prune_dead_fcm_tokens,
-            purpose="Tell the client the job is done and invite them to rate the work using the link.",
+            purpose=(
+                "Tell the client the master marked the job as done. Ask them to open the link to confirm "
+                "it was done or report a problem, and to rate the work."
+            ),
             facts={"master": provider.name, "service": service.name if service else None},
             must_include=link,
         )
@@ -2422,6 +2473,64 @@ async def get_review_invite(
         service_name=_resolve_service_name(service, _resolve_lang(lang)) if service else "",
         start_at=booking.start_at,
         client_name=booking.client_name,
+        client_confirmation=booking.client_confirmation,
+    )
+
+
+@app.post("/api/reviews/invite/{booking_id}/confirm", response_model=ReviewInviteOut)
+@limiter.limit("5/minute")
+async def confirm_job_done(
+    request: Request,
+    booking_id: uuid.UUID,
+    payload: ClientConfirmationIn,
+    lang: str = Query(default=DEFAULT_LANG),
+    db: AsyncSession = Depends(get_db),
+) -> ReviewInviteOut:
+    """Клиент по ссылке из SMS после «выполнено» от мастера (решение
+    14.11.2026): «Potwierdzam» или «Jest problem» + текст. Один раз —
+    повторный ответ 409. О проблеме сразу узнаёт мастер (и хозяин).
+    Тот же токен, что у отзыва: после подтверждения страница переходит к
+    оценке."""
+    booking = await db.get(Booking, booking_id)
+    invite = await db.get(ReviewInvite, payload.token)
+    if (
+        booking is None
+        or invite is None
+        or invite.booking_id != booking_id
+        or invite.expires_at < datetime.now(timezone.utc)
+    ):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Invite not found or expired")
+    if booking.client_confirmation is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Already answered")
+    problem = (payload.problem or "").strip() or None
+    booking.client_confirmation = "confirmed" if payload.ok else "problem"
+    booking.client_confirmation_at = datetime.now(timezone.utc)
+    booking.client_problem = None if payload.ok else problem
+    await db.commit()
+
+    provider = await db.get(Provider, booking.provider_id)
+    service = await db.get(Service, booking.service_id)
+    if not payload.ok:
+        await _notify_staff(
+            db,
+            booking.provider_id,
+            "Tell the master that the client says there is a problem with a job marked as done, "
+            "quote the client's words if given, and ask him to contact the client.",
+            {
+                "service": service.name if service else "",
+                **_when_facts(booking.start_at),
+                "client_name": booking.client_name,
+                "client_phone": _client_phone_for_master(booking),
+                "client_words": problem,
+            },
+            url=_cabinet_booking_url(booking.id),
+        )
+    return ReviewInviteOut(
+        provider_name=provider.name if provider else "",
+        service_name=_resolve_service_name(service, _resolve_lang(lang)) if service else "",
+        start_at=booking.start_at,
+        client_name=booking.client_name,
+        client_confirmation=booking.client_confirmation,
     )
 
 

@@ -334,6 +334,11 @@ class Booking(Base):
     travel_minutes: Mapped[int | None] = mapped_column(SmallInteger)
     # клиент разрешил показать свой номер мастеру (галочка в форме заказа)
     client_phone_visible: Mapped[bool] = mapped_column(default=True)
+    # Клиент после «выполнено» от мастера: 'confirmed' | 'problem' | None
+    # (POST /api/reviews/invite/{id}/confirm).
+    client_confirmation: Mapped[str | None] = mapped_column(String)
+    client_confirmation_at: Mapped[datetime | None] = mapped_column(TZDateTime)
+    client_problem: Mapped[str | None] = mapped_column(Text)
 
 
 class MasterUser(Base):

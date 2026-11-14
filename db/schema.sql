@@ -316,6 +316,10 @@ CREATE TABLE booking (
     cancel_reason         text,      -- 'provider_timeout' = мастер не ответил вовремя
     travel_minutes        smallint CHECK (travel_minutes IS NULL OR travel_minutes > 0),  -- время доезда, мастер при подтверждении
     client_phone_visible  boolean NOT NULL DEFAULT true,  -- клиент разрешил показать свой номер мастеру
+    -- клиент подтвердил выполнение / сообщил о проблеме (ссылка после «выполнено»)
+    client_confirmation   text CHECK (client_confirmation IN ('confirmed', 'problem')),
+    client_confirmation_at timestamptz,
+    client_problem        text,
     created_at    timestamptz NOT NULL DEFAULT now(),
 
     -- THE important line: Postgres itself refuses to let two active bookings

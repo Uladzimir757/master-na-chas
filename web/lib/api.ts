@@ -239,6 +239,9 @@ export interface Booking {
   confirm_deadline_at?: string | null;
   cancel_reason?: string | null;
   travel_minutes?: number | null;
+  // клиент после «выполнено»: подтвердил / сообщил о проблеме
+  client_confirmation?: "confirmed" | "problem" | null;
+  client_problem?: string | null;
 }
 
 export interface StaffMember {
@@ -492,6 +495,7 @@ export interface ReviewInvite {
   service_name: string;
   start_at: string; // ISO 8601, tz-aware
   client_name: string;
+  client_confirmation?: "confirmed" | "problem" | null;
 }
 
 export interface ReviewSubmitPayload {
@@ -919,6 +923,18 @@ export const api = {
     request<ReviewInvite>(
       `/api/reviews/invite/${bookingId}?token=${encodeURIComponent(token)}&lang=${encodeURIComponent(lang)}`,
     ),
+  // «Работа выполнена?» — тот же токен, что у отзыва (app/main.py confirm_job_done)
+  confirmJobDone: (bookingId: string, payload: { token: string; ok: boolean; problem?: string | null }, lang: string) =>
+    request<ReviewInvite>(`/api/reviews/invite/${bookingId}/confirm?lang=${encodeURIComponent(lang)}`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  // ссылка на заказы — SMS на введённый номер, ответ всегда одинаковый
+  sendMyBookingsLink: (phone: string) =>
+    request<{ ok: boolean }>(`/api/my-bookings/link`, {
+      method: "POST",
+      body: JSON.stringify({ phone }),
+    }),
   submitReview: (bookingId: string, payload: ReviewSubmitPayload) =>
     request<Review>(`/api/reviews/invite/${bookingId}`, {
       method: "POST",

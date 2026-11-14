@@ -55,7 +55,14 @@ function compressImageToDataUrl(file: File): Promise<string> {
 type LoadState =
   | { status: "loading" }
   | { status: "error"; message: "invalid" | "already" }
-  | { status: "ready"; providerName: string; serviceName: string; startAt: string };
+  | {
+      status: "ready";
+      providerName: string;
+      serviceName: string;
+      startAt: string;
+      // «Работа выполнена?» — до ответа отзыв не показываем
+      answer: "confirmed" | "problem" | null;
+    };
 
 export default function ReviewPage() {
   const { t, ready, locale } = useLocale();
@@ -71,6 +78,33 @@ export default function ReviewPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [problemOpen, setProblemOpen] = useState(false);
+  const [problemText, setProblemText] = useState("");
+  const [answering, setAnswering] = useState(false);
+  const [answerError, setAnswerError] = useState<string | null>(null);
+
+  async function answer(ok: boolean) {
+    if (!bookingId || !token || state.status !== "ready") return;
+    setAnswering(true);
+    setAnswerError(null);
+    try {
+      const res = await api.confirmJobDone(
+        bookingId,
+        { token, ok, problem: ok ? null : problemText.trim() || null },
+        locale,
+      );
+      setState({ ...state, answer: res.client_confirmation ?? (ok ? "confirmed" : "problem") });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        // уже ответил (другая вкладка) — к отзыву
+        setState({ ...state, answer: ok ? "confirmed" : "problem" });
+      } else {
+        setAnswerError(t.jobAnswerError);
+      }
+    } finally {
+      setAnswering(false);
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -92,6 +126,7 @@ export default function ReviewPage() {
           providerName: invite.provider_name,
           serviceName: invite.service_name,
           startAt: invite.start_at,
+          answer: invite.client_confirmation ?? null,
         });
       } catch (err) {
         if (err instanceof ApiError && err.status === 409) {
@@ -167,8 +202,63 @@ export default function ReviewPage() {
           <Centered>{ready ? (state.message === "already" ? t.reviewAlreadySubmitted : t.reviewInviteLoadError) : ""}</Centered>
         )}
 
-        {state.status === "ready" && !submitted && (
+        {state.status === "ready" && state.answer === null && ready && (
           <div className="flex flex-col gap-4">
+            <div>
+              <h1 className="text-2xl font-bold tracking-[-0.01em]">{t.jobDoneQuestion}</h1>
+              <p className="mt-1 text-base text-ink-2">
+                {t.reviewPageSubtitle(state.providerName, state.serviceName, new Date(state.startAt).toLocaleDateString())}
+              </p>
+            </div>
+            {!problemOpen ? (
+              <div className="flex flex-col gap-2">
+                <Button onClick={() => void answer(true)} disabled={answering}>
+                  {t.jobDoneConfirm}
+                </Button>
+                <button
+                  type="button"
+                  className="min-h-12 rounded-full border-2 border-danger px-5 text-base font-semibold text-danger"
+                  onClick={() => setProblemOpen(true)}
+                  disabled={answering}
+                >
+                  {t.jobDoneProblem}
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <textarea
+                  className={inputClass}
+                  rows={4}
+                  placeholder={t.jobProblemPlaceholder}
+                  value={problemText}
+                  onChange={(e) => setProblemText(e.target.value)}
+                  maxLength={2000}
+                  autoFocus
+                />
+                <Button onClick={() => void answer(false)} disabled={answering}>
+                  {t.jobProblemSend}
+                </Button>
+                <button
+                  type="button"
+                  className="min-h-11 text-base text-ink-2"
+                  onClick={() => setProblemOpen(false)}
+                  disabled={answering}
+                >
+                  {t.travelBack}
+                </button>
+              </div>
+            )}
+            {answerError && <p className="text-sm text-danger">{answerError}</p>}
+          </div>
+        )}
+
+        {state.status === "ready" && state.answer !== null && !submitted && (
+          <div className="flex flex-col gap-4">
+            {state.answer === "problem" && ready && (
+              <p className="rounded-xl border border-accent/40 bg-accent/5 p-3 text-base" role="status">
+                {t.jobProblemSent}
+              </p>
+            )}
             <div>
               <h1 className="text-lg font-bold">{ready ? t.reviewPageTitle : ""}</h1>
               {ready && (

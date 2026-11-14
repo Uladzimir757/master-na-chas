@@ -25,6 +25,8 @@ export type CalEvent =
       // таймер подтверждения и время доезда (app/confirm_timer.py)
       confirm_deadline_at: string | null;
       travel_minutes: number | null;
+      client_confirmation: "confirmed" | "problem" | null;
+      client_problem: string | null;
     }
   | { kind: "block"; id: string; start_at: string; end_at: string; reason: string | null };
 
@@ -46,6 +48,8 @@ export function toEvents(bookings: Booking[], blocks: CalendarBlock[]): CalEvent
     service_id: b.service_id,
     confirm_deadline_at: b.confirm_deadline_at ?? null,
     travel_minutes: b.travel_minutes ?? null,
+    client_confirmation: b.client_confirmation ?? null,
+    client_problem: b.client_problem ?? null,
   }));
   const blockEvents: CalEvent[] = blocks.map((b) => ({
     kind: "block",

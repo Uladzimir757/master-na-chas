@@ -552,6 +552,15 @@ export function EventDetailsModal({
           >
             {t.bookingStatusLabel[event.status] ?? event.status}
           </span>
+          {event.client_confirmation === "confirmed" && (
+            <p className="mb-3 text-sm font-medium text-accent-2">✓ {t.clientConfirmedJob}</p>
+          )}
+          {event.client_confirmation === "problem" && (
+            <div className="mb-3 rounded-lg border border-danger/40 bg-danger/5 p-2.5 text-sm" role="alert">
+              <p className="font-semibold text-danger">{t.clientReportedProblem}</p>
+              {event.client_problem && <p className="mt-1 text-ink">«{event.client_problem}»</p>}
+            </div>
+          )}
           {event.status === "pending" && event.confirm_deadline_at && (
             <ConfirmCountdown t={t} deadline={event.confirm_deadline_at} />
           )}

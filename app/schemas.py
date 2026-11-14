@@ -73,6 +73,9 @@ class BookingOut(BaseModel):
     cancel_reason: str | None = None
     travel_minutes: int | None = None
     client_phone_visible: bool = True
+    # клиент после «выполнено»: 'confirmed' | 'problem' | None, и его текст
+    client_confirmation: str | None = None
+    client_problem: str | None = None
 
     class Config:
         from_attributes = True
@@ -780,6 +783,8 @@ class ReviewInviteOut(BaseModel):
     service_name: str
     start_at: datetime
     client_name: str
+    # клиент уже ответил на «работа выполнена?» — страница сразу к отзыву
+    client_confirmation: str | None = None
 
 
 class ReviewCreate(BaseModel):
@@ -998,3 +1003,19 @@ class AdminCityUpdate(BaseModel):
 
 class AdminMasterCitiesUpdate(BaseModel):
     city_ids: list[uuid.UUID]
+
+
+class ClientConfirmationIn(BaseModel):
+    """POST /api/reviews/invite/{booking_id}/confirm — клиент по ссылке из SMS
+    после «выполнено» от мастера: подтверждает или сообщает о проблеме."""
+
+    token: str
+    ok: bool
+    problem: str | None = Field(default=None, max_length=2000)
+
+
+class MyBookingsLinkIn(BaseModel):
+    """POST /api/my-bookings/link — клиент без ссылки вводит свой номер;
+    ссылка на его заказы уходит SMS на этот номер, на экран — ничего."""
+
+    phone: str = Field(max_length=40)
