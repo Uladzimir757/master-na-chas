@@ -46,6 +46,11 @@ function storeCity(slug: string | null): void {
 // description) -> pick a slot. Previously this started on a flat,
 // combined-across-providers service list — see MasterPicker.tsx and
 // git history for the old shape if it's ever needed again.
+// «← wybierz innego mistrza»: a real button, not grey text — users missed
+// the way back to the master list (14.11.2026).
+const BACK_BUTTON =
+  "inline-flex min-h-11 items-center rounded-full border-2 border-accent bg-surface px-5 text-base font-semibold text-accent-2 transition hover:bg-accent hover:text-on-accent";
+
 export default function BookingFlow() {
   const { locale, t, ready } = useLocale();
 
@@ -238,10 +243,7 @@ export default function BookingFlow() {
       <>
         {cityBar}
         <Card>
-          <button
-            className="mb-3 min-h-11 text-base text-ink-3 hover:text-accent-2"
-            onClick={goBack}
-          >
+          <button className={`mb-4 ${BACK_BUTTON}`} onClick={goBack}>
             {t.backToMasters}
           </button>
           <h1 className="mb-5 text-2xl font-bold tracking-[-0.01em] sm:text-3xl">
@@ -314,10 +316,7 @@ export default function BookingFlow() {
       {/* With several services SlotPicker shows its own "change service"
         control; with one (auto-picked) there was no way back at all. */}
       {!multipleServices && (
-        <button
-          className="mx-3 mb-2 min-h-11 text-base text-ink-3 hover:text-accent-2 sm:mx-6"
-          onClick={goBack}
-        >
+        <button className={`mx-3 mb-3 sm:mx-6 ${BACK_BUTTON}`} onClick={goBack}>
           {t.backToMasters}
         </button>
       )}
