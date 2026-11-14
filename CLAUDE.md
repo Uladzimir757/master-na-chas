@@ -336,6 +336,14 @@ Service worker (`web/public/sw.js`): страницы и RSC-описания с
   `vars` (`""`) — валится проверка всего файла; `APP_STORE_APPLE_ID`
   закомментирован до создания записи в App Store Connect.
   Шаги — `docs/mobile-app-handoff.md`, «iOS / Codemagic».
+- **SMS клиентам на проде ВЫКЛЮЧЕНЫ** (проверено по логам 14.11.2026: на
+  каждый заказ `client_notification_skipped: no active channel`). Клиент
+  не получает ни «принят/подтверждён», ни ссылку подтверждения выполнения,
+  ни ссылку «Masz już zamówienie?» — пуш только если открывал заказ в
+  приложении. Нужно от пользователя: аккаунт Twilio, на Render у API —
+  `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `SMS_ENABLED=true` (отправитель
+  `TWILIO_SENDER_ID`, сейчас «MasterNaChas», ≤11 латинских). Мастеру пуши и
+  Telegram работают.
 - Ждут пользователя также: окончательный app id (`pl.zr.app` временный —
   решить до первой загрузки в стор), платный тариф Render + тик (см. выше).
 - Проверить на живом телефоне: таймер/подтверждение с временем доезда,

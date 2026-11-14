@@ -22,7 +22,7 @@ import { registerNativePush } from "@/lib/native";
 import { useLocale } from "@/lib/LocaleContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import ProviderMap from "@/components/ProviderMap";
-import { Card, Centered, CompactButton } from "@/components/ui";
+import { backButtonClass, Card, Centered, CompactButton } from "@/components/ui";
 
 const SLOT_DAYS = 7;
 const POLL_MS = 30_000;
@@ -174,7 +174,14 @@ export default function MyBookingPage() {
 
   return (
     <main className="theme-warm flex min-h-screen flex-col items-center gap-4 px-0 py-6 sm:px-4 sm:py-10">
-      <div className="flex w-full max-w-md justify-end px-3">
+      <div className="flex w-full max-w-md items-center justify-between gap-3 px-3">
+        {ready ? (
+          <Link href="/" className={backButtonClass}>
+            {t.backToBooking}
+          </Link>
+        ) : (
+          <span />
+        )}
         <LanguageSwitcher />
       </div>
       <div className="w-full max-w-md">

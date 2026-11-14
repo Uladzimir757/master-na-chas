@@ -41,7 +41,8 @@ export default function ProviderMap({ lat, lng, className }: Props) {
       const L = (await import("leaflet")).default;
       if (cancelled || !containerRef.current || mapRef.current) return;
 
-      mapRef.current = L.map(containerRef.current, { zoomControl: false }).setView([lat, lng], 15);
+      // «+ / −» buttons: pinch alone wasn't discoverable (tester, 14.11.2026)
+      mapRef.current = L.map(containerRef.current, { zoomControl: true }).setView([lat, lng], 15);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',

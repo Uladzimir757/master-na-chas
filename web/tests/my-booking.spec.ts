@@ -173,3 +173,9 @@ test("other bookings of the same phone are found through a live link", async ({ 
   const card = page.getByRole("link", { name: new RegExp(t.homeWhereIsMaster.replace("?", "\?")) });
   await expect(card).toHaveAttribute("href", `/booking/?id=${OTHER}&token=tok2`);
 });
+
+test("the booking page has a way back to the home page", async ({ page }) => {
+  await mockMyBooking(page, { status: "confirmed" });
+  await page.goto(`/booking/?id=${ID}&token=secret`);
+  await expect(page.getByRole("link", { name: t.backToBooking })).toHaveAttribute("href", "/");
+});

@@ -120,3 +120,8 @@ export function Tabs<T extends string>({
     </div>
   );
 }
+
+// «← back» on client pages: a real outlined button, not grey text — testers
+// missed the way back (14.11.2026).
+export const backButtonClass =
+  "inline-flex min-h-11 items-center rounded-full border-2 border-accent bg-surface px-5 text-base font-semibold text-accent-2 transition hover:bg-accent hover:text-on-accent";
