@@ -33,8 +33,10 @@
   --bg: #fbf6ee;
   --surface: #fffdf9;
   --ink: #2b2622;
-  --ink-2: #7a6f66;
-  --ink-3: #7a6f66;
+  /* Secondary text was #7a6f66 (~4.6:1 on the cream) — testers called
+     dates and the master's name unreadable on the phone (14.11.2026). */
+  --ink-2: #4f463f;
+  --ink-3: #5c534b;
   --kicker: #3e7d6b;
   --accent: #3e7d6b;
   --accent-2: #2f6354;

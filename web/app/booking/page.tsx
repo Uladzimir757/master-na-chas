@@ -186,8 +186,8 @@ export default function MyBookingPage() {
             <div className="flex flex-col gap-4">
               <h1 className="text-lg font-bold">{t.myBookingTitle}</h1>
               <div>
-                <div className="font-medium">{booking.service_name}</div>
-                <div className="text-sm text-ink-2">
+                <div className="text-xl font-bold">{booking.service_name}</div>
+                <div className="mt-1 text-base font-medium text-ink">
                   {booking.provider_name} · {fmt(booking.start_at)}–
                   {fmtTime(booking.end_at)}
                 </div>
@@ -202,11 +202,11 @@ export default function MyBookingPage() {
                     </a>
                   </div>
                 )}
-                <span className="mt-2 inline-block rounded-full bg-bg px-2.5 py-1 text-xs">
+                <span className="mt-2 inline-block rounded-full bg-bg px-3 py-1 text-sm font-medium">
                   {t.bookingStatusLabel[booking.status] ?? booking.status}
                 </span>
                 {booking.status === "confirmed" && booking.travel_minutes && (
-                  <p className="mt-2 text-sm text-ink-2">
+                  <p className="mt-2 text-base text-ink">
                     {t.myBookingTravel(
                       booking.travel_minutes,
                       fmtTime(arrivalAt),
@@ -225,7 +225,7 @@ export default function MyBookingPage() {
                   !booking.location &&
                   booking.tracking_from &&
                   now < new Date(booking.tracking_from).getTime() && (
-                    <p className="mt-2 text-sm text-ink-2">
+                    <p className="mt-2 text-base text-ink">
                       {t.myBookingTrackingSoon(fmt(booking.tracking_from))}
                     </p>
                   )}
@@ -274,7 +274,7 @@ export default function MyBookingPage() {
 
               {booking.can_change && !picking && (
                 <>
-                  <p className="text-xs text-ink-2">
+                  <p className="text-sm text-ink-2">
                     {t.myBookingTooLate} {fmt(booking.change_deadline)}
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -301,7 +301,7 @@ export default function MyBookingPage() {
               {!booking.can_change &&
                 (booking.status === "pending" ||
                   booking.status === "confirmed") && (
-                  <p className="text-sm text-ink-2">
+                  <p className="text-base text-ink">
                     {t.myBookingTooLateCall}
                   </p>
                 )}
@@ -374,7 +374,7 @@ export default function MyBookingPage() {
               )}
 
               <div className="border-t border-line pt-3">
-                <h2 className="mb-2 text-sm font-semibold">
+                <h2 className="mb-1 text-base font-bold">
                   {t.myBookingHistoryTitle}
                 </h2>
                 {history.length <= 1 ? (
@@ -382,20 +382,24 @@ export default function MyBookingPage() {
                     {t.myBookingHistoryEmpty}
                   </p>
                 ) : (
-                  <ul className="flex flex-col gap-1.5 text-sm">
+                  // One booking per row, top to bottom: a two-column row
+                  // squeezed long service names into 4 lines (14.11.2026).
+                  <ul className="flex flex-col divide-y divide-line">
                     {history
                       .filter((h) => h.id !== booking.id)
                       .map((h) => (
-                        <li key={h.id} className="flex justify-between gap-2">
-                          <span>
-                            {h.service_name} · {h.provider_name}
-                          </span>
-                          <span className="shrink-0 text-ink-2">
-                            {fmt(h.start_at)} ·{" "}
-                            {t.bookingStatusLabel[h.status] ?? h.status}
+                        <li key={h.id} className="py-2.5">
+                          <div className="text-base font-semibold">
+                            {h.service_name}
+                          </div>
+                          <div className="mt-0.5 text-base text-ink-2">
+                            {h.provider_name} · {fmt(h.start_at)}
                             {h.price
                               ? ` · ${Number(h.price).toFixed(0)} zł`
                               : ""}
+                          </div>
+                          <span className="mt-1 inline-block rounded-full bg-bg px-2.5 py-0.5 text-sm">
+                            {t.bookingStatusLabel[h.status] ?? h.status}
                           </span>
                         </li>
                       ))}
