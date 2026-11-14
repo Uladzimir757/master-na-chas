@@ -17,6 +17,7 @@ import {
   businessHour,
   dateKey,
   formatDayLabel,
+  formatPriceRange,
   formatTime,
   toDateParam,
 } from "@/lib/format";
@@ -24,6 +25,7 @@ import { useLocale } from "@/lib/LocaleContext";
 import type { Translations } from "@/lib/i18n";
 import { Button, Card, Centered, inputClass } from "@/components/ui";
 import { PriceLabel } from "@/components/PriceLabel";
+import { OrderSummary } from "@/components/OrderSummary";
 import ProviderMap from "@/components/ProviderMap";
 
 // How often the "N мин назад" label under the map recomputes (Этап 4) — a
@@ -288,14 +290,21 @@ export default function SlotPicker({
           <h1 className="text-2xl font-bold tracking-[-0.01em]">
             {t.bookingCreatedTitle}
           </h1>
-          <p className="text-ink-2">
-            {service.name} · {providerName(booking.provider_id)}
-            <br />
-            {formatDayLabel(booking.start_at, locale, t)},{" "}
-            <span className="tabular-nums">
-              {formatTime(booking.start_at, locale)}
-            </span>
-          </p>
+          <OrderSummary
+            t={t}
+            service={service.name}
+            master={providerName(booking.provider_id)}
+            when={
+              <>
+                {formatDayLabel(booking.start_at, locale, t)},{" "}
+                <span className="tabular-nums">
+                  {formatTime(booking.start_at, locale)}
+                </span>
+              </>
+            }
+            price={formatPriceRange(service.price_min, service.price_max, t)}
+            callOutFee={providerCallOutFee(booking.provider_id) ?? null}
+          />
           <p className="text-base text-ink-2">
             {confirmNote ??
               (booking.status === "pending"
@@ -441,22 +450,23 @@ export default function SlotPicker({
 
         {selectedSlot && (
           <div ref={formSectionRef} className="mt-5 border-t border-line pt-4">
-            <p className="mb-3 text-base text-ink-2">
-              {formatDayLabel(selectedSlot.start_at, locale, t)},{" "}
-              <span className="tabular-nums">
-                {formatTime(selectedSlot.start_at, locale)}
-              </span>{" "}
-              · {providerName(selectedSlot.provider_id)}
-              {providerCallOutFee(selectedSlot.provider_id) ? (
-                <span className="text-ink-2">
-                  {" "}
-                  ·{" "}
-                  {t.callOutFeeLine(
-                    providerCallOutFee(selectedSlot.provider_id)!,
-                  )}
-                </span>
-              ) : null}
-            </p>
+            <div className="mb-4">
+              <OrderSummary
+                t={t}
+                service={service.name}
+                master={providerName(selectedSlot.provider_id)}
+                when={
+                  <>
+                    {formatDayLabel(selectedSlot.start_at, locale, t)},{" "}
+                    <span className="tabular-nums">
+                      {formatTime(selectedSlot.start_at, locale)}
+                    </span>
+                  </>
+                }
+                price={formatPriceRange(service.price_min, service.price_max, t)}
+                callOutFee={providerCallOutFee(selectedSlot.provider_id) ?? null}
+              />
+            </div>
 
             {providerLocation(selectedSlot.provider_id) && (
               // key={locationClock}: the only reason this block re-renders on

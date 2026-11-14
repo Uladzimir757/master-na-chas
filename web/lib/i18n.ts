@@ -150,6 +150,13 @@ export interface Translations {
   locationAlwaysHint: string;
   locationAlwaysButton: string;
   masterLocationTitle: string;
+  // components/OrderSummary.tsx
+  orderSummaryTitle: string;
+  summaryService: string;
+  summaryMaster: string;
+  summaryWhen: string;
+  summaryPrice: string;
+  priceToAgree: string;
   masterLocationJustNow: string;
   masterLocationMinutesAgo: (n: number) => string;
 
@@ -564,6 +571,12 @@ export function buildTranslations(map: TranslationMap): Translations {
     locationAlwaysHint: pick(map, "locationAlwaysHint"),
     locationAlwaysButton: pick(map, "locationAlwaysButton"),
     masterLocationTitle: pick(map, "masterLocationTitle"),
+    orderSummaryTitle: pick(map, "orderSummaryTitle"),
+    summaryService: pick(map, "summaryService"),
+    summaryMaster: pick(map, "summaryMaster"),
+    summaryWhen: pick(map, "summaryWhen"),
+    summaryPrice: pick(map, "summaryPrice"),
+    priceToAgree: pick(map, "priceToAgree"),
     masterLocationJustNow: pick(map, "masterLocationJustNow"),
     masterLocationMinutesAgo: (n) =>
       interpolate(pick(map, "masterLocationMinutesAgo"), { n }),

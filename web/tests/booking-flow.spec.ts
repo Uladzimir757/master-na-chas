@@ -22,11 +22,18 @@ for (const status of ["pending", "confirmed"] as const) {
     const slotLabel = formatTime(SLOT_A.start_at, "pl");
     await page.getByRole("button", { name: new RegExp(slotLabel) }).click();
 
+    // what is being ordered and for how much — before confirming
+    // (components/OrderSummary.tsx)
+    const summary = page.getByRole("region", { name: t.orderSummaryTitle });
+    await expect(summary).toContainText(SERVICE.name);
+    await expect(summary).toContainText(t.priceRange(SERVICE.price_min!, SERVICE.price_max!));
+
     await page.getByPlaceholder(t.namePlaceholder).fill("Иван");
     await page.getByPlaceholder(t.phonePlaceholder).fill("+48123456789");
     await page.getByRole("button", { name: t.submitBooking }).click();
 
     await expect(page.getByText(t.bookingCreatedTitle)).toBeVisible();
+    await expect(page.getByRole("region", { name: t.orderSummaryTitle })).toContainText(SERVICE.name);
     const expectedNote = status === "pending" ? t.bookingPending : t.bookingConfirmed;
     await expect(page.getByText(expectedNote)).toBeVisible();
   });

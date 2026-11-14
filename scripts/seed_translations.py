@@ -233,6 +233,12 @@ ENTRIES: list[tuple[str, str, str]] = [
     ("locationSharingUnsupported", "Ta przeglądarka nie obsługuje geolokalizacji.", "This browser doesn't support geolocation."),
     ("locationSharingError", "Nie udało się ustalić lokalizacji.", "Couldn't determine your location."),
     ("masterLocationTitle", "Mistrz jest teraz tutaj", "The specialist is here now"),
+    ("orderSummaryTitle", "Twoje zamówienie", "Your booking"),
+    ("summaryService", "Usługa", "Service"),
+    ("summaryMaster", "Mistrz", "Specialist"),
+    ("summaryWhen", "Termin", "When"),
+    ("summaryPrice", "Cena", "Price"),
+    ("priceToAgree", "do ustalenia z mistrzem", "to agree with the specialist"),
     ("masterLocationJustNow", "Przed chwilą", "Just now"),
     ("masterLocationMinutesAgo", "{n} min temu", "{n} min ago"),
     # "Занят сейчас" — general busy toggle (Provider.busy_started_at), see
