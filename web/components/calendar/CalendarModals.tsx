@@ -36,6 +36,7 @@ import {
   statusClasses,
   timeToHhmm,
   weekdayHeaderLabel,
+  bookingStarted,
 } from "./helpers";
 
 // ----------------------------------------------------------------------------
@@ -681,9 +682,10 @@ export function EventDetailsModal({
                 {t.cancelBookingButton}
               </CompactButton>
             )}
-            {/* переносить имеет смысл только живую запись */}
+            {/* переносить имеет смысл только живую и ещё не начатую запись */}
             {!confirming &&
-              (event.status === "pending" || event.status === "confirmed") && (
+              (event.status === "pending" || event.status === "confirmed") &&
+              !bookingStarted(event.start_at) && (
               <CompactButton
                 variant="secondary"
                 disabled={busy}

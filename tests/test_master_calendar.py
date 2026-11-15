@@ -455,3 +455,34 @@ async def test_reschedule_by_master_notifies_the_client(
     assert sent[0]["phone"] == "+48500100200"
     assert sent[0]["facts"]["old_time"] == "09:00"
     assert "tok-move" in sent[0]["must_include"]
+
+
+async def test_reschedule_rejects_a_booking_already_under_way(
+    logged_in_client: AsyncClient, db_session: AsyncSession, provider: Provider, service: Service
+):
+    # тестер 15.11.2026: идущий заказ (11:00) перетащили на прошедшие 09:45
+    from datetime import timezone
+
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    booking = await _make_booking(
+        db_session, provider_id=provider.id, service_id=service.id, start=now - timedelta(minutes=30)
+    )
+    resp = await logged_in_client.patch(
+        f"/api/bookings/{booking.id}/reschedule",
+        json={"start_at": _dt(14).isoformat(), "end_at": _dt(15).isoformat()},
+    )
+    assert resp.status_code == 409, resp.text
+
+
+async def test_reschedule_rejects_a_new_time_in_the_past(
+    logged_in_client: AsyncClient, db_session: AsyncSession, provider: Provider, service: Service
+):
+    from datetime import timezone
+
+    booking = await _make_booking(db_session, provider_id=provider.id, service_id=service.id, start=_dt(9))
+    past = datetime.now(timezone.utc).replace(microsecond=0) - timedelta(hours=2)
+    resp = await logged_in_client.patch(
+        f"/api/bookings/{booking.id}/reschedule",
+        json={"start_at": past.isoformat(), "end_at": (past + timedelta(hours=1)).isoformat()},
+    )
+    assert resp.status_code == 409, resp.text

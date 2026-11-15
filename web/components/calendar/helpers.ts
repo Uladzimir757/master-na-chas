@@ -148,3 +148,9 @@ export function weekdayHeaderLabel(dateStr: string, locale: LocaleCode): string 
 export function monthTitle(anchor: Date, locale: LocaleCode): string {
   return new Intl.DateTimeFormat(toIntlTag(locale), { month: "long", year: "numeric", timeZone: "Europe/Warsaw" }).format(anchor);
 }
+
+/** A booking whose start time has come: it can no longer be moved (the
+ *  server answers 409 too — app/main.py reschedule_booking). */
+export function bookingStarted(startAt: string, now: number = Date.now()): boolean {
+  return new Date(startAt).getTime() <= now;
+}

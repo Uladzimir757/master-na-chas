@@ -9,7 +9,7 @@
 
 import { useRef, useState } from "react";
 import { businessHourMinute, dateKey } from "@/lib/format";
-import { type CalEvent, PX_PER_MINUTE, SNAP_MINUTES, DRAG_THRESHOLD_PX, eventHeight, eventTop, statusClasses, timeToHhmm } from "./helpers";
+import { bookingStarted, type CalEvent, PX_PER_MINUTE, SNAP_MINUTES, DRAG_THRESHOLD_PX, eventHeight, eventTop, statusClasses, timeToHhmm } from "./helpers";
 
 export function EventChip({
   event,
@@ -36,9 +36,10 @@ export function EventChip({
   const widthPct = 100 / totalCols;
   const leftPct = col * widthPct;
   // отменённую/выполненную запись не двигаем — только открыть (сервер
-  // тоже отвечает 409, решение 12.11.2026)
+  // тоже отвечает 409, решение 12.11.2026); начатую — тоже (15.11.2026)
   const movable =
-    event.kind !== "booking" || event.status === "pending" || event.status === "confirmed";
+    event.kind !== "booking" ||
+    ((event.status === "pending" || event.status === "confirmed") && !bookingStarted(event.start_at));
 
   const handlePointerDown = (ev: React.PointerEvent<HTMLDivElement>) => {
     if (ev.button !== 0 && ev.pointerType === "mouse") return;

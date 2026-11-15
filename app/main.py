@@ -1166,6 +1166,13 @@ async def reschedule_booking(
     # раньше это позволяло — решение пользователя 12.11.2026)
     if booking.status not in (BookingStatus.pending, BookingStatus.confirmed):
         raise HTTPException(status.HTTP_409_CONFLICT, "Only an active booking can be moved")
+    # Начатый заказ не двигаем, и в прошлое тоже (тестер 15.11.2026: мастер
+    # перетащил идущий заказ с 11:00 на уже прошедшие 09:45).
+    now = datetime.now(timezone.utc)
+    if booking.start_at <= now:
+        raise HTTPException(status.HTTP_409_CONFLICT, "The booking has already started")
+    if payload.start_at < now:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Can't move a booking into the past")
 
     if await overlaps_any_provider_block(db, provider.id, payload.start_at, payload.end_at):
         raise HTTPException(status.HTTP_409_CONFLICT, "You have blocked this time on your calendar")
