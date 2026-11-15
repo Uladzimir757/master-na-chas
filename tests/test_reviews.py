@@ -32,7 +32,8 @@ async def _make_booking(
     status: BookingStatus = BookingStatus.confirmed,
     client_phone: str | None = "+48600000000",
 ) -> Booking:
-    start_at = datetime.combine(NEXT_MONDAY, datetime.min.time(), tzinfo=BUSINESS_TZ).replace(hour=9)
+    # в прошлом: «выполнено» мастер ставит только после начала заказа
+    start_at = datetime.combine(NEXT_MONDAY - timedelta(days=14), datetime.min.time(), tzinfo=BUSINESS_TZ).replace(hour=9)
     row = Booking(
         id=uuid.uuid4(),
         tenant_id=(await db_session.get(Provider, provider_id)).tenant_id,
@@ -297,3 +298,38 @@ async def test_list_provider_reviews_public(
 async def test_list_provider_reviews_unknown_provider_404(client: AsyncClient):
     resp = await client.get(f"/api/providers/{uuid.uuid4()}/reviews")
     assert resp.status_code == 404
+
+
+
+async def test_cannot_mark_completed_before_the_job_starts(
+    logged_in_client: AsyncClient, db_session: AsyncSession, provider: Provider, service: Service
+):
+    # тестер 15.11.2026: заказ на 12:00 закрыли «выполнено» до 12:00
+    start_at = datetime.combine(NEXT_MONDAY, datetime.min.time(), tzinfo=BUSINESS_TZ).replace(hour=9)
+    row = Booking(
+        id=uuid.uuid4(), tenant_id=provider.tenant_id, provider_id=provider.id, service_id=service.id,
+        client_name="Клиент", client_phone="+48600000000", start_at=start_at,
+        end_at=start_at + timedelta(hours=1), status=BookingStatus.confirmed,
+    )
+    db_session.add(row)
+    await db_session.commit()
+    for st in ("completed", "no_show"):
+        resp = await logged_in_client.patch(f"/api/bookings/{row.id}/status", json={"status": st})
+        assert resp.status_code == 409, resp.text
+
+
+async def test_my_booking_page_gets_the_review_token_once_completed(
+    client: AsyncClient, db_session: AsyncSession, provider: Provider, service: Service
+):
+    booking = await _make_booking(db_session, provider_id=provider.id, service_id=service.id, status=BookingStatus.completed)
+    booking.manage_token = "mt-1"
+    db_session.add(ReviewInvite(token="rv-1", booking_id=booking.id, expires_at=datetime.now(timezone.utc) + timedelta(days=1)))
+    await db_session.commit()
+    body = (await client.get(f"/api/my-booking/{booking.id}", params={"token": "mt-1"})).json()
+    assert body["review_token"] == "rv-1" and body["reviewed"] is False and body["client_confirmation"] is None
+
+    invite = await db_session.get(ReviewInvite, "rv-1")
+    invite.used_at = datetime.now(timezone.utc)
+    await db_session.commit()
+    body = (await client.get(f"/api/my-booking/{booking.id}", params={"token": "mt-1"})).json()
+    assert body["review_token"] is None and body["reviewed"] is True

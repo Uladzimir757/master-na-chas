@@ -97,6 +97,10 @@ export interface ProviderLocation {
 }
 
 export interface MyBooking {
+  // выполненный заказ: ответ клиента, токен для подтверждения/отзыва, был ли отзыв
+  client_confirmation?: "confirmed" | "problem" | null;
+  review_token?: string | null;
+  reviewed?: boolean;
   id: string;
   service_name: string;
   provider_name: string;

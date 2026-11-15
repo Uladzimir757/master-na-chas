@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   api,
+  ApiError,
   type MyBooking,
   type MyBookingHistoryItem,
   type Slot,
@@ -22,7 +23,7 @@ import { registerNativePush } from "@/lib/native";
 import { useLocale } from "@/lib/LocaleContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import ProviderMap from "@/components/ProviderMap";
-import { backButtonClass, Card, Centered, CompactButton } from "@/components/ui";
+import { backButtonClass, Card, Centered, CompactButton, inputClass } from "@/components/ui";
 
 const SLOT_DAYS = 7;
 const POLL_MS = 30_000;
@@ -305,6 +306,15 @@ export default function MyBookingPage() {
               {message && <p className="text-sm text-accent-2">{message}</p>}
               {error && <p className="text-sm text-danger">{error}</p>}
 
+              {booking.status === "completed" && id && (
+                <JobDoneBlock
+                  bookingId={id}
+                  reviewToken={booking.review_token ?? null}
+                  answer={booking.client_confirmation ?? null}
+                  reviewed={booking.reviewed ?? false}
+                />
+              )}
+
               {/* Отменённая/прошедшая запись — не тупик: сразу записаться снова. */}
               {(booking.status === "cancelled" ||
                 booking.status === "completed" ||
@@ -458,5 +468,110 @@ export default function MyBookingPage() {
         </Card>
       </div>
     </main>
+  );
+}
+
+
+// Выполненный заказ прямо на странице клиента (тестер 15.11.2026: у клиента
+// не было кнопки, а SMS со ссылкой пока не уходят): «работа выполнена?» —
+// подтвердить или сообщить о проблеме, затем «Oceń mistrza».
+function JobDoneBlock({
+  bookingId,
+  reviewToken,
+  answer: initialAnswer,
+  reviewed,
+}: {
+  bookingId: string;
+  reviewToken: string | null;
+  answer: "confirmed" | "problem" | null;
+  reviewed: boolean;
+}) {
+  const { t, locale } = useLocale();
+  const [answer, setAnswer] = useState(initialAnswer);
+  const [problemOpen, setProblemOpen] = useState(false);
+  const [problemText, setProblemText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (reviewed) {
+    return <p className="rounded-xl border border-line bg-bg p-3 text-base">{t.reviewThankYou}</p>;
+  }
+  if (!reviewToken) return null;
+
+  const send = async (ok: boolean) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.confirmJobDone(
+        bookingId,
+        { token: reviewToken, ok, problem: ok ? null : problemText.trim() || null },
+        locale,
+      );
+      setAnswer(res.client_confirmation ?? (ok ? "confirmed" : "problem"));
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) setAnswer(ok ? "confirmed" : "problem");
+      else setError(t.jobAnswerError);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reviewHref = `/review/?booking_id=${bookingId}&token=${encodeURIComponent(reviewToken)}`;
+
+  return (
+    <section
+      aria-labelledby="job-done-title"
+      className="flex flex-col gap-3 rounded-2xl border border-accent/40 bg-accent/5 p-4"
+    >
+      {answer === null ? (
+        <>
+          <h2 id="job-done-title" className="text-lg font-bold">
+            {t.jobDoneQuestion}
+          </h2>
+          {!problemOpen ? (
+            <div className="flex flex-wrap gap-2">
+              <CompactButton disabled={busy} onClick={() => void send(true)}>
+                {t.jobDoneConfirm}
+              </CompactButton>
+              <CompactButton variant="secondary" disabled={busy} onClick={() => setProblemOpen(true)}>
+                {t.jobDoneProblem}
+              </CompactButton>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <textarea
+                className={inputClass}
+                rows={3}
+                placeholder={t.jobProblemPlaceholder}
+                value={problemText}
+                onChange={(e) => setProblemText(e.target.value)}
+                maxLength={2000}
+              />
+              <div className="flex flex-wrap gap-2">
+                <CompactButton disabled={busy} onClick={() => void send(false)}>
+                  {t.jobProblemSend}
+                </CompactButton>
+                <CompactButton variant="secondary" disabled={busy} onClick={() => setProblemOpen(false)}>
+                  {t.travelBack}
+                </CompactButton>
+              </div>
+            </div>
+          )}
+          {error && <p className="text-sm text-danger">{error}</p>}
+        </>
+      ) : (
+        <>
+          <h2 id="job-done-title" className="text-lg font-bold">
+            {answer === "problem" ? t.jobProblemSent : t.rateMasterTitle}
+          </h2>
+          <Link
+            href={reviewHref}
+            className="inline-flex min-h-12 items-center justify-center self-start rounded-full bg-accent px-6 py-2 text-base font-semibold text-on-accent transition hover:bg-accent-2"
+          >
+            {t.rateMasterButton}
+          </Link>
+        </>
+      )}
+    </section>
   );
 }

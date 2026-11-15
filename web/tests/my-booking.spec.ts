@@ -237,3 +237,31 @@ test("after the booked time the page says so, without the no-location note", asy
   await expect(page.getByText(t.myBookingTimeOver)).toBeVisible();
   await expect(page.getByText(t.myBookingNoLocation)).toHaveCount(0);
 });
+
+test("a completed booking: the client confirms the job right here, then gets «rate the specialist»", async ({ page }) => {
+  const sent: unknown[] = [];
+  await page.route(`**/api/reviews/invite/${ID}/confirm**`, async (route) => {
+    sent.push(route.request().postDataJSON());
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ provider_name: "x", service_name: "y", start_at: iso(-60), client_name: "z", client_confirmation: "confirmed" }),
+    });
+  });
+  await mockMyBooking(page, { status: "completed", review_token: "rv-1", client_confirmation: null, reviewed: false });
+  await page.goto(`/booking/?id=${ID}&token=secret`);
+
+  await expect(page.getByRole("heading", { name: t.jobDoneQuestion })).toBeVisible();
+  await page.getByRole("button", { name: t.jobDoneConfirm }).click();
+
+  const rate = page.getByRole("link", { name: t.rateMasterButton });
+  await expect(rate).toHaveAttribute("href", `/review/?booking_id=${ID}&token=rv-1`);
+  expect(sent).toEqual([{ token: "rv-1", ok: true, problem: null }]);
+});
+
+test("a completed and reviewed booking just says thank you", async ({ page }) => {
+  await mockMyBooking(page, { status: "completed", review_token: null, client_confirmation: "confirmed", reviewed: true });
+  await page.goto(`/booking/?id=${ID}&token=secret`);
+  await expect(page.getByText(t.reviewThankYou)).toBeVisible();
+  await expect(page.getByRole("button", { name: t.jobDoneConfirm })).toHaveCount(0);
+});

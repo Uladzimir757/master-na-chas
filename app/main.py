@@ -1047,6 +1047,14 @@ async def update_booking_status(
     ):
         await _expire_overdue(db)
         raise HTTPException(status.HTTP_409_CONFLICT, "Confirmation deadline has passed")
+    # «Выполнено» / «не пришёл» — только когда время заказа наступило
+    # (тестер 15.11.2026: заказ на 12:00 закрыли до 12:00).
+    if (
+        payload.status in (BookingStatus.completed, BookingStatus.no_show)
+        and booking.status != payload.status
+        and datetime.now(timezone.utc) < booking.start_at
+    ):
+        raise HTTPException(status.HTTP_409_CONFLICT, "The job hasn't started yet")
     was_completed = booking.status == BookingStatus.completed
     newly_confirmed = payload.status == BookingStatus.confirmed and booking.status != BookingStatus.confirmed
     booking.status = payload.status
@@ -2163,6 +2171,19 @@ async def _my_booking_out(db: AsyncSession, booking: Booking, lang: str = DEFAUL
     ):
         location = await _resolve_provider_location(db, provider, now)
     expected = await _expected_arrival(db, booking, booking.travel_minutes)
+    # Выполненный заказ: подтверждение и отзыв прямо на странице заказа, не
+    # только по SMS-ссылке (тестер 15.11.2026: у клиента не было кнопки).
+    # Токен отзыва отдаём держателю manage_token — это тот же клиент.
+    review_token = None
+    reviewed = False
+    if booking.status == BookingStatus.completed:
+        invite = (
+            await db.execute(select(ReviewInvite).where(ReviewInvite.booking_id == booking.id))
+        ).scalar_one_or_none()
+        if invite is not None:
+            reviewed = invite.used_at is not None
+            if not reviewed and invite.expires_at > now:
+                review_token = invite.token
     return MyBookingOut(
         id=booking.id,
         service_name=_resolve_service_name(service, _resolve_lang(lang)) if service else "",
@@ -2179,6 +2200,9 @@ async def _my_booking_out(db: AsyncSession, booking: Booking, lang: str = DEFAUL
         tracking_from=booking.start_at - timedelta(hours=settings.TRACK_WINDOW_HOURS),
         expected_arrival_at=expected[0] if expected else None,
         provider_phone=_visible_master_phone(provider, booking),
+        client_confirmation=booking.client_confirmation,
+        review_token=review_token,
+        reviewed=reviewed,
     )
 
 

@@ -635,7 +635,12 @@ export function EventDetailsModal({
                 {t.confirmBookingButton}
               </CompactButton>
             )}
-            {event.status === "confirmed" && !completing && (
+            {/* «выполнено» — только когда время заказа наступило (сервер тоже
+                отвечает 409; тестер 15.11.2026 закрыл заказ на 12:00 до 12:00) */}
+            {event.status === "confirmed" && !completing && !bookingStarted(event.start_at) && (
+              <p className="w-full text-sm text-ink-2">{t.completeAfterStart}</p>
+            )}
+            {event.status === "confirmed" && !completing && bookingStarted(event.start_at) && (
               <CompactButton
                 disabled={busy}
                 onClick={() => setCompleting(true)}

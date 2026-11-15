@@ -121,7 +121,8 @@ async def test_analytics_per_service(
 async def test_complete_with_price_is_saved(
     logged_in_client: AsyncClient, db_session: AsyncSession, provider: Provider, service: Service
 ):
-    s = datetime.combine(NEXT_MONDAY, time(9, 0), tzinfo=BUSINESS_TZ)
+    # «выполнено» — только после начала заказа (app/main.py update_booking_status)
+    s = datetime.combine(NEXT_MONDAY - timedelta(days=14), time(9, 0), tzinfo=BUSINESS_TZ)
     b = Booking(id=uuid.uuid4(), tenant_id=provider.tenant_id, provider_id=provider.id, service_id=service.id,
                 client_name="K", start_at=s, end_at=s + timedelta(hours=1), status=BookingStatus.confirmed)
     db_session.add(b)

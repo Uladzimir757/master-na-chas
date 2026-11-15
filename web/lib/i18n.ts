@@ -150,6 +150,9 @@ export interface Translations {
   locationAlwaysHint: string;
   locationAlwaysButton: string;
   masterLocationTitle: string;
+  completeAfterStart: string;
+  rateMasterTitle: string;
+  rateMasterButton: string;
   myBookingInProgress: string;
   myBookingTimeOver: string;
   myBookingNoLocation: string;
@@ -592,6 +595,9 @@ export function buildTranslations(map: TranslationMap): Translations {
     locationAlwaysHint: pick(map, "locationAlwaysHint"),
     locationAlwaysButton: pick(map, "locationAlwaysButton"),
     masterLocationTitle: pick(map, "masterLocationTitle"),
+    completeAfterStart: pick(map, "completeAfterStart"),
+    rateMasterTitle: pick(map, "rateMasterTitle"),
+    rateMasterButton: pick(map, "rateMasterButton"),
     myBookingInProgress: pick(map, "myBookingInProgress"),
     myBookingTimeOver: pick(map, "myBookingTimeOver"),
     myBookingNoLocation: pick(map, "myBookingNoLocation"),

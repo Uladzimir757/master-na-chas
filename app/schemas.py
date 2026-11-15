@@ -920,6 +920,11 @@ class MyBookingOut(BaseModel):
     expected_arrival_at: datetime | None = None
     location: ProviderLocationOut | None = None  # живая точка мастера (если можно показывать)
     provider_phone: str | None = None  # по настройке мастера (_visible_master_phone)
+    # выполненный заказ: ответ клиента на «работа выполнена?», токен для
+    # подтверждения/отзыва прямо со страницы и был ли уже отзыв
+    client_confirmation: str | None = None
+    review_token: str | None = None
+    reviewed: bool = False
 
 
 class MyBookingReschedule(BaseModel):
