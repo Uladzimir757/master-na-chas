@@ -233,6 +233,8 @@ ENTRIES: list[tuple[str, str, str]] = [
     ("locationSharingUnsupported", "Ta przeglądarka nie obsługuje geolokalizacji.", "This browser doesn't support geolocation."),
     ("locationSharingError", "Nie udało się ustalić lokalizacji.", "Couldn't determine your location."),
     ("masterLocationTitle", "Mistrz jest teraz tutaj", "The specialist is here now"),
+    ("mapFullscreen", "Na cały ekran", "Full screen"),
+    ("mapExitFullscreen", "Zamknij", "Close"),
     ("orderSummaryTitle", "Twoje zamówienie", "Your booking"),
     ("jobDoneQuestion", "Czy praca została wykonana?", "Was the job done?"),
     ("jobDoneConfirm", "Tak, potwierdzam", "Yes, I confirm"),

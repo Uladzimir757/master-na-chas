@@ -150,6 +150,8 @@ export interface Translations {
   locationAlwaysHint: string;
   locationAlwaysButton: string;
   masterLocationTitle: string;
+  mapFullscreen: string;
+  mapExitFullscreen: string;
   // клиент подтверждает выполнение (app/review) и ищет заказы по номеру
   jobDoneQuestion: string;
   jobDoneConfirm: string;
@@ -586,6 +588,8 @@ export function buildTranslations(map: TranslationMap): Translations {
     locationAlwaysHint: pick(map, "locationAlwaysHint"),
     locationAlwaysButton: pick(map, "locationAlwaysButton"),
     masterLocationTitle: pick(map, "masterLocationTitle"),
+    mapFullscreen: pick(map, "mapFullscreen"),
+    mapExitFullscreen: pick(map, "mapExitFullscreen"),
     jobDoneQuestion: pick(map, "jobDoneQuestion"),
     jobDoneConfirm: pick(map, "jobDoneConfirm"),
     jobDoneProblem: pick(map, "jobDoneProblem"),

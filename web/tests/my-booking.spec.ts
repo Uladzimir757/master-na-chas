@@ -179,3 +179,26 @@ test("the booking page has a way back to the home page", async ({ page }) => {
   await page.goto(`/booking/?id=${ID}&token=secret`);
   await expect(page.getByRole("link", { name: t.backToBooking })).toHaveAttribute("href", "/");
 });
+
+test("the master's map opens full screen and closes again", async ({ page }) => {
+  await page.route("**/tile.openstreetmap.org/**", (route) => route.abort());
+  await mockMyBooking(page, {
+    status: "confirmed",
+    location: { lat: 54.52, lng: 18.53, updated_at: new Date().toISOString() },
+  });
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto(`/booking/?id=${ID}&token=secret`);
+
+  const map = page.getByTestId("provider-map");
+  await expect(map).toBeVisible();
+  expect((await map.boundingBox())!.height).toBeLessThan(300);
+
+  await page.getByRole("button", { name: t.mapFullscreen }).click();
+  await expect.poll(async () => (await map.boundingBox())!.height).toBe(800);
+  // Leaflet's own classes survive the toggle (a React className swap wiped
+  // them once and the tiles shrank to 0 px)
+  await expect(map).toHaveClass(/leaflet-container/);
+
+  await page.getByRole("button", { name: t.mapExitFullscreen }).click();
+  await expect.poll(async () => (await map.boundingBox())!.height).toBeLessThan(300);
+});
