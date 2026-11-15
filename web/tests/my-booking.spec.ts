@@ -202,3 +202,38 @@ test("the master's map opens full screen and closes again", async ({ page }) => 
   await page.getByRole("button", { name: t.mapExitFullscreen }).click();
   await expect.poll(async () => (await map.boundingBox())!.height).toBeLessThan(300);
 });
+
+const iso = (minutesFromNow: number) => new Date(Date.now() + minutesFromNow * 60_000).toISOString();
+
+test("during the job: no stale travel text, and a note when the master isn't sharing location", async ({ page }) => {
+  await mockMyBooking(page, {
+    status: "confirmed",
+    start_at: iso(-30),
+    end_at: iso(15),
+    tracking_from: iso(-90),
+    travel_minutes: 30,
+    provider_phone: "+48600111222",
+    location: null,
+  });
+  await page.goto(`/booking/?id=${ID}&token=secret`);
+
+  await expect(page.getByText(t.myBookingInProgress)).toBeVisible();
+  await expect(page.getByText(t.myBookingNoLocation)).toBeVisible();
+  await expect(page.getByRole("link", { name: t.myBookingCallMaster })).toHaveAttribute("href", "tel:+48600111222");
+  await expect(page.getByText(/ехать около 30/)).toHaveCount(0);
+});
+
+test("after the booked time the page says so, without the no-location note", async ({ page }) => {
+  await mockMyBooking(page, {
+    status: "confirmed",
+    start_at: iso(-90),
+    end_at: iso(-45),
+    tracking_from: iso(-150),
+    travel_minutes: 30,
+    location: null,
+  });
+  await page.goto(`/booking/?id=${ID}&token=secret`);
+
+  await expect(page.getByText(t.myBookingTimeOver)).toBeVisible();
+  await expect(page.getByText(t.myBookingNoLocation)).toHaveCount(0);
+});

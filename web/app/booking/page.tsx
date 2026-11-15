@@ -64,6 +64,13 @@ export default function MyBookingPage() {
   // расчётный приезд с учётом предыдущей работы мастера (сервер сверил
   // время доезда с его календарём)
   const arrivalAt = booking ? (booking.expected_arrival_at ?? booking.start_at) : "";
+  // Where the job stands right now (tester 15.11.2026: at 11:32 the page
+  // still said «the master will be at yours at 11:00, leaves at 10:30»).
+  const isActive = booking?.status === "pending" || booking?.status === "confirmed";
+  const startMs = booking ? new Date(booking.start_at).getTime() : 0;
+  const endMs = booking ? new Date(booking.end_at).getTime() : 0;
+  const jobInProgress = isActive && now >= startMs && now < endMs;
+  const jobTimeOver = isActive && now >= endMs;
   const lateMinutes = booking
     ? Math.round((new Date(arrivalAt).getTime() - new Date(booking.start_at).getTime()) / 60_000)
     : 0;
@@ -212,7 +219,17 @@ export default function MyBookingPage() {
                 <span className="mt-2 inline-block rounded-full bg-bg px-3 py-1 text-sm font-medium">
                   {t.bookingStatusLabel[booking.status] ?? booking.status}
                 </span>
-                {booking.status === "confirmed" && booking.travel_minutes && (
+                {jobInProgress && (
+                  <p className="mt-2 text-base font-medium text-ink" role="status">
+                    {t.myBookingInProgress}
+                  </p>
+                )}
+                {jobTimeOver && (
+                  <p className="mt-2 text-base text-ink" role="status">
+                    {t.myBookingTimeOver}
+                  </p>
+                )}
+                {booking.status === "confirmed" && booking.travel_minutes && !jobInProgress && !jobTimeOver && (
                   <p className="mt-2 text-base text-ink">
                     {t.myBookingTravel(
                       booking.travel_minutes,
@@ -241,6 +258,29 @@ export default function MyBookingPage() {
               {booking.status === "cancelled" &&
                 booking.cancel_reason === "provider_timeout" && (
                   <p className="text-sm">{t.myBookingTimedOut}</p>
+                )}
+
+              {/* Tracking window open but no point: the master isn't sharing
+                  (or the phone lost GPS) — say so instead of an empty page. */}
+              {isActive &&
+                !booking.location &&
+                booking.tracking_from &&
+                now >= new Date(booking.tracking_from).getTime() &&
+                now < endMs && (
+                  <p className="rounded-xl border border-line bg-bg p-3 text-base text-ink">
+                    {t.myBookingNoLocation}
+                    {booking.provider_phone && (
+                      <>
+                        {" "}
+                        <a
+                          className="font-semibold text-accent underline"
+                          href={`tel:${booking.provider_phone}`}
+                        >
+                          {t.myBookingCallMaster}
+                        </a>
+                      </>
+                    )}
+                  </p>
                 )}
 
               {booking.location && (

@@ -150,6 +150,10 @@ export interface Translations {
   locationAlwaysHint: string;
   locationAlwaysButton: string;
   masterLocationTitle: string;
+  myBookingInProgress: string;
+  myBookingTimeOver: string;
+  myBookingNoLocation: string;
+  myBookingCallMaster: string;
   mapFullscreen: string;
   mapExitFullscreen: string;
   // клиент подтверждает выполнение (app/review) и ищет заказы по номеру
@@ -588,6 +592,10 @@ export function buildTranslations(map: TranslationMap): Translations {
     locationAlwaysHint: pick(map, "locationAlwaysHint"),
     locationAlwaysButton: pick(map, "locationAlwaysButton"),
     masterLocationTitle: pick(map, "masterLocationTitle"),
+    myBookingInProgress: pick(map, "myBookingInProgress"),
+    myBookingTimeOver: pick(map, "myBookingTimeOver"),
+    myBookingNoLocation: pick(map, "myBookingNoLocation"),
+    myBookingCallMaster: pick(map, "myBookingCallMaster"),
     mapFullscreen: pick(map, "mapFullscreen"),
     mapExitFullscreen: pick(map, "mapExitFullscreen"),
     jobDoneQuestion: pick(map, "jobDoneQuestion"),
