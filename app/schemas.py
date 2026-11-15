@@ -7,7 +7,7 @@ from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_serializer, model_validator
 
 from app.models import BookingStatus
 from app.phone import normalize_phone
@@ -360,9 +360,20 @@ class ProviderOut(BaseModel):
     # только если мастер выбрал «виден всегда»
     phone: str | None = None
     avatar: str | None = None  # фото мастера, data: URL
+    # до клиента, метры, округлено до 100 м — только если клиент прислал
+    # lat/lng и точка мастера публична (_resolve_provider_location); иначе
+    # поля в ответе нет вовсе (задание 15.11.2026, часть C)
+    distance_m: int | None = None
 
     class Config:
         from_attributes = True
+
+    @model_serializer(mode="wrap")
+    def _drop_unknown_distance(self, handler):
+        data = handler(self)
+        if isinstance(data, dict) and data.get("distance_m") is None:
+            data.pop("distance_m", None)
+        return data
 
 
 class ProviderSettingsOut(BaseModel):

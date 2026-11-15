@@ -13,6 +13,7 @@ import { backButtonClass, Card, Centered } from "@/components/ui";
 import { ChevronRightIcon, IconBadge, WrenchIcon } from "@/components/icons";
 import { PriceLabel } from "@/components/PriceLabel";
 import MasterPicker from "@/components/MasterPicker";
+import { clearClientPos, savedClientPos, type ClientPos } from "@/lib/clientPosition";
 import SlotPicker from "@/components/SlotPicker";
 import CityPicker from "@/components/CityPicker";
 
@@ -85,12 +86,19 @@ export default function BookingFlow() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
+  // the client's own point for «distance to the master» — only if they
+  // asked for it once (lib/clientPosition.ts)
+  // (the static export prerenders without a window — null there)
+  const [clientPos, setClientPos] = useState<ClientPos | null>(() =>
+    typeof window === "undefined" ? null : savedClientPos(),
+  );
+
   useEffect(() => {
     if (!ready || !city) return;
     (async () => {
       setProvidersLoaded(false);
       try {
-        const prov = await api.listProviders(city.slug);
+        const prov = await api.listProviders(city.slug, clientPos);
         setProviders(prov);
         setProvidersLoaded(true);
       } catch {
@@ -99,7 +107,7 @@ export default function BookingFlow() {
     })();
     // Same rationale as above — t tracked via `locale` already.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, city]);
+  }, [ready, city, clientPos]);
 
   const pickCity = useCallback((c: PublicCity) => {
     storeCity(c.slug);
@@ -227,7 +235,16 @@ export default function BookingFlow() {
             </button>
           </Card>
         ) : (
-          <MasterPicker providers={providers} onSelect={pickProvider} />
+          <MasterPicker
+            providers={providers}
+            onSelect={pickProvider}
+            hasPosition={clientPos !== null}
+            onPosition={(p) => setClientPos(p)}
+            onClearPosition={() => {
+              clearClientPos();
+              setClientPos(null);
+            }}
+          />
         )}
       </>
     );

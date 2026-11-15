@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { locateClient, type ClientPos } from "@/lib/clientPosition";
 import type { Provider } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import { Button, Card, inputClass } from "@/components/ui";
+import { CompactButton } from "@/components/ui";
 import { StarIcon } from "@/components/icons";
 import MasterAvatar from "@/components/MasterAvatar";
 
@@ -15,11 +17,22 @@ type SortMode = "rating" | "price" | "name";
 export default function MasterPicker({
   providers,
   onSelect,
+  hasPosition = false,
+  onPosition,
+  onClearPosition,
 }: {
   providers: Provider[];
   onSelect: (p: Provider) => void;
+  // «distance to the master» (task 15.11.2026, part C)
+  hasPosition?: boolean;
+  onPosition?: (p: ClientPos) => void;
+  onClearPosition?: () => void;
 }) {
   const { t, locale } = useLocale();
+  const [locating, setLocating] = useState(false);
+  const [locateFailed, setLocateFailed] = useState(false);
+  const kmFmt = new Intl.NumberFormat(locale === "en" ? "en-GB" : "pl-PL", { maximumFractionDigits: 1 });
+  const distanceLabel = (m: number) => (m < 1000 ? `${m} m` : `${kmFmt.format(m / 1000)} km`);
   const ratingFmt = new Intl.NumberFormat(locale === "en" ? "en-GB" : "pl-PL", {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
@@ -117,6 +130,35 @@ export default function MasterPicker({
         </div>
       )}
 
+      {onPosition && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {!hasPosition ? (
+            <CompactButton
+              variant="secondary"
+              disabled={locating}
+              onClick={async () => {
+                setLocating(true);
+                setLocateFailed(false);
+                try {
+                  onPosition(await locateClient());
+                } catch {
+                  setLocateFailed(true);
+                } finally {
+                  setLocating(false);
+                }
+              }}
+            >
+              {locating ? t.distanceLocating : t.showDistance}
+            </CompactButton>
+          ) : (
+            <CompactButton variant="secondary" onClick={() => onClearPosition?.()}>
+              {t.hideDistance}
+            </CompactButton>
+          )}
+          {locateFailed && <span className="text-sm text-danger">{t.distanceError}</span>}
+        </div>
+      )}
+
       <div className="flex flex-col gap-3">
         {shown.length === 0 && (
           <p className="text-base text-ink-2">{t.pickMasterNone}</p>
@@ -143,6 +185,9 @@ export default function MasterPicker({
                     <span>{t.newMaster}</span>
                   )}
                 </div>
+                {p.distance_m != null && (
+                  <div className="text-base text-ink">{t.distanceAway(distanceLabel(p.distance_m))}</div>
+                )}
                 {p.phone && (
                   <a
                     className="text-base font-semibold text-accent underline"

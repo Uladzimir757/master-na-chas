@@ -8,6 +8,7 @@
  */
 
 import { useState } from "react";
+import { saveClientPos } from "@/lib/clientPosition";
 import { cityName, type PublicCity } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import { Card, Centered } from "@/components/ui";
@@ -56,6 +57,8 @@ export default function CityPicker({
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setLocating(false);
+        // the client asked for it — remember it for «distance to the master»
+        saveClientPos(pos.coords.latitude, pos.coords.longitude);
         const city = nearestCity(cities, pos.coords.latitude, pos.coords.longitude);
         if (city) onPick(city);
         else setLocateError(true);

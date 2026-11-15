@@ -157,6 +157,7 @@ export interface Provider {
   // только если мастер выбрал «виден всегда»
   phone?: string | null;
   avatar?: string | null; // фото мастера, data: URL
+  distance_m?: number; // only when the client sent its point and the master's is public
 }
 
 // One service a specific master offers, with HIS OWN price/description —
@@ -531,10 +532,19 @@ export const api = {
     request<Service[]>(`/api/services?lang=${encodeURIComponent(lang)}`),
   // Sorted by rating server-side (see app/main.py's list_providers) — the
   // master-picker screen renders this order as-is, no client-side re-sort.
-  listProviders: (city?: string) =>
-    request<Provider[]>(
-      `/api/providers${city ? `?city=${encodeURIComponent(city)}` : ""}`,
-    ),
+  // pos — the client's own point (already rounded to ~100 m,
+  // lib/clientPosition.ts): masters with a public location then carry
+  // distance_m.
+  listProviders: (city?: string, pos?: { lat: number; lng: number } | null) => {
+    const q = new URLSearchParams();
+    if (city) q.set("city", city);
+    if (pos) {
+      q.set("lat", String(pos.lat));
+      q.set("lng", String(pos.lng));
+    }
+    const qs = q.toString();
+    return request<Provider[]>(`/api/providers${qs ? `?${qs}` : ""}`);
+  },
   listCities: () => request<PublicCity[]>("/api/cities"),
   // One master's own offered services, for the booking flow once a master
   // has been picked (components/MasterPicker.tsx).

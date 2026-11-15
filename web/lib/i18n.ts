@@ -150,6 +150,12 @@ export interface Translations {
   locationAlwaysHint: string;
   locationAlwaysButton: string;
   masterLocationTitle: string;
+  showDistance: string;
+  hideDistance: string;
+  distanceLocating: string;
+  distanceError: string;
+  distanceAway: (d: string) => string;
+  nearestSlot: (when: string) => string;
   myAvatarTitle: string;
   settingsSave: string;
   myAvatarChoose: string;
@@ -604,6 +610,12 @@ export function buildTranslations(map: TranslationMap): Translations {
     locationAlwaysHint: pick(map, "locationAlwaysHint"),
     locationAlwaysButton: pick(map, "locationAlwaysButton"),
     masterLocationTitle: pick(map, "masterLocationTitle"),
+    showDistance: pick(map, "showDistance"),
+    hideDistance: pick(map, "hideDistance"),
+    distanceLocating: pick(map, "distanceLocating"),
+    distanceError: pick(map, "distanceError"),
+    distanceAway: (d) => interpolate(pick(map, "distanceAway"), { d }),
+    nearestSlot: (when) => interpolate(pick(map, "nearestSlot"), { when }),
     myAvatarTitle: pick(map, "myAvatarTitle"),
     settingsSave: pick(map, "settingsSave"),
     myAvatarChoose: pick(map, "myAvatarChoose"),

@@ -73,13 +73,27 @@ async def send_sms(*, to_phone: str, text: str) -> None:
         # so it must not read as an error each time it does.
         logger.info("sms_disabled: skipping send to %s", to_phone)
         return
+    # From: on a Twilio trial account this must be the trial phone number
+    # (E.164) — an alphanumeric sender like «MasterNaChas» is refused there
+    # (error 21267) and is only possible after upgrading. Trial also only
+    # delivers to verified numbers (error 21608 otherwise). See CLAUDE.md.
     try:
         from twilio.rest import Client as TwilioClient
 
         client = TwilioClient(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
-        client.messages.create(to=to_phone, from_=settings.TWILIO_SENDER_ID, body=text)
-    except Exception:
-        logger.exception("sms_send_failed to=%s", to_phone)
+        # the Twilio SDK is synchronous — run it off the event loop so one
+        # slow SMS doesn't stall every other request
+        await asyncio.to_thread(
+            client.messages.create, to=to_phone, from_=settings.TWILIO_SENDER_ID, body=text
+        )
+    except Exception as exc:
+        # code/status only — never the client object or settings (credentials)
+        logger.warning(
+            "sms_send_failed to=%s code=%s status=%s",
+            to_phone,
+            getattr(exc, "code", None),
+            getattr(exc, "status", None),
+        )
 
 
 # --- FCM (нативное приложение, docs/mobile-app-task.md §4) ------------------

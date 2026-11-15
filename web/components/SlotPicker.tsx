@@ -145,6 +145,17 @@ export default function SlotPicker({
     })();
   }, [loadAvailability]);
 
+  // Back on the tab after a while: slots that are now too close to start
+  // (confirm window + master's travel, app/slot_engine.py min_booking_lead)
+  // must not hang on screen (task 15.11.2026, part B).
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void loadAvailability();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [loadAvailability]);
+
   const providerName = useMemo(() => {
     const map = new Map(providers.map((p) => [p.id, p.name]));
     return (id: string) => map.get(id) ?? t.defaultMasterName;
@@ -189,6 +200,14 @@ export default function SlotPicker({
     );
     return () => clearInterval(id);
   }, []);
+
+  // Nothing left today (too close to start): say when the nearest free
+  // time is, instead of the visitor wondering why today is missing.
+  const nearestLaterDay = useMemo(() => {
+    if (!slots || slots.length === 0) return null;
+    const first = slots.reduce((a, b) => (a.start_at <= b.start_at ? a : b));
+    return dateKey(first.start_at) === dateKey(new Date().toISOString()) ? null : first;
+  }, [slots]);
 
   const daysWithSlots = useMemo(() => {
     if (!slots) return [];
@@ -377,6 +396,13 @@ export default function SlotPicker({
 
         {!slotsError && daysWithSlots.length > 0 && (
           <>
+            {nearestLaterDay && (
+              <p className="mb-3 text-base text-ink" role="status">
+                {t.nearestSlot(
+                  `${formatDayLabel(nearestLaterDay.start_at, locale, t)}, ${formatTime(nearestLaterDay.start_at, locale)}`,
+                )}
+              </p>
+            )}
             <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
               {daysWithSlots.map(([key, iso]) => (
                 <button

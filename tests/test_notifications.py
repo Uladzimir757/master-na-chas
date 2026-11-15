@@ -86,3 +86,18 @@ async def test_sms_send_failure_is_swallowed(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(twilio.rest, "Client", MagicMock(return_value=fake_client))
 
     await notifications.send_sms(to_phone="+48123456789", text="hi")
+
+
+async def test_sms_goes_from_the_configured_sender(monkeypatch: pytest.MonkeyPatch):
+    # Twilio trial: the sender must be the trial phone number (an alphanumeric
+    # name is refused, error 21267) — whatever TWILIO_SENDER_ID says is used.
+    monkeypatch.setattr(notifications.settings, "SMS_ENABLED", True)
+    monkeypatch.setattr(notifications.settings, "TWILIO_SENDER_ID", "+15005550006")
+    fake_client = MagicMock()
+    monkeypatch.setattr(twilio.rest, "Client", MagicMock(return_value=fake_client))
+
+    await notifications.send_sms(to_phone="+48600111222", text="Zamówienie przyjęte")
+
+    fake_client.messages.create.assert_called_once_with(
+        to="+48600111222", from_="+15005550006", body="Zamówienie przyjęte"
+    )

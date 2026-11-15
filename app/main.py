@@ -55,6 +55,7 @@ from __future__ import annotations
 import logging
 import time as _time
 import math
+import re
 import secrets
 import uuid
 from contextlib import asynccontextmanager
@@ -185,6 +186,8 @@ from app.security import (
     verify_password,
 )
 from app.slot_engine import (
+    min_booking_lead,
+    utcnow as slot_utcnow,
     BUSINESS_TZ,
     CONFIRM_WINDOW,
     LOCATION_FRESHNESS,
@@ -211,6 +214,23 @@ logger = logging.getLogger("master_na_chas")
 # httpx пишет каждый запрос с полным URL на INFO, а в URL Telegram Bot API
 # лежит токен бота — в логах Render его быть не должно.
 logging.getLogger("httpx").setLevel(logging.WARNING)
+
+
+class _HideClientCoords(logging.Filter):
+    """Клиент шлёт свою точку в GET /api/providers?lat=…&lng=… — в журнал
+    доступа uvicorn она попадать не должна (задание 15.11.2026, часть C)."""
+
+    _COORDS = re.compile(r"([?&](?:lat|lng)=)[^&\s]*")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(
+                self._COORDS.sub(r"\1…", a) if isinstance(a, str) else a for a in record.args
+            )
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(_HideClientCoords())
 logging.getLogger("httpx2").setLevel(logging.WARNING)
 
 
@@ -380,9 +400,37 @@ def _providers_in_city(slug: str):
     )
 
 
+def _round_distance_m(km: float) -> int:
+    """Метры, округлённые до 100 (не меньше 100) — без ложной точности."""
+    return max(100, int(round(km * 10)) * 100)
+
+
 @app.get("/api/providers", response_model=list[ProviderOut])
 async def list_providers(
-    response: Response, city: str | None = None, db: AsyncSession = Depends(get_db)
+    response: Response,
+    city: str | None = None,
+    lat: float | None = Query(default=None, ge=-90, le=90),
+    lng: float | None = Query(default=None, ge=-180, le=180),
+    db: AsyncSession = Depends(get_db),
+) -> list[ProviderOut]:
+    """`lat`/`lng` — точка клиента (с телефона, округлена до ~100 м): тогда у
+    мастеров с публичной точкой появляется distance_m. Координаты нигде не
+    сохраняются и вырезаются из журнала доступа (_HideClientCoords). Общий
+    кэш хранит только список без расстояний — расстояние досчитывается
+    поверх копий."""
+    providers = await _list_providers_cached(response, city, db)
+    if lat is None or lng is None:
+        return providers
+    return [
+        p.model_copy(update={"distance_m": _round_distance_m(_distance_km(lat, lng, p.location.lat, p.location.lng))})
+        if p.location is not None
+        else p
+        for p in providers
+    ]
+
+
+async def _list_providers_cached(
+    response: Response, city: str | None, db: AsyncSession
 ) -> list[ProviderOut]:
     """Sorted by rating (best first, unrated last — nulls_last, not a 0)
     for the master-picker screen; name as the tiebreaker so unrated masters
@@ -659,7 +707,9 @@ async def create_booking(request: Request, payload: BookingCreate, db: AsyncSess
     # independently for the same reason as the two checks below: a client
     # can hold a slot list fetched earlier (page left open, cached response)
     # and POST from it long after the slot has elapsed.
-    if payload.start_at < datetime.now(timezone.utc):
+    # С 15.11.2026 ещё и запас: мастеру нужно время подтвердить и доехать
+    # (min_booking_lead) — в 13:51 слот на 14:00 уже не бронируется.
+    if payload.start_at < slot_utcnow() + min_booking_lead(provider):
         raise HTTPException(status.HTTP_409_CONFLICT, "Slot is in the past")
 
     # Same defense-in-depth as the provider_offers_service check above: a

@@ -218,3 +218,66 @@ async def test_location_absent_by_default(client: AsyncClient, provider: Provide
     assert resp.status_code == 200, resp.text
     row = next(p for p in resp.json() if p["id"] == str(provider.id))
     assert row["location"] is None
+
+
+# ---------------------------------------------------------------------------
+# distance_m (задание 15.11.2026, часть C)
+# ---------------------------------------------------------------------------
+
+
+def test_distance_formula_and_rounding_in_gdynia():
+    from app.main import _distance_km, _round_distance_m
+
+    # Gdynia Główna -> ~2.1 km south along the same meridian
+    assert _round_distance_m(_distance_km(54.5189, 18.5305, 54.5000, 18.5305)) == 2100
+    # a few dozen metres still reads as 100 m, not 0
+    assert _round_distance_m(_distance_km(54.5189, 18.5305, 54.5191, 18.5305)) == 100
+
+
+async def _sharing(db: AsyncSession, provider: Provider, *, fresh: bool = True) -> None:
+    provider.share_location = True
+    provider.location_lat = 54.5189
+    provider.location_lng = 18.5305
+    provider.location_updated_at = datetime.now(timezone.utc) - (
+        timedelta(0) if fresh else LOCATION_FRESHNESS + timedelta(minutes=1)
+    )
+    await db.commit()
+
+
+async def test_distance_shown_for_a_public_location(
+    client: AsyncClient, provider: Provider, db_session: AsyncSession, working_hours_today_all_day: None
+):
+    await _sharing(db_session, provider)
+    resp = await client.get("/api/providers", params={"lat": 54.5, "lng": 18.5305})
+    row = next(p for p in resp.json() if p["id"] == str(provider.id))
+    assert row["distance_m"] == 2100
+
+
+async def test_no_distance_without_client_coords_or_public_location(
+    client: AsyncClient, provider: Provider, db_session: AsyncSession, working_hours_today_all_day: None
+):
+    await _sharing(db_session, provider, fresh=False)
+    stale = await client.get("/api/providers", params={"lat": 54.5, "lng": 18.5305})
+    assert "distance_m" not in next(p for p in stale.json() if p["id"] == str(provider.id))
+
+    await _sharing(db_session, provider)
+    no_coords = await client.get("/api/providers")
+    assert "distance_m" not in next(p for p in no_coords.json() if p["id"] == str(provider.id))
+
+
+async def test_invalid_client_coords_are_422(client: AsyncClient):
+    assert (await client.get("/api/providers", params={"lat": 91, "lng": 18.5})).status_code == 422
+    assert (await client.get("/api/providers", params={"lat": 54.5, "lng": "abc"})).status_code == 422
+
+
+def test_client_coords_are_cut_from_the_access_log():
+    import logging
+
+    from app.main import _HideClientCoords
+
+    record = logging.LogRecord(
+        "uvicorn.access", logging.INFO, __file__, 0, '%s - "%s %s"', ("1.2.3.4", "GET", "/api/providers?city=gdynia&lat=54.519&lng=18.531"), None
+    )
+    _HideClientCoords().filter(record)
+    assert "54.519" not in record.getMessage() and "18.531" not in record.getMessage()
+    assert "city=gdynia" in record.getMessage()

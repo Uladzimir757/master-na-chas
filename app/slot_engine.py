@@ -57,6 +57,19 @@ CONFIRM_REMINDER_STEP = timedelta(minutes=5)
 BUSY_ESTIMATE_BUFFER = timedelta(minutes=30)
 
 
+def utcnow() -> datetime:
+    """The one «now» for slot rules — tests freeze it by patching this."""
+    return datetime.now(timezone.utc)
+
+
+def min_booking_lead(provider: Provider) -> timedelta:
+    """How far ahead a client may book this master (15.11.2026): the master
+    has CONFIRM_WINDOW to confirm, then his own travel buffer to get there.
+    At 13:51 with a 30-min buffer the first slot is 14:45, not 14:00. Not
+    applied to bookings the master puts in his own calendar."""
+    return CONFIRM_WINDOW + timedelta(minutes=provider.travel_buffer_minutes or 0)
+
+
 class SlotOut(BaseModel):
     provider_id: uuid.UUID
     start_at: datetime
@@ -199,7 +212,9 @@ async def _slots_for_one_provider(
     # compared a candidate slot against the current time. Computed once per
     # call, not per-slot, so a single request has one consistent notion of
     # "now" even if generating a long date range takes a moment.
-    now = datetime.now(timezone.utc)
+    now = utcnow()
+    # earliest start a client may still book (confirm window + travel)
+    earliest = now + min_booking_lead(provider)
 
     slots: list[SlotOut] = []
     current_day = date_from
@@ -219,7 +234,7 @@ async def _slots_for_one_provider(
             window_end_dt = datetime.combine(current_day, window_end, tzinfo=BUSINESS_TZ)
             while cursor + duration <= window_end_dt:
                 slot_end = cursor + duration
-                if cursor >= now and not overlaps_busy(cursor, slot_end):
+                if cursor >= earliest and not overlaps_busy(cursor, slot_end):
                     slots.append(SlotOut(provider_id=provider.id, start_at=cursor, end_at=slot_end))
                 cursor += step
 
