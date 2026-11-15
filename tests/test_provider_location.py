@@ -160,10 +160,11 @@ async def test_location_hidden_when_share_location_is_off(
     provider.location_updated_at = datetime.now(timezone.utc)
     await db_session.commit()
 
-    resp = await client.get("/api/providers")
+    resp = await client.get("/api/providers", params={"lat": 54.5, "lng": 18.5305})
     assert resp.status_code == 200, resp.text
     row = next(p for p in resp.json() if p["id"] == str(provider.id))
     assert row["location"] is None
+    assert "distance_m" not in row
 
 
 async def test_location_hidden_when_stale(
@@ -175,10 +176,11 @@ async def test_location_hidden_when_stale(
     provider.location_updated_at = datetime.now(timezone.utc) - LOCATION_FRESHNESS - timedelta(minutes=1)
     await db_session.commit()
 
-    resp = await client.get("/api/providers")
+    resp = await client.get("/api/providers", params={"lat": 54.5, "lng": 18.5305})
     assert resp.status_code == 200, resp.text
     row = next(p for p in resp.json() if p["id"] == str(provider.id))
     assert row["location"] is None
+    assert "distance_m" not in row
 
 
 async def test_location_hidden_outside_working_hours(client: AsyncClient, provider: Provider, db_session: AsyncSession):
@@ -189,13 +191,14 @@ async def test_location_hidden_outside_working_hours(client: AsyncClient, provid
     provider.location_updated_at = datetime.now(timezone.utc)
     await db_session.commit()
 
-    resp = await client.get("/api/providers")
+    resp = await client.get("/api/providers", params={"lat": 54.5, "lng": 18.5305})
     assert resp.status_code == 200, resp.text
     row = next(p for p in resp.json() if p["id"] == str(provider.id))
     assert row["location"] is None
+    assert "distance_m" not in row
 
 
-async def test_location_visible_when_all_three_gates_pass(
+async def test_distance_shown_when_all_three_gates_pass(
     client: AsyncClient, provider: Provider, db_session: AsyncSession, working_hours_today_all_day: None
 ):
     provider.share_location = True
@@ -204,12 +207,13 @@ async def test_location_visible_when_all_three_gates_pass(
     provider.location_updated_at = datetime.now(timezone.utc)
     await db_session.commit()
 
-    resp = await client.get("/api/providers")
+    resp = await client.get("/api/providers", params={"lat": 54.5, "lng": 18.5305})
     assert resp.status_code == 200, resp.text
     row = next(p for p in resp.json() if p["id"] == str(provider.id))
-    assert row["location"] is not None
-    assert row["location"]["lat"] == 54.5189
-    assert row["location"]["lng"] == 18.5305
+    # вариант 2 (15.11.2026): точная точка публично не отдаётся, только
+    # расстояние, посчитанное по ней на сервере
+    assert row["location"] is None
+    assert row["distance_m"] == 2100
 
 
 async def test_location_absent_by_default(client: AsyncClient, provider: Provider, working_hours_today_all_day: None):

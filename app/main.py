@@ -436,14 +436,16 @@ async def list_providers(
     кэш хранит только список без расстояний — расстояние досчитывается
     поверх копий."""
     providers = await _list_providers_cached(response, city, db)
-    if lat is None or lng is None:
-        return providers
-    return [
-        p.model_copy(update={"distance_m": _round_distance_m(_distance_km(lat, lng, p.location.lat, p.location.lng))})
-        if p.location is not None
-        else p
-        for p in providers
-    ]
+    # Точная точка мастера публично не отдаётся (решение 15.11.2026,
+    # вариант 2): в списке — только расстояние, посчитанное здесь по точной
+    # точке; саму карту видит клиент с заказом на сегодня (_my_booking_out).
+    out = []
+    for p in providers:
+        update: dict = {"location": None}
+        if p.location is not None and lat is not None and lng is not None:
+            update["distance_m"] = _round_distance_m(_distance_km(lat, lng, p.location.lat, p.location.lng))
+        out.append(p.model_copy(update=update))
+    return out
 
 
 async def _list_providers_cached(

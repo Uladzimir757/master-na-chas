@@ -145,3 +145,26 @@ async def test_the_masters_limit_decides_until_when_the_client_can_change(
     await db_session.commit()
     assert (await client.get(f"/api/my-booking/{b.id}?token={TOKEN}")).json()["can_change"] is False
     assert (await client.post(f"/api/my-booking/{b.id}/cancel?token={TOKEN}")).status_code == 409
+
+
+async def test_a_client_with_a_booking_today_still_sees_the_exact_point(
+    client: AsyncClient, db_session, provider: Provider, service: Service
+):
+    # вариант 2 (15.11.2026): из публичного списка точка убрана, но клиент
+    # с заказом на сегодня видит мастера на карте страницы заказа
+    from app.models import WorkingHours
+
+    db_session.add(WorkingHours(id=uuid.uuid4(), provider_id=provider.id,
+                                weekday=datetime.now(BUSINESS_TZ).weekday(),
+                                start_time=time(0, 0), end_time=time(23, 59, 59)))
+    provider.share_location = True
+    provider.location_lat = 54.5189
+    provider.location_lng = 18.5305
+    provider.location_updated_at = datetime.now(timezone.utc)
+    await db_session.commit()
+    b = await _mk(db_session, provider, service, datetime.now(timezone.utc) + timedelta(minutes=30), token="mt-loc")
+
+    mine = (await client.get(f"/api/my-booking/{b.id}?token=mt-loc")).json()
+    assert mine["location"]["lat"] == 54.5189 and mine["location"]["lng"] == 18.5305
+    public = (await client.get("/api/providers")).json()
+    assert all(p["location"] is None for p in public)

@@ -22,27 +22,9 @@ import {
   toDateParam,
 } from "@/lib/format";
 import { useLocale } from "@/lib/LocaleContext";
-import type { Translations } from "@/lib/i18n";
 import { Button, Card, Centered, inputClass } from "@/components/ui";
 import { PriceLabel } from "@/components/PriceLabel";
 import { OrderSummary } from "@/components/OrderSummary";
-import ProviderMap from "@/components/ProviderMap";
-
-// How often the "N мин назад" label under the map recomputes (Этап 4) — a
-// plain render-time Date.now() would otherwise only update when something
-// else re-renders this component, which could be a while once a slot is
-// already selected and nothing else on the page is changing.
-const LOCATION_LABEL_REFRESH_MS = 30_000;
-
-function formatLocationAgo(updatedAtIso: string, t: Translations): string {
-  const minutes = Math.max(
-    0,
-    Math.round((Date.now() - new Date(updatedAtIso).getTime()) / 60_000),
-  );
-  return minutes < 1
-    ? t.masterLocationJustNow
-    : t.masterLocationMinutesAgo(minutes);
-}
 
 const DAYS_AHEAD = 14;
 
@@ -181,25 +163,6 @@ export default function SlotPicker({
     return (id: string) => map.get(id) ?? null;
   }, [providers]);
 
-  // Этап 4 — null unless the backend has already applied all three publish
-  // gates (share_location on, fix fresh, currently working hours — see
-  // app/main.py's _resolve_provider_location). Same per-provider,
-  // once-a-slot-is-picked shape as call_out_fee above.
-  const providerLocation = useMemo(() => {
-    const map = new Map(providers.map((p) => [p.id, p.location]));
-    return (id: string) => map.get(id) ?? null;
-  }, [providers]);
-
-  // Ticks every LOCATION_LABEL_REFRESH_MS purely to force the "N мин назад"
-  // label (below) to recompute — nothing here reads `locationClock` itself.
-  const [locationClock, setLocationClock] = useState(0);
-  useEffect(() => {
-    const id = setInterval(
-      () => setLocationClock((n) => n + 1),
-      LOCATION_LABEL_REFRESH_MS,
-    );
-    return () => clearInterval(id);
-  }, []);
 
   // Nothing left today (too close to start): say when the nearest free
   // time is, instead of the visitor wondering why today is missing.
@@ -494,26 +457,9 @@ export default function SlotPicker({
               />
             </div>
 
-            {providerLocation(selectedSlot.provider_id) && (
-              // key={locationClock}: the only reason this block re-renders on
-              // its own (nothing else here changes every 30s) — see the
-              // locationClock tick above.
-              <div key={locationClock} className="mb-4">
-                <p className="mb-1.5 text-base font-medium">
-                  {t.masterLocationTitle}
-                </p>
-                <ProviderMap
-                  lat={providerLocation(selectedSlot.provider_id)!.lat}
-                  lng={providerLocation(selectedSlot.provider_id)!.lng}
-                />
-                <p className="mt-1 text-xs text-ink-2">
-                  {formatLocationAgo(
-                    providerLocation(selectedSlot.provider_id)!.updated_at,
-                    t,
-                  )}
-                </p>
-              </div>
-            )}
+            {/* The master's live map is no longer here: his exact point isn't
+                public (decision 15.11.2026, option 2) — only the client with a
+                booking for today sees it, on the booking page. */}
 
             <div className="flex flex-col gap-2">
               <input
