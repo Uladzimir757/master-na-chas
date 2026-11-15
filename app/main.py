@@ -102,8 +102,11 @@ from app.models import (
 from app.geo_watchdog import run_geo_watchdog
 from app.notifications import notify_client, notify_master, reply_telegram, run_in_background
 from app.public_cache import cache_control, is_missing, public_cache, write_invalidates
+from app.geocode import GeocoderUnavailable, geocode
 from app.phone import normalize_phone
 from app.schemas import (
+    GeocodeIn,
+    GeocodeOut,
     ClientChangeLimitUpdate,
     MyAvatarUpdate,
     ClientConfirmationIn,
@@ -398,6 +401,20 @@ def _providers_in_city(slug: str):
         .join(City, City.id == ProviderCity.city_id)
         .where(City.slug == slug, City.is_active.is_(True))
     )
+
+
+@app.post("/api/geocode", response_model=GeocodeOut)
+@limiter.limit("10/minute")
+async def geocode_address(request: Request, payload: GeocodeIn) -> GeocodeOut:
+    """Адрес → точка (OSM Nominatim, app/geocode.py) для «расстояния до
+    мастера» без геолокации. Сам адрес не сохраняется и не логируется."""
+    try:
+        point = await geocode(payload.address)
+    except GeocoderUnavailable:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Geocoder unavailable, try again later")
+    if point is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Address not found")
+    return GeocodeOut(lat=point[0], lng=point[1])
 
 
 def _round_distance_m(km: float) -> int:

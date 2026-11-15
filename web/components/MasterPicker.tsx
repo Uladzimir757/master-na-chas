@@ -1,11 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { locateClient, type ClientPos } from "@/lib/clientPosition";
-import type { Provider } from "@/lib/api";
+import { locateClient, saveClientPos, type ClientPos } from "@/lib/clientPosition";
+import { api, ApiError, type Provider } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
-import { Button, Card, inputClass } from "@/components/ui";
-import { CompactButton } from "@/components/ui";
+import { Button, Card, CompactButton, inputClass } from "@/components/ui";
 import { StarIcon } from "@/components/icons";
 import MasterAvatar from "@/components/MasterAvatar";
 
@@ -31,6 +30,10 @@ export default function MasterPicker({
   const { t, locale } = useLocale();
   const [locating, setLocating] = useState(false);
   const [locateFailed, setLocateFailed] = useState(false);
+  const [addressOpen, setAddressOpen] = useState(false);
+  const [address, setAddress] = useState("");
+  const [addressBusy, setAddressBusy] = useState(false);
+  const [addressError, setAddressError] = useState<string | null>(null);
   const kmFmt = new Intl.NumberFormat(locale === "en" ? "en-GB" : "pl-PL", { maximumFractionDigits: 1 });
   const distanceLabel = (m: number) => (m < 1000 ? `${m} m` : `${kmFmt.format(m / 1000)} km`);
   const ratingFmt = new Intl.NumberFormat(locale === "en" ? "en-GB" : "pl-PL", {
@@ -156,7 +159,56 @@ export default function MasterPicker({
             </CompactButton>
           )}
           {locateFailed && <span className="text-sm text-danger">{t.distanceError}</span>}
+          {!hasPosition && !addressOpen && (
+            <button
+              type="button"
+              className="min-h-10 text-sm font-semibold text-accent-2 underline underline-offset-4"
+              onClick={() => setAddressOpen(true)}
+            >
+              {t.addressInstead}
+            </button>
+          )}
         </div>
+      )}
+
+      {/* No location (declined / unsupported) — type an address instead;
+          geocoded on our server by OSM Nominatim (app/geocode.py) only on
+          the button, never while typing (their policy: no autocomplete). */}
+      {onPosition && !hasPosition && (addressOpen || locateFailed) && (
+        <form
+          className="mb-3 flex flex-col gap-2"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (address.trim().length < 3) return;
+            setAddressBusy(true);
+            setAddressError(null);
+            try {
+              const p = await api.geocode(address.trim());
+              onPosition(saveClientPos(p.lat, p.lng));
+              setAddressOpen(false);
+            } catch (err) {
+              setAddressError(err instanceof ApiError && err.status === 404 ? t.addressNotFound : t.addressLookupError);
+            } finally {
+              setAddressBusy(false);
+            }
+          }}
+        >
+          <div className="flex flex-wrap gap-2">
+            <input
+              className={`${inputClass} max-w-sm flex-1`}
+              placeholder={t.addressPlaceholder}
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              maxLength={200}
+              autoComplete="street-address"
+            />
+            <CompactButton type="submit" disabled={addressBusy || address.trim().length < 3}>
+              {t.addressCheck}
+            </CompactButton>
+          </div>
+          {addressError && <span className="text-sm text-danger">{addressError}</span>}
+          <span className="text-xs text-ink-2">{t.addressAttribution}</span>
+        </form>
       )}
 
       <div className="flex flex-col gap-3">

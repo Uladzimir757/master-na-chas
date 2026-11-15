@@ -546,6 +546,12 @@ export const api = {
     return request<Provider[]>(`/api/providers${qs ? `?${qs}` : ""}`);
   },
   listCities: () => request<PublicCity[]>("/api/cities"),
+  // address -> point for «distance to the master» (OSM Nominatim, server side)
+  geocode: (address: string) =>
+    request<{ lat: number; lng: number }>("/api/geocode", {
+      method: "POST",
+      body: JSON.stringify({ address }),
+    }),
   // One master's own offered services, for the booking flow once a master
   // has been picked (components/MasterPicker.tsx).
   listProviderServices: (providerId: string, lang: string) =>

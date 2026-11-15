@@ -150,6 +150,12 @@ export interface Translations {
   locationAlwaysHint: string;
   locationAlwaysButton: string;
   masterLocationTitle: string;
+  addressInstead: string;
+  addressPlaceholder: string;
+  addressCheck: string;
+  addressNotFound: string;
+  addressLookupError: string;
+  addressAttribution: string;
   showDistance: string;
   hideDistance: string;
   distanceLocating: string;
@@ -610,6 +616,12 @@ export function buildTranslations(map: TranslationMap): Translations {
     locationAlwaysHint: pick(map, "locationAlwaysHint"),
     locationAlwaysButton: pick(map, "locationAlwaysButton"),
     masterLocationTitle: pick(map, "masterLocationTitle"),
+    addressInstead: pick(map, "addressInstead"),
+    addressPlaceholder: pick(map, "addressPlaceholder"),
+    addressCheck: pick(map, "addressCheck"),
+    addressNotFound: pick(map, "addressNotFound"),
+    addressLookupError: pick(map, "addressLookupError"),
+    addressAttribution: pick(map, "addressAttribution"),
     showDistance: pick(map, "showDistance"),
     hideDistance: pick(map, "hideDistance"),
     distanceLocating: pick(map, "distanceLocating"),

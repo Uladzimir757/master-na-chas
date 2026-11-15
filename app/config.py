@@ -128,6 +128,10 @@ class Settings(BaseSettings):
     SERVICE_AREA_RADIUS_KM: float = 35.0
     SERVICE_AREA_CITIES: str = "gdynia,gdansk,gdańsk,sopot,rumia,reda,trojmiasto,trójmiasto,tricity"
 
+    # Геокодер адреса клиента (OSM Nominatim, app/geocode.py): политика
+    # требует узнаваемый User-Agent, не библиотечный по умолчанию.
+    GEOCODER_USER_AGENT: str = "ZlotaRaczka-booking/1.0 (+https://master-na-chas-web.onrender.com)"
+
     # За сколько до начала клиент ещё сам отменяет/переносит — теперь
     # настройка мастера, Provider.client_change_min_minutes (15.11.2026).
     # Живая точка мастера на странице записи показывается за N часов до начала.

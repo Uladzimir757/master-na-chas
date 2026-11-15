@@ -1059,3 +1059,15 @@ class ClientChangeLimitUpdate(BaseModel):
     клиент ещё может сам отменить/перенести (максимум 3 часа)."""
 
     minutes: int = Field(ge=0, le=180)
+
+
+class GeocodeIn(BaseModel):
+    """POST /api/geocode — адрес клиента для «расстояния до мастера», если он
+    не дал геолокацию. В теле, не в URL: в журнал доступа не попадает."""
+
+    address: str = Field(min_length=3, max_length=200)
+
+
+class GeocodeOut(BaseModel):
+    lat: float  # округлено до 3 знаков (~100 м)
+    lng: float
