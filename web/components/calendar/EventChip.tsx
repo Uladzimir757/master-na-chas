@@ -107,7 +107,9 @@ export function EventChip({
         event.kind === "booking" ? statusClasses(event.status) : "border border-dashed border-ink/30 bg-ink/5 text-ink-2"
       }`}
     >
-      <div className="truncate font-medium">{label}</div>
+      <div className={`truncate font-medium ${event.kind === "booking" && event.status === "cancelled" ? "line-through" : ""}`}>
+        {label}
+      </div>
       {sub && <div className="truncate opacity-80">{sub}</div>}
     </div>
   );

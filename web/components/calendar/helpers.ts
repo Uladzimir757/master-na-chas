@@ -111,17 +111,26 @@ export function eventHeight(e: CalEvent): number {
  * --accent-2 / --danger, see app/globals.css) instead of generic Tailwind
  * amber/emerald/red — keeps the calendar visually part of the same site as
  * the booking flow and cabinet, rather than a bolted-on admin widget. */
+// One colour per status, told apart at a glance (15.11.2026: pending,
+// confirmed and completed used to be three shades of the same green, and
+// no-show looked exactly like cancelled):
+//   pending   — amber: needs the master's answer
+//   confirmed — solid green: on the schedule
+//   completed — blue-grey: done, out of the way
+//   cancelled — light red (struck through on calendar chips): not happening
+//   no_show   — violet: the client didn't turn up
 export function statusClasses(status: BookingStatus): string {
   switch (status) {
     case "pending":
-      return "bg-accent/15 border border-accent/50 text-ink";
+      return "bg-amber-100 border-2 border-amber-500 text-amber-950";
     case "confirmed":
       return "bg-accent-2 border border-accent-2 text-on-accent";
     case "completed":
-      return "bg-accent-2/15 border border-accent-2/40 text-ink";
-    case "no_show":
+      return "bg-slate-200 border border-slate-400 text-slate-800";
     case "cancelled":
-      return "bg-danger/15 border border-danger/40 text-danger";
+      return "bg-red-50 border border-red-300 text-red-800";
+    case "no_show":
+      return "bg-violet-100 border border-violet-400 text-violet-900";
     default:
       return "bg-line/40 border border-line text-ink";
   }
