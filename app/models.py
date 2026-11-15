@@ -97,6 +97,11 @@ class Provider(Base):
     # когда клиент видит телефон мастера: 'always' | 'after_booking' |
     # 'after_confirm' (app/main.py _visible_master_phone)
     phone_visibility: Mapped[str] = mapped_column(String, default="after_confirm")
+    # фото мастера (data: URL, сжимается на телефоне) — без него инициалы
+    avatar: Mapped[str | None] = mapped_column(Text)
+    # за сколько минут до начала клиент ещё может сам отменить/перенести
+    # (мастер выбирает, 0–180; решение 15.11.2026)
+    client_change_min_minutes: Mapped[int] = mapped_column(SmallInteger, default=120)
     location_lat: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
     location_lng: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
     location_updated_at: Mapped[datetime | None] = mapped_column(TZDateTime)

@@ -37,6 +37,8 @@ import MasterCalendar from "@/components/MasterCalendar";
 import MyCities from "@/components/MyCities";
 import PushStatus from "@/components/PushStatus";
 import MyPhone from "@/components/MyPhone";
+import MyAvatar from "@/components/MyAvatar";
+import ClientChangeLimit from "@/components/ClientChangeLimit";
 import GeoKeepAlive from "@/components/GeoKeepAlive";
 
 type CabinetTab =
@@ -851,7 +853,15 @@ export default function CabinetDashboard({
           </section>
 
           <section className="border-t border-line pt-5">
+            <MyAvatar />
+          </section>
+
+          <section className="border-t border-line pt-5">
             <MyPhone />
+          </section>
+
+          <section className="border-t border-line pt-5">
+            <ClientChangeLimit />
           </section>
 
           {native && pushStatus !== null && pushStatus.state !== "registered" && (

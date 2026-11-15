@@ -128,10 +128,8 @@ class Settings(BaseSettings):
     SERVICE_AREA_RADIUS_KM: float = 35.0
     SERVICE_AREA_CITIES: str = "gdynia,gdansk,gdańsk,sopot,rumia,reda,trojmiasto,trójmiasto,tricity"
 
-    # Клиент может сам отменить/перенести запись не позже чем за N часов до начала.
-    # клиент меняет/отменяет онлайн, пока до начала больше N часов
-    # (решение пользователя 12.11.2026: 2 часа)
-    CLIENT_CHANGE_MIN_HOURS: int = 2
+    # За сколько до начала клиент ещё сам отменяет/переносит — теперь
+    # настройка мастера, Provider.client_change_min_minutes (15.11.2026).
     # Живая точка мастера на странице записи показывается за N часов до начала.
     TRACK_WINDOW_HOURS: int = 2
 

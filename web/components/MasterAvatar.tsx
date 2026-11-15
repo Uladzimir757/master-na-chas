@@ -1,5 +1,3 @@
-import { CategoryIcon } from "@/components/icons";
-
 // Warm avatar palette from the client redesign brief; white initials on top.
 const AVATAR_COLORS = [
   "#D9825B", // terracotta
@@ -29,31 +27,25 @@ export function initials(name: string): string {
 }
 
 /**
- * 56 px circle with the master's initials; a small corner badge carries the
- * icon of his main work category, so the service icon no longer stands in
- * for the master himself.
+ * 56 px circle: the master's photo if he set one in the cabinet
+ * (components/MyAvatar.tsx), else his initials on a stable colour. The small
+ * category badge in the corner is gone (15.11.2026: testers read it as a
+ * stray LED-like icon, not as "his main trade").
  */
-export default function MasterAvatar({
-  name,
-  category,
-}: {
-  name: string;
-  category?: string;
-}) {
+export default function MasterAvatar({ name, photo }: { name: string; photo?: string | null }) {
+  if (photo) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- data: URL, not a next/image candidate
+      <img src={photo} alt="" className="h-14 w-14 shrink-0 rounded-full object-cover" />
+    );
+  }
   return (
-    <span className="relative inline-flex h-14 w-14 shrink-0">
-      <span
-        aria-hidden
-        className="flex h-14 w-14 items-center justify-center rounded-full text-lg font-bold tracking-wide text-white"
-        style={{ backgroundColor: colorFor(name) }}
-      >
-        {initials(name)}
-      </span>
-      {category && (
-        <span className="absolute -right-1 -bottom-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-surface bg-amber-soft text-ink [&>svg]:h-3.5 [&>svg]:w-3.5">
-          <CategoryIcon category={category} />
-        </span>
-      )}
+    <span
+      aria-hidden
+      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-bold tracking-wide text-white"
+      style={{ backgroundColor: colorFor(name) }}
+    >
+      {initials(name)}
     </span>
   );
 }

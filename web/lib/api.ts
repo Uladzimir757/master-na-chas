@@ -156,6 +156,7 @@ export interface Provider {
   categories?: string[];
   // только если мастер выбрал «виден всегда»
   phone?: string | null;
+  avatar?: string | null; // фото мастера, data: URL
 }
 
 // One service a specific master offers, with HIS OWN price/description —
@@ -309,6 +310,9 @@ export interface ProviderSettings {
   share_location: boolean;
   phone?: string | null;
   phone_visibility?: PhoneVisibility;
+  avatar?: string | null;
+  // за сколько минут до начала клиент ещё сам отменяет/переносит (0–180)
+  client_change_min_minutes?: number;
   // "Занят сейчас" — read-only here, changed via the busy* endpoints below.
   // See ProviderSettingsOut/ProviderBusyOut in app/schemas.py: busy_until is
   // computed (null means either not busy, or busy with no estimate yet —
@@ -654,6 +658,16 @@ export const api = {
     request<ProviderSettings>("/api/providers/me/phone", {
       method: "PUT",
       body: JSON.stringify({ phone, phone_visibility }),
+    }),
+  updateMyAvatar: (avatar: string | null) =>
+    request<ProviderSettings>("/api/providers/me/avatar", {
+      method: "PUT",
+      body: JSON.stringify({ avatar }),
+    }),
+  updateClientChangeLimit: (minutes: number) =>
+    request<ProviderSettings>("/api/providers/me/client-change-limit", {
+      method: "PUT",
+      body: JSON.stringify({ minutes }),
     }),
   updateMySettings: (payload: UpdateProviderSettingsPayload) =>
     request<ProviderSettings>("/api/providers/me/settings", {

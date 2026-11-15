@@ -359,6 +359,7 @@ class ProviderOut(BaseModel):
     categories: list[str] = []
     # только если мастер выбрал «виден всегда»
     phone: str | None = None
+    avatar: str | None = None  # фото мастера, data: URL
 
     class Config:
         from_attributes = True
@@ -372,6 +373,8 @@ class ProviderSettingsOut(BaseModel):
     share_location: bool
     phone: str | None = None
     phone_visibility: PhoneVisibility = "after_confirm"
+    avatar: str | None = None
+    client_change_min_minutes: int = 120
     # "Занят сейчас" — read-only here (see ProviderBusyOut/the dedicated
     # /api/providers/me/busy/* endpoints below for changing it); included on
     # the settings GET so the cabinet knows the current state on page load
@@ -1024,3 +1027,24 @@ class MyBookingsLinkIn(BaseModel):
     ссылка на его заказы уходит SMS на этот номер, на экран — ничего."""
 
     phone: str = Field(max_length=40)
+
+
+class MyAvatarUpdate(BaseModel):
+    """PUT /api/providers/me/avatar — фото, уже сжатое на телефоне до
+    квадрата ~256 px; null — убрать и вернуть инициалы."""
+
+    avatar: str | None = Field(default=None, max_length=300_000)
+
+    @field_validator("avatar")
+    @classmethod
+    def _image_data_url(cls, v: str | None) -> str | None:
+        if v is not None and not v.startswith(("data:image/jpeg;", "data:image/png;", "data:image/webp;")):
+            raise ValueError("avatar must be a JPEG/PNG/WebP data: URL")
+        return v
+
+
+class ClientChangeLimitUpdate(BaseModel):
+    """PUT /api/providers/me/client-change-limit — за сколько минут до начала
+    клиент ещё может сам отменить/перенести (максимум 3 часа)."""
+
+    minutes: int = Field(ge=0, le=180)

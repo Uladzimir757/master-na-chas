@@ -127,7 +127,7 @@ export default function MasterPicker({
             className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-5 shadow-card transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_2px_4px_rgb(43_38_34/0.06),0_14px_32px_rgb(43_38_34/0.10)] sm:flex-row sm:items-center"
           >
             <div className="flex min-w-0 flex-1 items-center gap-4">
-              <MasterAvatar name={p.name} category={p.categories?.[0]} />
+              <MasterAvatar name={p.name} photo={p.avatar} />
               <div className="min-w-0">
                 <div className="truncate text-lg font-bold">{p.name}</div>
                 <div className="flex items-center gap-1.5 text-base text-ink-2">

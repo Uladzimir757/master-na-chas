@@ -103,6 +103,8 @@ from app.notifications import notify_client, notify_master, reply_telegram, run_
 from app.public_cache import cache_control, is_missing, public_cache, write_invalidates
 from app.phone import normalize_phone
 from app.schemas import (
+    ClientChangeLimitUpdate,
+    MyAvatarUpdate,
     ClientConfirmationIn,
     MyBookingsLinkIn,
     AdminAnalyticsOut,
@@ -431,6 +433,7 @@ async def list_providers(
             price_from=price_from.get(p.id),
             categories=sorted(cats.get(p.id, set())),
             phone=_visible_master_phone(p),
+            avatar=p.avatar,
         )
         for p in providers
     ])
@@ -1324,6 +1327,8 @@ def _provider_settings_out(provider: Provider) -> ProviderSettingsOut:
         share_location=provider.share_location,
         phone=provider.phone,
         phone_visibility=provider.phone_visibility,
+        avatar=provider.avatar,
+        client_change_min_minutes=provider.client_change_min_minutes,
         busy_started_at=provider.busy_started_at,
         busy_estimated_minutes=provider.busy_estimated_minutes,
         busy_until=_busy_until(provider),
@@ -1357,6 +1362,35 @@ async def update_my_phone(
     provider = await _get_own_provider(master_user_id, db, "settings_edit")
     provider.phone = payload.phone
     provider.phone_visibility = payload.phone_visibility
+    await db.commit()
+    await db.refresh(provider)
+    return _provider_settings_out(provider)
+
+
+@app.put("/api/providers/me/avatar", response_model=ProviderSettingsOut)
+async def update_my_avatar(
+    payload: MyAvatarUpdate,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> ProviderSettingsOut:
+    """Фото мастера в списке мастеров (решение 15.11.2026); null — убрать."""
+    provider = await _get_own_provider(master_user_id, db, "settings_edit")
+    provider.avatar = payload.avatar
+    await db.commit()
+    await db.refresh(provider)
+    return _provider_settings_out(provider)
+
+
+@app.put("/api/providers/me/client-change-limit", response_model=ProviderSettingsOut)
+async def update_my_client_change_limit(
+    payload: ClientChangeLimitUpdate,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> ProviderSettingsOut:
+    """За сколько минут до начала клиент ещё может сам отменить/перенести
+    заказ — выбирает мастер, максимум 3 часа (решение 15.11.2026)."""
+    provider = await _get_own_provider(master_user_id, db, "settings_edit")
+    provider.client_change_min_minutes = payload.minutes
     await db.commit()
     await db.refresh(provider)
     return _provider_settings_out(provider)
@@ -2132,7 +2166,7 @@ async def list_provider_services(
 
 # ============================================================================
 # "Моя запись" — публичная страница клиента по ссылке из SMS: просмотр,
-# отмена/перенос (не позже CLIENT_CHANGE_MIN_HOURS до начала), живая точка
+# отмена/перенос (не позже Provider.client_change_min_minutes до начала), живая точка
 # мастера и история записей по тому же телефону. Доступ — по manage_token
 # (секрет из SMS); 404 и для чужого id, и для неверного токена.
 # ============================================================================
@@ -2149,12 +2183,17 @@ async def _get_booking_by_token(db: AsyncSession, booking_id: uuid.UUID, token: 
     return booking
 
 
-def _change_deadline(booking: Booking) -> datetime:
-    return booking.start_at - timedelta(hours=settings.CLIENT_CHANGE_MIN_HOURS)
+def _change_deadline(booking: Booking, provider: Provider | None) -> datetime:
+    # за сколько до начала клиент ещё сам отменяет/переносит — выбирает
+    # мастер (Provider.client_change_min_minutes, 0–180, 15.11.2026)
+    minutes = provider.client_change_min_minutes if provider is not None else 120
+    return booking.start_at - timedelta(minutes=minutes)
 
 
-def _can_change(booking: Booking, now: datetime) -> bool:
-    return booking.status in (BookingStatus.pending, BookingStatus.confirmed) and now <= _change_deadline(booking)
+def _can_change(booking: Booking, provider: Provider | None, now: datetime) -> bool:
+    return booking.status in (BookingStatus.pending, BookingStatus.confirmed) and now <= _change_deadline(
+        booking, provider
+    )
 
 
 async def _my_booking_out(db: AsyncSession, booking: Booking, lang: str = DEFAULT_LANG) -> MyBookingOut:
@@ -2191,8 +2230,8 @@ async def _my_booking_out(db: AsyncSession, booking: Booking, lang: str = DEFAUL
         start_at=booking.start_at,
         end_at=booking.end_at,
         status=booking.status,
-        can_change=_can_change(booking, now),
-        change_deadline=_change_deadline(booking),
+        can_change=_can_change(booking, provider, now),
+        change_deadline=_change_deadline(booking, provider),
         location=location,
         travel_minutes=booking.travel_minutes,
         cancel_reason=booking.cancel_reason,
@@ -2225,7 +2264,7 @@ async def cancel_my_booking(
     db: AsyncSession = Depends(get_db),
 ) -> MyBookingOut:
     booking = await _get_booking_by_token(db, booking_id, token)
-    if not _can_change(booking, datetime.now(timezone.utc)):
+    if not _can_change(booking, await db.get(Provider, booking.provider_id), datetime.now(timezone.utc)):
         raise HTTPException(status.HTTP_409_CONFLICT, "Too late to cancel online — please call the master")
     booking.status = BookingStatus.cancelled
     await db.commit()
@@ -2262,9 +2301,9 @@ async def reschedule_my_booking(
     блокировки, «занят», буфер) — не просто «любое время»."""
     booking = await _get_booking_by_token(db, booking_id, payload.token)
     now = datetime.now(timezone.utc)
-    if not _can_change(booking, now):
-        raise HTTPException(status.HTTP_409_CONFLICT, "Too late to reschedule online — please call the master")
     provider = await db.get(Provider, booking.provider_id)
+    if not _can_change(booking, provider, now):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Too late to reschedule online — please call the master")
     service = await db.get(Service, booking.service_id)
     if provider is None or service is None or not provider.is_active:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Booking not found")

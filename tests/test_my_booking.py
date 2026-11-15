@@ -106,3 +106,42 @@ async def test_tracking_window_is_reported(client: AsyncClient, db_session, book
     b = await _mk(db_session, bookable_provider, service, _dt(10))
     body = (await client.get(f"/api/my-booking/{b.id}?token={TOKEN}")).json()
     assert datetime.fromisoformat(body["tracking_from"]) == _dt(8)
+
+
+# ----------------------------------------------------------------------------
+# Лимит отмены/переноса клиентом — настройка мастера (15.11.2026, макс. 3 ч)
+# ----------------------------------------------------------------------------
+
+
+async def test_master_sets_the_client_change_limit(logged_in_client: AsyncClient):
+    ok = await logged_in_client.put("/api/providers/me/client-change-limit", json={"minutes": 30})
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["client_change_min_minutes"] == 30
+    too_long = await logged_in_client.put("/api/providers/me/client-change-limit", json={"minutes": 181})
+    assert too_long.status_code == 422
+
+
+async def test_avatar_is_saved_and_shown_publicly(logged_in_client: AsyncClient, client: AsyncClient):
+    img = "data:image/jpeg;base64,/9j/4AAQSkZJRg=="
+    r = await logged_in_client.put("/api/providers/me/avatar", json={"avatar": img})
+    assert r.status_code == 200, r.text
+    assert r.json()["avatar"] == img
+    public = await client.get("/api/providers")
+    assert any(p.get("avatar") == img for p in public.json())
+    bad = await logged_in_client.put("/api/providers/me/avatar", json={"avatar": "https://evil.example/x.png"})
+    assert bad.status_code == 422
+    cleared = await logged_in_client.put("/api/providers/me/avatar", json={"avatar": None})
+    assert cleared.json()["avatar"] is None
+
+
+async def test_the_masters_limit_decides_until_when_the_client_can_change(
+    client: AsyncClient, db_session, bookable_provider: Provider, service: Service
+):
+    b = await _mk(db_session, bookable_provider, service, datetime.now(timezone.utc) + timedelta(minutes=60))
+    bookable_provider.client_change_min_minutes = 30
+    await db_session.commit()
+    assert (await client.get(f"/api/my-booking/{b.id}?token={TOKEN}")).json()["can_change"] is True
+    bookable_provider.client_change_min_minutes = 90
+    await db_session.commit()
+    assert (await client.get(f"/api/my-booking/{b.id}?token={TOKEN}")).json()["can_change"] is False
+    assert (await client.post(f"/api/my-booking/{b.id}/cancel?token={TOKEN}")).status_code == 409

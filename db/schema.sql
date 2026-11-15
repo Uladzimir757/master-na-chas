@@ -63,6 +63,10 @@ CREATE TABLE provider (
     -- когда клиент видит телефон мастера: всегда / после заказа / после подтверждения
     phone_visibility        text NOT NULL DEFAULT 'after_confirm'
         CHECK (phone_visibility IN ('always', 'after_booking', 'after_confirm')),
+    avatar                  text,  -- фото мастера, data: URL (~30 КБ)
+    -- за сколько минут до начала клиент ещё может сам отменить/перенести
+    client_change_min_minutes smallint NOT NULL DEFAULT 120
+        CONSTRAINT provider_client_change_min_minutes_range CHECK (client_change_min_minutes BETWEEN 0 AND 180),
     location_lat            numeric(9,6) CHECK (location_lat IS NULL OR (location_lat >= -90 AND location_lat <= 90)),
     location_lng            numeric(9,6) CHECK (location_lng IS NULL OR (location_lng >= -180 AND location_lng <= 180)),
     location_updated_at     timestamptz,

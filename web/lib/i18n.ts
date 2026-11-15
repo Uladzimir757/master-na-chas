@@ -150,6 +150,15 @@ export interface Translations {
   locationAlwaysHint: string;
   locationAlwaysButton: string;
   masterLocationTitle: string;
+  myAvatarTitle: string;
+  settingsSave: string;
+  myAvatarChoose: string;
+  myAvatarRemove: string;
+  myAvatarError: string;
+  changeLimitTitle: string;
+  changeLimitHint: string;
+  changeLimitUntilStart: string;
+  changeLimitBefore: (n: number) => string;
   completeAfterStart: string;
   rateMasterTitle: string;
   rateMasterButton: string;
@@ -595,6 +604,15 @@ export function buildTranslations(map: TranslationMap): Translations {
     locationAlwaysHint: pick(map, "locationAlwaysHint"),
     locationAlwaysButton: pick(map, "locationAlwaysButton"),
     masterLocationTitle: pick(map, "masterLocationTitle"),
+    myAvatarTitle: pick(map, "myAvatarTitle"),
+    settingsSave: pick(map, "settingsSave"),
+    myAvatarChoose: pick(map, "myAvatarChoose"),
+    myAvatarRemove: pick(map, "myAvatarRemove"),
+    myAvatarError: pick(map, "myAvatarError"),
+    changeLimitTitle: pick(map, "changeLimitTitle"),
+    changeLimitHint: pick(map, "changeLimitHint"),
+    changeLimitUntilStart: pick(map, "changeLimitUntilStart"),
+    changeLimitBefore: (n) => interpolate(pick(map, "changeLimitBefore"), { n }),
     completeAfterStart: pick(map, "completeAfterStart"),
     rateMasterTitle: pick(map, "rateMasterTitle"),
     rateMasterButton: pick(map, "rateMasterButton"),
