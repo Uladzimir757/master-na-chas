@@ -233,6 +233,7 @@ ENTRIES: list[tuple[str, str, str]] = [
     ("locationSharingUnsupported", "Ta przeglądarka nie obsługuje geolokalizacji.", "This browser doesn't support geolocation."),
     ("locationSharingError", "Nie udało się ustalić lokalizacji.", "Couldn't determine your location."),
     ("masterLocationTitle", "Mistrz jest teraz tutaj", "The specialist is here now"),
+    ("distanceNoneHint", "Odległość widać tylko u mistrzów, którzy teraz udostępniają lokalizację.", "The distance shows only for specialists who are sharing their location right now."),
     ("addressInstead", "lub wpisz swój adres", "or type your address"),
     ("addressPlaceholder", "np. Morska 10, Gdynia", "e.g. Morska 10, Gdynia"),
     ("addressCheck", "Sprawdź", "Check"),

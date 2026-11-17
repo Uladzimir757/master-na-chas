@@ -159,6 +159,9 @@ export default function MasterPicker({
             </CompactButton>
           )}
           {locateFailed && <span className="text-sm text-danger">{t.distanceError}</span>}
+          {hasPosition && !providers.some((p) => p.distance_m != null) && (
+            <span className="text-sm text-ink-2">{t.distanceNoneHint}</span>
+          )}
           {!hasPosition && !addressOpen && (
             <button
               type="button"

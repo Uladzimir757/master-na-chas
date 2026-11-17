@@ -96,7 +96,12 @@ export default function BookingFlow() {
   useEffect(() => {
     if (!ready || !city) return;
     (async () => {
-      setProvidersLoaded(false);
+      // No «loading» swap here: on a refetch (show/hide distance) the old
+      // list stays on screen. Swapping it for «Ładowanie…» shrank the page
+      // and dropped the visitor onto the «Masz już zamówienie?» phone field
+      // below (tester 17.11.2026: «show distance asks for a phone number»).
+      // The first load and a city change still show the loader — pickCity
+      // resets providersLoaded.
       try {
         const prov = await api.listProviders(city.slug, clientPos);
         setProviders(prov);
@@ -111,6 +116,7 @@ export default function BookingFlow() {
 
   const pickCity = useCallback((c: PublicCity) => {
     storeCity(c.slug);
+    setProvidersLoaded(false);
     setCity(c);
   }, []);
   const changeCity = useCallback(() => {

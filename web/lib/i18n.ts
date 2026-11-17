@@ -150,6 +150,7 @@ export interface Translations {
   locationAlwaysHint: string;
   locationAlwaysButton: string;
   masterLocationTitle: string;
+  distanceNoneHint: string;
   addressInstead: string;
   addressPlaceholder: string;
   addressCheck: string;
@@ -616,6 +617,7 @@ export function buildTranslations(map: TranslationMap): Translations {
     locationAlwaysHint: pick(map, "locationAlwaysHint"),
     locationAlwaysButton: pick(map, "locationAlwaysButton"),
     masterLocationTitle: pick(map, "masterLocationTitle"),
+    distanceNoneHint: pick(map, "distanceNoneHint"),
     addressInstead: pick(map, "addressInstead"),
     addressPlaceholder: pick(map, "addressPlaceholder"),
     addressCheck: pick(map, "addressCheck"),

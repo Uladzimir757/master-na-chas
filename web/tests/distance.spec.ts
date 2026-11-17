@@ -62,3 +62,27 @@ test("without location the client types an address instead", async ({ page }) =>
   expect(addresses).toEqual(["Morska 10, Gdynia"]);
   await expect(page.getByText(t.addressAttribution)).toHaveCount(0); // form closed after success
 });
+
+test("the master list stays on screen while it reloads with the distance", async ({ page, context }) => {
+  // tester 17.11.2026: the list was swapped for «loading» on every toggle,
+  // the page shrank and the visitor landed on the «Masz już zamówienie?»
+  // phone field below — «show distance asks for a phone number»
+  await context.grantPermissions(["geolocation"]);
+  await context.setGeolocation({ latitude: 54.51, longitude: 18.53 });
+  await mockCatalog(page);
+  let release: () => void = () => {};
+  const held = new Promise<void>((r) => (release = r));
+  await page.route(/\/api\/providers(\?.*)?$/, async (route) => {
+    if (new URL(route.request().url()).searchParams.has("lat")) await held; // slow reload
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([PROVIDER]) });
+  });
+  await page.goto("/");
+  const card = page.getByText(PROVIDER.name).first();
+  await expect(card).toBeVisible();
+
+  await page.getByRole("button", { name: t.showDistance }).click();
+  await expect(card).toBeVisible(); // still there mid-reload
+  await expect(page.getByText(t.loading)).toHaveCount(0);
+  release();
+  await expect(page.getByText(t.distanceNoneHint)).toBeVisible(); // no master shares a point
+});

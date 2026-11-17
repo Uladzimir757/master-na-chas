@@ -118,6 +118,7 @@ export const TRANSLATIONS_FIXTURE: Record<string, string> = {
   locationSharingUnsupported: "Этот браузер не поддерживает геолокацию.",
   locationSharingError: "Не удалось определить местоположение.",
   masterLocationTitle: "Мастер сейчас здесь",
+  distanceNoneHint: "Расстояние видно только у мастеров, которые сейчас передают местоположение.",
   addressInstead: "или введите адрес",
   addressPlaceholder: "например, Morska 10, Gdynia",
   addressCheck: "Проверить",
