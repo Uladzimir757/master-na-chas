@@ -360,6 +360,7 @@ class ProviderOut(BaseModel):
     # только если мастер выбрал «виден всегда»
     phone: str | None = None
     avatar: str | None = None  # фото мастера, data: URL
+    about: str | None = None  # «O mnie» для профиля мастера
     # до клиента, метры, округлено до 100 м — только если клиент прислал
     # lat/lng и точка мастера публична (_resolve_provider_location); иначе
     # поля в ответе нет вовсе (задание 15.11.2026, часть C)
@@ -385,6 +386,7 @@ class ProviderSettingsOut(BaseModel):
     phone: str | None = None
     phone_visibility: PhoneVisibility = "after_confirm"
     avatar: str | None = None
+    about: str | None = None
     client_change_min_minutes: int = 120
     # "Занят сейчас" — read-only here (see ProviderBusyOut/the dedicated
     # /api/providers/me/busy/* endpoints below for changing it); included on
@@ -1071,3 +1073,9 @@ class GeocodeIn(BaseModel):
 class GeocodeOut(BaseModel):
     lat: float  # округлено до 3 знаков (~100 м)
     lng: float
+
+
+class MyAboutUpdate(BaseModel):
+    """PUT /api/providers/me/about — «O mnie» в профиле мастера; пусто — убрать."""
+
+    about: str | None = Field(default=None, max_length=600)

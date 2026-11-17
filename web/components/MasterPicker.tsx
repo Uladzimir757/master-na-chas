@@ -7,6 +7,7 @@ import { useLocale } from "@/lib/LocaleContext";
 import { Button, Card, CompactButton, inputClass } from "@/components/ui";
 import { StarIcon } from "@/components/icons";
 import MasterAvatar from "@/components/MasterAvatar";
+import MasterProfile from "@/components/MasterProfile";
 
 // Список приходит отсортированным по рейтингу (app/main.py list_providers);
 // здесь поиск по имени, фильтр по категории работ и смена сортировки —
@@ -29,6 +30,7 @@ export default function MasterPicker({
 }) {
   const { t, locale } = useLocale();
   const [locating, setLocating] = useState(false);
+  const [profile, setProfile] = useState<Provider | null>(null);
   const [locateFailed, setLocateFailed] = useState(false);
   const [addressOpen, setAddressOpen] = useState(false);
   const [address, setAddress] = useState("");
@@ -240,6 +242,13 @@ export default function MasterPicker({
                     <span>{t.newMaster}</span>
                   )}
                 </div>
+                <button
+                  type="button"
+                  className="min-h-9 text-base font-semibold text-accent-2 underline underline-offset-4"
+                  onClick={() => setProfile(p)}
+                >
+                  {t.masterProfileButton}
+                </button>
                 {p.distance_m != null && (
                   <div className="text-base text-ink">{t.distanceAway(distanceLabel(p.distance_m))}</div>
                 )}
@@ -269,6 +278,16 @@ export default function MasterPicker({
           </div>
         ))}
       </div>
+      {profile && (
+        <MasterProfile
+          provider={profile}
+          onClose={() => setProfile(null)}
+          onSelect={(p) => {
+            setProfile(null);
+            onSelect(p);
+          }}
+        />
+      )}
     </Card>
   );
 }

@@ -99,6 +99,8 @@ class Provider(Base):
     phone_visibility: Mapped[str] = mapped_column(String, default="after_confirm")
     # фото мастера (data: URL, сжимается на телефоне) — без него инициалы
     avatar: Mapped[str | None] = mapped_column(Text)
+    # «O mnie» — в профиле мастера рядом с отзывами (17.11.2026)
+    about: Mapped[str | None] = mapped_column(Text)
     # за сколько минут до начала клиент ещё может сам отменить/перенести
     # (мастер выбирает, 0–180; решение 15.11.2026)
     client_change_min_minutes: Mapped[int] = mapped_column(SmallInteger, default=120)

@@ -168,3 +168,15 @@ async def test_a_client_with_a_booking_today_still_sees_the_exact_point(
     assert mine["location"]["lat"] == 54.5189 and mine["location"]["lng"] == 18.5305
     public = (await client.get("/api/providers")).json()
     assert all(p["location"] is None for p in public)
+
+
+async def test_master_writes_about_and_it_shows_publicly(logged_in_client: AsyncClient, client: AsyncClient):
+    r = await logged_in_client.put("/api/providers/me/about", json={"about": "  20 lat w zawodzie, hydraulika i elektryka.  "})
+    assert r.status_code == 200, r.text
+    assert r.json()["about"] == "20 lat w zawodzie, hydraulika i elektryka."
+    public = (await client.get("/api/providers")).json()
+    assert any(p.get("about") == "20 lat w zawodzie, hydraulika i elektryka." for p in public)
+    too_long = await logged_in_client.put("/api/providers/me/about", json={"about": "x" * 601})
+    assert too_long.status_code == 422
+    cleared = await logged_in_client.put("/api/providers/me/about", json={"about": "   "})
+    assert cleared.json()["about"] is None

@@ -105,6 +105,7 @@ from app.public_cache import cache_control, is_missing, public_cache, write_inva
 from app.geocode import GeocoderUnavailable, geocode
 from app.phone import normalize_phone
 from app.schemas import (
+    MyAboutUpdate,
     GeocodeIn,
     GeocodeOut,
     ClientChangeLimitUpdate,
@@ -501,6 +502,7 @@ async def _list_providers_cached(
             categories=sorted(cats.get(p.id, set())),
             phone=_visible_master_phone(p),
             avatar=p.avatar,
+            about=p.about,
         )
         for p in providers
     ])
@@ -1397,6 +1399,7 @@ def _provider_settings_out(provider: Provider) -> ProviderSettingsOut:
         phone=provider.phone,
         phone_visibility=provider.phone_visibility,
         avatar=provider.avatar,
+        about=provider.about,
         client_change_min_minutes=provider.client_change_min_minutes,
         busy_started_at=provider.busy_started_at,
         busy_estimated_minutes=provider.busy_estimated_minutes,
@@ -1445,6 +1448,20 @@ async def update_my_avatar(
     """Фото мастера в списке мастеров (решение 15.11.2026); null — убрать."""
     provider = await _get_own_provider(master_user_id, db, "settings_edit")
     provider.avatar = payload.avatar
+    await db.commit()
+    await db.refresh(provider)
+    return _provider_settings_out(provider)
+
+
+@app.put("/api/providers/me/about", response_model=ProviderSettingsOut)
+async def update_my_about(
+    payload: MyAboutUpdate,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> ProviderSettingsOut:
+    """«O mnie» — несколько слов о себе в профиле мастера (17.11.2026)."""
+    provider = await _get_own_provider(master_user_id, db, "settings_edit")
+    provider.about = (payload.about or "").strip() or None
     await db.commit()
     await db.refresh(provider)
     return _provider_settings_out(provider)

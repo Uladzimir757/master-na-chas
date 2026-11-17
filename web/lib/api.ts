@@ -157,6 +157,7 @@ export interface Provider {
   // только если мастер выбрал «виден всегда»
   phone?: string | null;
   avatar?: string | null; // фото мастера, data: URL
+  about?: string | null; // «O mnie» — профиль мастера
   distance_m?: number; // only when the client sent its point and the master's is public
 }
 
@@ -312,6 +313,7 @@ export interface ProviderSettings {
   phone?: string | null;
   phone_visibility?: PhoneVisibility;
   avatar?: string | null;
+  about?: string | null;
   // за сколько минут до начала клиент ещё сам отменяет/переносит (0–180)
   client_change_min_minutes?: number;
   // "Занят сейчас" — read-only here, changed via the busy* endpoints below.
@@ -679,6 +681,11 @@ export const api = {
     request<ProviderSettings>("/api/providers/me/avatar", {
       method: "PUT",
       body: JSON.stringify({ avatar }),
+    }),
+  updateMyAbout: (about: string | null) =>
+    request<ProviderSettings>("/api/providers/me/about", {
+      method: "PUT",
+      body: JSON.stringify({ about }),
     }),
   updateClientChangeLimit: (minutes: number) =>
     request<ProviderSettings>("/api/providers/me/client-change-limit", {

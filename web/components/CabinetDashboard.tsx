@@ -38,6 +38,7 @@ import MyCities from "@/components/MyCities";
 import PushStatus from "@/components/PushStatus";
 import MyPhone from "@/components/MyPhone";
 import MyAvatar from "@/components/MyAvatar";
+import MyAbout from "@/components/MyAbout";
 import ClientChangeLimit from "@/components/ClientChangeLimit";
 import GeoKeepAlive from "@/components/GeoKeepAlive";
 
@@ -854,6 +855,10 @@ export default function CabinetDashboard({
 
           <section className="border-t border-line pt-5">
             <MyAvatar />
+          </section>
+
+          <section className="border-t border-line pt-5">
+            <MyAbout />
           </section>
 
           <section className="border-t border-line pt-5">

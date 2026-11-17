@@ -150,6 +150,15 @@ export interface Translations {
   locationAlwaysHint: string;
   locationAlwaysButton: string;
   masterLocationTitle: string;
+  masterProfileButton: string;
+  masterProfileClose: string;
+  masterAboutTitle: string;
+  masterReviewsTitle: string;
+  masterNoReviews: string;
+  masterReviewsLoadError: string;
+  myAboutTitle: string;
+  myAboutHint: string;
+  myAboutPlaceholder: string;
   distanceNoneHint: string;
   addressInstead: string;
   addressPlaceholder: string;
@@ -617,6 +626,15 @@ export function buildTranslations(map: TranslationMap): Translations {
     locationAlwaysHint: pick(map, "locationAlwaysHint"),
     locationAlwaysButton: pick(map, "locationAlwaysButton"),
     masterLocationTitle: pick(map, "masterLocationTitle"),
+    masterProfileButton: pick(map, "masterProfileButton"),
+    masterProfileClose: pick(map, "masterProfileClose"),
+    masterAboutTitle: pick(map, "masterAboutTitle"),
+    masterReviewsTitle: pick(map, "masterReviewsTitle"),
+    masterNoReviews: pick(map, "masterNoReviews"),
+    masterReviewsLoadError: pick(map, "masterReviewsLoadError"),
+    myAboutTitle: pick(map, "myAboutTitle"),
+    myAboutHint: pick(map, "myAboutHint"),
+    myAboutPlaceholder: pick(map, "myAboutPlaceholder"),
     distanceNoneHint: pick(map, "distanceNoneHint"),
     addressInstead: pick(map, "addressInstead"),
     addressPlaceholder: pick(map, "addressPlaceholder"),

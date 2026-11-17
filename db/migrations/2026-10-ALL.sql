@@ -151,3 +151,8 @@ DO $$ BEGIN
     ALTER TABLE provider ADD CONSTRAINT provider_client_change_min_minutes_range
         CHECK (client_change_min_minutes BETWEEN 0 AND 180);
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- «O mnie» мастера: несколько слов о себе в профиле, который клиент
+-- открывает из списка мастеров вместе с отзывами (тестер 17.11.2026: о
+-- мастере можно было только позвонить). Идемпотентно.
+ALTER TABLE provider ADD COLUMN IF NOT EXISTS about text;
