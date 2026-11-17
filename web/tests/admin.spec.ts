@@ -103,7 +103,12 @@ test("a duplicate email surfaces the backend's 409 as a specific message", async
   await expect(page.getByText("Мастер с таким email уже существует")).toBeVisible();
 });
 
-test("getting a Telegram link for an unlinked master shows an openable link", async ({ page }) => {
+// Telegram link (task 17.11.2026): shown as text to copy/send, never as a
+// link to open — the chat binds to whoever presses «Start» first.
+const TG_LINK = "https://t.me/test_bot?start=mock-token";
+
+test("getting a Telegram link shows the text and copies it, with no link to open", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await mockAdminMe(page, { isAdmin: true });
   await mockAdminMasters(page, [adminMaster({ telegram_linked: false })]);
   await mockTelegramLink(page);
@@ -111,10 +116,44 @@ test("getting a Telegram link for an unlinked master shows an openable link", as
   await page.goto("/admin/");
   await page.getByRole("button", { name: "получить ссылку" }).click();
 
-  await expect(page.getByRole("link", { name: "открыть ссылку" })).toHaveAttribute(
-    "href",
-    "https://t.me/test_bot?start=mock-token",
-  );
+  await expect(page.getByRole("textbox", { name: "Ссылка привязки Telegram" })).toHaveValue(TG_LINK);
+  await expect(page.locator(`a[href="${TG_LINK}"]`)).toHaveCount(0);
+  await expect(page.getByText("Не открывай сам")).toBeVisible();
+  // headless Chromium has no share sheet — no «Отправить» button
+  await expect(page.getByRole("button", { name: "Отправить" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Копировать" }).click();
+  await expect(page.getByText("Скопировано")).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(TG_LINK);
+});
+
+test("where the device can share, «Отправить» sends the bilingual invite", async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as unknown as { __shared: unknown[] }).__shared = [];
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: async (data: unknown) => {
+        (window as unknown as { __shared: unknown[] }).__shared.push(data);
+      },
+    });
+  });
+  await mockAdminMe(page, { isAdmin: true });
+  await mockAdminMasters(page, [adminMaster({ telegram_linked: false })]);
+  await mockTelegramLink(page);
+
+  await page.goto("/admin/");
+  await page.getByRole("button", { name: "получить ссылку" }).click();
+  await page.getByRole("button", { name: "Отправить" }).click();
+
+  const shared = await page.evaluate(() => (window as unknown as { __shared: { text: string }[] }).__shared);
+  expect(shared).toEqual([
+    {
+      text:
+        `Podłącz powiadomienia o zamówieniach w Telegramie: ${TG_LINK}
+` +
+        `Подключи уведомления о заказах в Telegram: ${TG_LINK}`,
+    },
+  ]);
 });
 
 // Manual rating stand-in (PATCH /admin/masters/{id}) — see

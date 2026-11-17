@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import AdminTelegramInvite from "@/components/AdminTelegramInvite";
 import { api, ApiError, type AdminCity, type AdminMaster } from "@/lib/api";
 import { Card, Centered, Button } from "@/components/ui";
 import AdminAnalyticsPanel from "@/components/AdminAnalytics";
@@ -368,19 +369,13 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                  <div>
+                  <div className={!m.telegram_linked && linkByMaster[m.master_user_id] ? "w-full" : ""}>
                     <span className="text-ink-2">Telegram: </span>
                     {m.telegram_linked ? (
                       "привязан"
                     ) : linkByMaster[m.master_user_id] ? (
-                      <a
-                        href={linkByMaster[m.master_user_id]}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-accent underline"
-                      >
-                        открыть ссылку
-                      </a>
+                      // text + copy/share, not a link to open — see AdminTelegramInvite
+                      <AdminTelegramInvite link={linkByMaster[m.master_user_id]} />
                     ) : (
                       <button
                         type="button"
