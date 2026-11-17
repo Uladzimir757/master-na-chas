@@ -19,7 +19,9 @@ const execAsync = promisify(exec);
 // static export ever touches `out/` — the directory `serve` is reading from
 // — so the running server keeps serving the good build throughout.
 test("production build fails loudly when NEXT_PUBLIC_API_URL is missing", async () => {
-  test.setTimeout(120_000);
+  // a whole extra `next build` while the other specs run: under load it took
+  // over 2 min twice on 17.11.2026 and failed on time alone
+  test.setTimeout(300_000);
 
   const projectRoot = path.resolve(__dirname, "..");
   const env: NodeJS.ProcessEnv = { ...process.env, NODE_ENV: "production" };

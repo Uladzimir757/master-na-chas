@@ -150,6 +150,9 @@ export interface Translations {
   locationAlwaysHint: string;
   locationAlwaysButton: string;
   masterLocationTitle: string;
+  reviewPhotoOpen: string;
+  reviewPhotoPrev: string;
+  reviewPhotoNext: string;
   masterProfileButton: string;
   masterProfileClose: string;
   masterAboutTitle: string;
@@ -626,6 +629,9 @@ export function buildTranslations(map: TranslationMap): Translations {
     locationAlwaysHint: pick(map, "locationAlwaysHint"),
     locationAlwaysButton: pick(map, "locationAlwaysButton"),
     masterLocationTitle: pick(map, "masterLocationTitle"),
+    reviewPhotoOpen: pick(map, "reviewPhotoOpen"),
+    reviewPhotoPrev: pick(map, "reviewPhotoPrev"),
+    reviewPhotoNext: pick(map, "reviewPhotoNext"),
     masterProfileButton: pick(map, "masterProfileButton"),
     masterProfileClose: pick(map, "masterProfileClose"),
     masterAboutTitle: pick(map, "masterAboutTitle"),

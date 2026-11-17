@@ -227,7 +227,10 @@ export default function MasterPicker({
           >
             <div className="flex min-w-0 flex-1 items-center gap-4">
               <MasterAvatar name={p.name} photo={p.avatar} />
-              <div className="min-w-0">
+              {/* one item per line: rating, distance, contact (phone), then
+                  «about & reviews» as its own button — side by side they ran
+                  together into «O mistrzu i opinie+48777333111» (17.11.2026) */}
+              <div className="flex min-w-0 flex-col items-start gap-1">
                 <div className="truncate text-lg font-bold">{p.name}</div>
                 <div className="flex items-center gap-1.5 text-base text-ink-2">
                   {p.rating != null ? (
@@ -242,13 +245,6 @@ export default function MasterPicker({
                     <span>{t.newMaster}</span>
                   )}
                 </div>
-                <button
-                  type="button"
-                  className="min-h-9 text-base font-semibold text-accent-2 underline underline-offset-4"
-                  onClick={() => setProfile(p)}
-                >
-                  {t.masterProfileButton}
-                </button>
                 {p.distance_m != null && (
                   <div className="text-base text-ink">{t.distanceAway(distanceLabel(p.distance_m))}</div>
                 )}
@@ -260,6 +256,13 @@ export default function MasterPicker({
                     {p.phone}
                   </a>
                 )}
+                <button
+                  type="button"
+                  className="mt-1 inline-flex min-h-10 items-center rounded-full border-2 border-accent bg-surface px-4 text-sm font-semibold text-accent-2 transition hover:bg-accent hover:text-on-accent"
+                  onClick={() => setProfile(p)}
+                >
+                  {t.masterProfileButton}
+                </button>
               </div>
             </div>
             <div className="flex items-center justify-between gap-4 sm:justify-end">

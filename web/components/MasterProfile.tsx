@@ -8,7 +8,7 @@
  * reviewer is shown as «Jan K.», not by full name.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, type Provider, type Review } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import MasterAvatar from "@/components/MasterAvatar";
@@ -33,6 +33,13 @@ export default function MasterProfile({
   const { t, locale } = useLocale();
   const [reviews, setReviews] = useState<Review[] | null>(null);
   const [failed, setFailed] = useState(false);
+  // full-screen photo viewer: opening a data: URL in a new tab was awkward
+  // on a phone (tester 17.11.2026)
+  const [viewer, setViewer] = useState<{ photos: string[]; index: number } | null>(null);
+  const viewerOpen = useRef(false);
+  useEffect(() => {
+    viewerOpen.current = viewer !== null;
+  }, [viewer]);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,7 +47,12 @@ export default function MasterProfile({
       .listProviderReviews(provider.id)
       .then((r) => !cancelled && setReviews(r))
       .catch(() => !cancelled && setFailed(true));
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // Escape closes the photo first, then the profile
+      if (viewerOpen.current) setViewer(null);
+      else onClose();
+    };
     window.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -133,10 +145,16 @@ export default function MasterProfile({
                   {r.photos.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {r.photos.map((src, i) => (
-                        <a key={i} href={src} target="_blank" rel="noreferrer">
+                        <button
+                          key={i}
+                          type="button"
+                          aria-label={t.reviewPhotoOpen}
+                          onClick={() => setViewer({ photos: r.photos, index: i })}
+                          className="rounded-md"
+                        >
                           {/* eslint-disable-next-line @next/next/no-img-element -- data: URLs */}
                           <img src={src} alt="" className="h-20 w-20 rounded-md object-cover" />
-                        </a>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -150,6 +168,65 @@ export default function MasterProfile({
           {t.chooseMasterButton}
         </Button>
       </div>
+      {viewer && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={t.reviewPhotoOpen}
+          className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/90"
+          onClick={(e) => {
+            e.stopPropagation();
+            setViewer(null);
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- data: URLs */}
+          <img
+            src={viewer.photos[viewer.index]}
+            alt=""
+            className="max-h-full max-w-full object-contain"
+          />
+          <button
+            type="button"
+            aria-label={t.masterProfileClose}
+            className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 flex h-12 w-12 items-center justify-center rounded-full bg-white/15 text-2xl text-white"
+            onClick={(e) => {
+              e.stopPropagation();
+              setViewer(null);
+            }}
+          >
+            ✕
+          </button>
+          {viewer.photos.length > 1 && (
+            <>
+              <button
+                type="button"
+                aria-label={t.reviewPhotoPrev}
+                className="absolute left-2 flex h-12 w-12 items-center justify-center rounded-full bg-white/15 text-2xl text-white"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setViewer({ ...viewer, index: (viewer.index - 1 + viewer.photos.length) % viewer.photos.length });
+                }}
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                aria-label={t.reviewPhotoNext}
+                className="absolute right-2 flex h-12 w-12 items-center justify-center rounded-full bg-white/15 text-2xl text-white"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setViewer({ ...viewer, index: (viewer.index + 1) % viewer.photos.length });
+                }}
+              >
+                ›
+              </button>
+              <span className="absolute bottom-[max(1rem,env(safe-area-inset-bottom))] text-sm text-white/80">
+                {viewer.index + 1} / {viewer.photos.length}
+              </span>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
