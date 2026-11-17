@@ -22,6 +22,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import DateField from "@/components/DateField";
 import { api, type WorkingHoursException, type WorkingHoursSlot } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import { toIntlTag, type LocaleCode } from "@/lib/locale";
@@ -321,13 +322,11 @@ export default function WorkingHoursEditor() {
           <h4 className="text-sm font-medium">{t.workingHoursAddExceptionTitle}</h4>
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-ink-2">{t.workingHoursExceptionDateLabel}</span>
-            <input
-              type="date"
+            <DateField
               required
               min={todayDateParam()}
               value={exceptionDate}
-              onChange={(e) => setExceptionDate(e.target.value)}
-              className="rounded-lg border border-line px-3 py-1.5"
+              onChange={setExceptionDate}
             />
           </label>
 

@@ -209,10 +209,12 @@ export default function BookingFlow() {
   // кнопка была только в списке мастеров, и с экрана мастера/услуги/слотов
   // сменить город было нельзя (12.11.2026).
   const cityBar = (
-    <div className="mx-3 mb-2 flex flex-wrap items-center gap-x-3 text-base text-ink-2 sm:mx-6">
-      <span>{t.cityCurrent(cityName(city, locale))}</span>
+    // readable at a glance: dark, bold city, and a real button to change it
+    // (tester 17.11.2026: the pale green link was hard to see)
+    <div className="mx-3 mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-base text-ink sm:mx-6">
+      <span className="font-semibold">{t.cityCurrent(cityName(city, locale))}</span>
       <button
-        className="min-h-11 text-accent underline-offset-4 hover:underline"
+        className="inline-flex min-h-10 items-center rounded-full border-2 border-accent bg-surface px-4 text-sm font-semibold text-accent-2 transition hover:bg-accent hover:text-on-accent"
         onClick={changeCity}
       >
         {t.cityChange}

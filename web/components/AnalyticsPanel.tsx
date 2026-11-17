@@ -3,10 +3,11 @@
 /** «Аналитика»: у каждой работы (услуги) свои цифры за выбранный период. */
 
 import { useEffect, useState } from "react";
+import DateField from "@/components/DateField";
 import { api, type Analytics } from "@/lib/api";
 import { addDays, toDateParam } from "@/lib/format";
 import { useLocale } from "@/lib/LocaleContext";
-import { CompactButton, inputClass } from "@/components/ui";
+import { CompactButton } from "@/components/ui";
 
 const hours = (min: number) => (min / 60).toFixed(1);
 
@@ -53,21 +54,11 @@ export default function AnalyticsPanel() {
       >
         <label className="text-xs text-ink-2">
           {t.analyticsFrom}
-          <input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            className={`${inputClass} mt-1`}
-          />
+          <DateField value={from} onChange={setFrom} className="mt-1" />
         </label>
         <label className="text-xs text-ink-2">
           {t.analyticsTo}
-          <input
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            className={`${inputClass} mt-1`}
-          />
+          <DateField value={to} onChange={setTo} className="mt-1" />
         </label>
         <CompactButton type="submit" disabled={!canApply}>
           {t.analyticsApply}
