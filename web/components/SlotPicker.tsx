@@ -1,6 +1,7 @@
 "use client";
 
 import { rememberBooking, rememberClient, savedClient } from "@/lib/myBookings";
+import { registerNativePush } from "@/lib/native";
 import VoiceButton, { appendDictation } from "@/components/VoiceButton";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -226,7 +227,14 @@ export default function SlotPicker({
         city_id: cityId,
       });
       setBooking(result);
-      if (result.manage_token) rememberBooking(result.id, result.manage_token);
+      if (result.manage_token) {
+        rememberBooking(result.id, result.manage_token);
+        // В приложении — пуши клиенту сразу, а не только когда он откроет
+        // «Twoja rezerwacja» (20.11.2026: мастер перенёс заказ, пока клиент
+        // был на экране «Rezerwacja utworzona», — клиент ничего не узнал).
+        // No-op в браузере.
+        void registerNativePush({ kind: "client", bookingId: result.id, token: result.manage_token });
+      }
       rememberClient(clientName.trim(), clientPhone.trim());
       setConfirmNote(pendingNote(result));
     } catch (e) {

@@ -391,9 +391,11 @@ CREATE INDEX idx_web_push_master ON web_push_subscription (master_user_id);
 -- device_push_token — FCM token of the native app (Capacitor, docs/
 -- mobile-app-task.md §4). Separate from web_push_subscription: different
 -- transport (FCM HTTP v1, not VAPID) and the recipient may be a client, not
--- only a master. Exactly one owner: a logged-in master, or a client phone
--- (clients have no accounts — the phone from the SMS-linked "my booking" page
--- is their identity, same as the booking history there).
+-- only a master. Owners: a logged-in master and/or a client phone (clients
+-- have no accounts — the phone from the "my booking" page is their identity,
+-- same as the booking history there). Both at once is normal: the app is one
+-- for both roles, and a master's phone may also hold his own client orders
+-- (20.11.2026 — one owner only let the client role steal the master's pushes).
 -- ----------------------------------------------------------------------------
 CREATE TABLE device_push_token (
     id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -402,7 +404,7 @@ CREATE TABLE device_push_token (
     platform        text NOT NULL CHECK (platform IN ('android', 'ios')),
     fcm_token       text NOT NULL UNIQUE,
     updated_at      timestamptz NOT NULL DEFAULT now(),
-    CHECK ((master_user_id IS NULL) <> (client_phone IS NULL))
+    CONSTRAINT device_push_token_has_owner CHECK (master_user_id IS NOT NULL OR client_phone IS NOT NULL)
 );
 
 CREATE INDEX idx_device_push_master ON device_push_token (master_user_id);

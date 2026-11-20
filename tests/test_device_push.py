@@ -185,30 +185,52 @@ async def test_unregister_removes_token(logged_in_client: AsyncClient, db_sessio
     assert await _tokens(db_session) == []
 
 
-async def test_client_registers_by_booking_link_and_device_moves_owner(
-    logged_in_client: AsyncClient, db_session: AsyncSession, provider: Provider, service: Service
-):
-    start = datetime.combine(NEXT_MONDAY, time(10, 0), tzinfo=BUSINESS_TZ)
+async def _client_booking(
+    db: AsyncSession, provider: Provider, service: Service, phone: str, tok: str, hour: int = 10
+) -> Booking:
+    start = datetime.combine(NEXT_MONDAY, time(hour, 0), tzinfo=BUSINESS_TZ)
     booking = Booking(
         id=uuid.uuid4(), tenant_id=provider.tenant_id, provider_id=provider.id, service_id=service.id,
-        client_name="K", client_phone="+48600111222", start_at=start, end_at=start + timedelta(hours=1),
-        status=BookingStatus.confirmed, manage_token="tok-1",
+        client_name="K", client_phone=phone, start_at=start, end_at=start + timedelta(hours=1),
+        status=BookingStatus.confirmed, manage_token=tok,
     )
-    db_session.add(booking)
-    await db_session.commit()
+    db.add(booking)
+    await db.commit()
+    return booking
+
+
+async def test_one_phone_is_both_master_and_client(
+    logged_in_client: AsyncClient, db_session: AsyncSession, provider: Provider, service: Service,
+    master_user: MasterUser,
+):
+    """20.11.2026: the client registration on the master's own phone took the
+    token away from the master — his push about the client's reschedule
+    never came. Each registration now keeps the other role."""
+    booking = await _client_booking(db_session, provider, service, "+48600111222", "tok-1")
     body = {"fcm_token": FCM_TOKEN, "platform": "android"}
 
     bad = await logged_in_client.put(f"/api/my-booking/{booking.id}/device-token?token=wrong", json=body)
     assert bad.status_code == 404
 
-    # тот же телефон сначала был у мастера — токен переходит клиенту
     await logged_in_client.put("/api/push/device-token", json=body)
     r = await logged_in_client.put(f"/api/my-booking/{booking.id}/device-token?token=tok-1", json=body)
     assert r.status_code == 200
+    await logged_in_client.put("/api/push/device-token", json=body)  # the cabinet re-registers on open
 
     rows = await _tokens(db_session)
     assert len(rows) == 1
-    assert rows[0].master_user_id is None and rows[0].client_phone == "+48600111222"
+    assert rows[0].master_user_id == master_user.id and rows[0].client_phone == "+48600111222"
+
+    # a newer order from another number on this phone moves only the client role
+    other = await _client_booking(db_session, provider, service, "+48600333444", "tok-2", hour=12)
+    await logged_in_client.put(f"/api/my-booking/{other.id}/device-token?token=tok-2", json=body)
+    await db_session.refresh(rows[0])
+    assert rows[0].master_user_id == master_user.id and rows[0].client_phone == "+48600333444"
+
+    # master logs out: the phone still gets the client's pushes
+    await logged_in_client.post("/api/push/device-token/unregister", json={"fcm_token": FCM_TOKEN})
+    await db_session.refresh(rows[0])
+    assert rows[0].master_user_id is None and rows[0].client_phone == "+48600333444"
 
 
 # ----------------------------------------------------------------------------

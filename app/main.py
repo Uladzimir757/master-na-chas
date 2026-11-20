@@ -67,7 +67,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.sessions import SessionMiddleware
@@ -473,10 +473,10 @@ async def list_providers(
     # точке; саму карту видит клиент с заказом на сегодня (_my_booking_out).
     out = []
     for p in providers:
-        update: dict = {"location": None}
+        changes: dict = {"location": None}
         if p.location is not None and lat is not None and lng is not None:
-            update["distance_m"] = _round_distance_m(_distance_km(lat, lng, p.location.lat, p.location.lng))
-        out.append(p.model_copy(update=update))
+            changes["distance_m"] = _round_distance_m(_distance_km(lat, lng, p.location.lat, p.location.lng))
+        out.append(p.model_copy(update=changes))
     return out
 
 
@@ -3489,17 +3489,22 @@ async def push_subscribe(
 async def _upsert_device_token(
     db: AsyncSession, payload: DeviceTokenRequest, *, master_user_id: uuid.UUID | None, client_phone: str | None
 ) -> None:
-    """Токен уникален: то же устройство под другим владельцем (выход/вход
-    другим мастером, клиентская ссылка на том же телефоне) переписывает
-    строку."""
+    """Токен уникален, но у устройства две роли: приложение одно на мастера и
+    клиента, и тот же телефон может быть и вошедшим мастером, и клиентом со
+    своими заказами (20.11.2026: клиентская регистрация отнимала токен у
+    мастера — пуш о переносе клиентом не пришёл, Telegram пришёл). Каждая
+    регистрация переписывает только свою роль: вход другим мастером меняет
+    мастера, заказ с другого номера — номер клиента."""
     row = (
         await db.execute(select(DevicePushToken).where(DevicePushToken.fcm_token == payload.fcm_token))
     ).scalar_one_or_none()
     if row is None:
         row = DevicePushToken(id=uuid.uuid4(), fcm_token=payload.fcm_token)
         db.add(row)
-    row.master_user_id = master_user_id
-    row.client_phone = client_phone
+    if master_user_id is not None:
+        row.master_user_id = master_user_id
+    if client_phone is not None:
+        row.client_phone = client_phone
     row.platform = payload.platform
     row.updated_at = datetime.now(timezone.utc)
     await db.commit()
@@ -3522,8 +3527,18 @@ async def unregister_device_token(
 ) -> dict:
     """Выход из кабинета в приложении. Без авторизации: к этому моменту
     Bearer-токен уже стёрт, а сам FCM-токен — секрет устройства, знающий его
-    может разве что отписать это же устройство."""
-    await db.execute(delete(DevicePushToken).where(DevicePushToken.fcm_token == payload.fcm_token))
+    может разве что отписать это же устройство. Снимается только роль
+    мастера: заказы клиента на этом телефоне по-прежнему шлют ему пуши."""
+    # сначала удалить строку без клиента, потом снять мастера с оставшейся —
+    # иначе строка на миг остаётся без владельца (device_push_token_has_owner)
+    await db.execute(
+        delete(DevicePushToken).where(
+            DevicePushToken.fcm_token == payload.fcm_token, DevicePushToken.client_phone.is_(None)
+        )
+    )
+    await db.execute(
+        update(DevicePushToken).where(DevicePushToken.fcm_token == payload.fcm_token).values(master_user_id=None)
+    )
     await db.commit()
     return {"ok": True}
 
