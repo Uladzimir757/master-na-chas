@@ -152,8 +152,12 @@ export interface Translations {
   masterLocationTitle: string;
   voiceStart: string;
   voiceStop: string;
-  voiceNoPermission: string;
-  voiceError: string;
+  voiceTranscribing: string;
+  voiceBlockedBrowser: string;
+  voiceBlockedApp: string;
+  voiceOpenSettings: string;
+  voiceFailed: string;
+  voiceNothing: string;
   bookingNotesPlaceholder: string;
   bookingNotesTitle: string;
   reviewPhotoOpen: string;
@@ -637,8 +641,12 @@ export function buildTranslations(map: TranslationMap): Translations {
     masterLocationTitle: pick(map, "masterLocationTitle"),
     voiceStart: pick(map, "voiceStart"),
     voiceStop: pick(map, "voiceStop"),
-    voiceNoPermission: pick(map, "voiceNoPermission"),
-    voiceError: pick(map, "voiceError"),
+    voiceTranscribing: pick(map, "voiceTranscribing"),
+    voiceBlockedBrowser: pick(map, "voiceBlockedBrowser"),
+    voiceBlockedApp: pick(map, "voiceBlockedApp"),
+    voiceOpenSettings: pick(map, "voiceOpenSettings"),
+    voiceFailed: pick(map, "voiceFailed"),
+    voiceNothing: pick(map, "voiceNothing"),
     bookingNotesPlaceholder: pick(map, "bookingNotesPlaceholder"),
     bookingNotesTitle: pick(map, "bookingNotesTitle"),
     reviewPhotoOpen: pick(map, "reviewPhotoOpen"),

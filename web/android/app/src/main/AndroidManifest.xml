@@ -76,14 +76,9 @@
          системный запрос вместо поиска пункта в настройках. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
-    <!-- Голосовой ввод клиента (@capgo/capacitor-speech-recognition, 20.11.2026):
-         микрофон (разрешение даёт сам плагин) и видимость системной службы
-         распознавания речи — без <queries> на Android 11+ приложение её «не
-         видит» и голос молча не работает. -->
+    <!-- Голосовой ввод клиента (20.11.2026, как в zlecai): страница пишет звук
+         через getUserMedia + MediaRecorder, распознаёт сервер. Capacitor сам
+         спрашивает RECORD_AUDIO, когда WebView просит микрофон. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <queries>
-        <intent>
-            <action android:name="android.speech.RecognitionService" />
-        </intent>
-    </queries>
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 </manifest>

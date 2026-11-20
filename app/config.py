@@ -106,6 +106,12 @@ class Settings(BaseSettings):
     NOTIFICATION_LLM_PROVIDER: str = "openai"
     OPENAI_API_KEY: str = ""
     NOTIFICATION_OPENAI_MODEL: str = "gpt-4o-mini"
+    # Голосовой ввод клиента (app/speech.py, 20.11.2026): распознаёт OpenAI.
+    # Суточный бюджет вызовов на весь сервис + лимиты по IP на эндпоинте.
+    TRANSCRIBE_MODEL: str = "gpt-4o-mini-transcribe"
+    DAILY_TRANSCRIBE_CALLS: int = 1500
+    RATE_VOICE_PER_MIN: int = 10
+    RATE_VOICE_PER_DAY: int = 100
     ANTHROPIC_API_KEY: str = ""
     NOTIFICATION_LLM_MODEL: str = "claude-opus-5-5"
     # Серверный fallback на случай отказа классификатора безопасности; пустая

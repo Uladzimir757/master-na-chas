@@ -549,6 +549,14 @@ export const api = {
     return request<Provider[]>(`/api/providers${qs ? `?${qs}` : ""}`);
   },
   listCities: () => request<PublicCity[]>("/api/cities"),
+  // voice input: the recorded audio itself as the body, its own type
+  // (Safari records audio/mp4) — the server answers {"text": ...}
+  transcribeAudio: (audio: Blob) =>
+    request<{ text: string }>("/api/transcribe", {
+      method: "POST",
+      body: audio,
+      headers: { "Content-Type": audio.type || "audio/webm" },
+    }),
   // address -> point for «distance to the master» (OSM Nominatim, server side)
   geocode: (address: string) =>
     request<{ lat: number; lng: number }>("/api/geocode", {

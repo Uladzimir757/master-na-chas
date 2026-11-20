@@ -64,6 +64,8 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Lets you describe the job by voice instead of typing. The recording is only turned into text and is not stored.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>While you are on duty, your location is shown to clients who have booked you, so they can see when you will arrive — like a taxi app. It is shared only when you turn on location sharing and only during your working hours.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

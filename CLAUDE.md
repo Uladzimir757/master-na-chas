@@ -229,25 +229,36 @@
   телефон, затем отдельная кнопка «O mistrzu i opinie» (слипалось в
   «O mistrzu i opinie+48777333111»). Фото в отзывах открываются поверх
   профиля на весь экран (листание, «1 / 2», ✕, Esc), а не в новой вкладке.
-- **Голосовой ввод для клиентов** (20.11.2026, `components/VoiceButton.tsx`):
-  кнопка микрофона дописывает надиктованное в поле (язык — язык страницы
-  pl-PL/en-GB). Где: новое поле заказа «Opisz, co trzeba zrobić» (до 1000
-  знаков, сервер уже хранил `booking.notes`; теперь мастер видит «Opis od
-  klienta» в окне заказа и в уведомлении о новом заказе), отзыв, «Jest
-  problem» (`/review/` и «Twoja rezerwacja»), адрес и поиск мастера (в
-  поиске диктовка заменяет текст). В браузере — Web Speech API (Chrome,
-  Safari); нет поддержки (Firefox) — кнопки нет. В Android-приложении у
-  WebView этого API нет → плагин `@capgo/capacitor-speech-recognition` 8.6
-  + в манифесте `RECORD_AUDIO` и `<queries>` RecognitionService (без них на
-  Android 11+ распознавание молча не работает) — **нужна сборка APK не
-  старее 20.11.2026 22:06** (`zr-voice-2026-11-20.apk`, на телефон ещё не
-  поставлена). В тестах распознавание подменяется — подменять и
-  `SpeechRecognition`, и `webkitSpeechRecognition` (свежий Chromium даёт
-  оба, код берёт первый). Выкачено на сайт 20.11.2026 (переводы на проде).
-  Живым голосом НЕ проверено ни в браузере, ни в приложении. APK
-  `zr-voice-2026-11-20.apk` поставлен на Redmi пользователя 20.11.2026
-  22:38 (`adb install -r`, вход и данные сохранены); разрешение на микрофон
-  ещё не выдано — система спросит при первом нажатии микрофона.
+- **Голосовой ввод для клиентов** (решение пользователя 20.11.2026 —
+  сделать как в zlecai, памятка «Голосовой ввод: как сделано в zlecai»,
+  эталон — репо zlecai, коммиты `4e974fd`, `40ec222`): запись звука на
+  устройстве (`getUserMedia` + `MediaRecorder`) → `POST /api/transcribe` →
+  OpenAI `gpt-4o-mini-transcribe` → текст в поле. Текст сам НЕ отправляется
+  — человек проверяет и жмёт кнопку. Звук и распознанный текст не хранить и
+  не логировать. Лимиты по IP + суточный бюджет вызовов. Web Speech API и
+  плагин `@capgo/capacitor-speech-recognition` (первая версия 20.11.2026)
+  НЕ используем: WebView/Firefox его не умеют, решение — один путь
+  «запись + сервер» везде. Где кнопка: «Opisz, co trzeba zrobić» в заказе
+  (`booking.notes`, до 1000 знаков, мастер видит «Opis od klienta» и в
+  уведомлении), отзыв, «Jest problem», адрес, поиск мастера.
+  Как сделано: `app/speech.py` + `POST /api/transcribe` (сырое аудио в
+  теле, тип audio/webm|ogg|mp4|mpeg|wav, 2 МБ считается при чтении потока,
+  415/413/422, пустой текст = «не услышали», 503 = нет ключа/бюджет/сбой;
+  лимит по IP `RATE_VOICE_PER_MIN`=10, `RATE_VOICE_PER_DAY`=100, суточный
+  бюджет `DAILY_TRANSCRIBE_CALLS`=1500 в памяти процесса, модель
+  `TRANSCRIBE_MODEL`; ключ — общий `OPENAI_API_KEY`). Фронт: `lib/voice.ts`
+  (MediaRecorder, тип из `recorder.mimeType`, автостоп 15 с, < 1 КБ не
+  шлём), `components/VoiceButton.tsx` (запись/распознавание/сообщения;
+  «микрофон заблокирован» в браузере исчезает сам по
+  `navigator.permissions`), `lib/appSettings.ts` + нативный
+  `AppSettingsPlugin.java` («Otwórz ustawienia» в приложении после двух
+  отказов). Манифест: `RECORD_AUDIO`, `MODIFY_AUDIO_SETTINGS`; iOS —
+  `NSMicrophoneUsageDescription`. Политика конфиденциальности (черновики
+  `docs/legal/`): строка «запись голоса» и OpenAI в получателях. APK
+  `zr-voice-2026-11-20b.apk` поставлен на Redmi 20.11.2026 23:06 (старый
+  `zr-voice-2026-11-20.apk` с плагином — устарел). НЕ проверено: живой
+  вызов OpenAI с настоящей записью, Safari/iOS (`audio/mp4`), микрофон и
+  «Otwórz ustawienia» на телефоне.
 - **Фото мастера** (15.11.2026, `components/MyAvatar.tsx`): мастер
   выбирает фото в настройках, телефон обрезает до квадрата 256 px JPEG
   (~30 КБ), хранится data: URL в `provider.avatar`, отдаётся в публичном

@@ -13,6 +13,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(GeoRestartPlugin.class);
+        registerPlugin(AppSettingsPlugin.class); // «Otwórz ustawienia» for the microphone
         super.onCreate(savedInstanceState);
         openSettingsIfFromGeoNotification(getIntent());
     }

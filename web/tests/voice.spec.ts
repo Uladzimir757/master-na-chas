@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test";
 import { formatTime } from "../lib/format";
 import { expect, test } from "./fixtures";
 import {
@@ -6,7 +7,6 @@ import {
   mockAuthMe,
   mockAvailability,
   mockCatalog,
-  mockCreateBooking,
   mockMyCalendar,
   mockMyServices,
   mockProviderSettings,
@@ -15,73 +15,133 @@ import {
   t,
 } from "./mocks";
 
-// Voice input for clients (20.11.2026, components/VoiceButton.tsx). The
-// browser's speech recognition is faked: it «hears» one phrase.
-const fakeSpeech = (phrase: string) => {
-  class FakeRecognition {
-    lang = "";
-    interimResults = false;
-    continuous = false;
-    maxAlternatives = 1;
-    onresult: ((e: unknown) => void) | null = null;
-    onend: (() => void) | null = null;
-    onerror: ((e: unknown) => void) | null = null;
+// Voice input (20.11.2026, the zlecai way): the page records with
+// MediaRecorder, POSTs the audio to /api/transcribe and puts the text into
+// the field — it never sends the form by itself. Microphone and server are
+// faked here.
+
+type MicMode = "ok" | "blocked";
+
+const fakeMic = (mode: MicMode) => {
+  const w = window as unknown as Record<string, unknown>;
+  // navigator.mediaDevices is a read-only getter — plain assignment is ignored
+  Object.defineProperty(navigator, "mediaDevices", {
+    configurable: true,
+    value: {
+      getUserMedia: async () => {
+        if (mode === "blocked") throw Object.assign(new Error("denied"), { name: "NotAllowedError" });
+        return { getTracks: () => [{ stop() {} }] };
+      },
+    },
+  });
+  class FakeRecorder {
+    static isTypeSupported(m: string) {
+      return m.startsWith("audio/webm");
+    }
+    state = "inactive";
+    mimeType = "audio/webm;codecs=opus";
+    ondataavailable: ((e: { data: Blob }) => void) | null = null;
+    onstop: (() => void) | null = null;
     start() {
-      (window as unknown as { __lang: string }).__lang = this.lang;
-      setTimeout(() => {
-        this.onresult?.({ results: [[{ transcript: phrase }]] });
-        this.onend?.();
-      }, 50);
+      this.state = "recording";
     }
     stop() {
-      this.onend?.();
+      this.state = "inactive";
+      this.ondataavailable?.({ data: new Blob([new Uint8Array(4000)], { type: this.mimeType }) });
+      this.onstop?.();
     }
   }
-  // newer Chromium has the unprefixed one too, and the code prefers it
-  const w = window as unknown as Record<string, unknown>;
-  w.SpeechRecognition = FakeRecognition;
-  w.webkitSpeechRecognition = FakeRecognition;
+  w.MediaRecorder = FakeRecorder;
 };
 
-test("the client dictates the job description and it goes with the booking", async ({ page }) => {
-  await page.addInitScript(fakeSpeech, "Cieknie kran w kuchni");
+async function openBookingForm(page: Page) {
   await mockCatalog(page);
   await mockAvailability(page, [SLOT_A]);
-  const sent: Record<string, unknown>[] = [];
-  await page.route("**/api/bookings", async (route) => {
-    sent.push(route.request().postDataJSON());
-    await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(bookingResponse("pending")) });
-  });
   await page.goto("/");
   await page.getByRole("button", { name: t.chooseMasterButton }).click();
   await page.getByRole("button", { name: new RegExp(formatTime(SLOT_A.start_at, "pl")) }).click();
+}
+
+test("record → server text → appended to the description; the client sends the form himself", async ({ page }) => {
+  await page.addInitScript(fakeMic, "ok" as MicMode);
+  const uploads: { type: string; size: number }[] = [];
+  await page.route("**/api/transcribe", async (route) => {
+    const req = route.request();
+    uploads.push({ type: req.headers()["content-type"], size: (req.postDataBuffer() ?? Buffer.alloc(0)).length });
+    await route.fulfill({ status: 200, contentType: "application/json", body: '{"text":"Cieknie kran w kuchni"}' });
+  });
+  const bookings: Record<string, unknown>[] = [];
+  await page.route("**/api/bookings", async (route) => {
+    bookings.push(route.request().postDataJSON());
+    await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(bookingResponse("pending")) });
+  });
+  await openBookingForm(page);
 
   const notes = page.getByRole("textbox", { name: t.bookingNotesPlaceholder });
   await notes.fill("Mam część.");
   await page.getByRole("button", { name: t.voiceStart }).first().click();
-  await expect(notes).toHaveValue("Mam część. Cieknie kran w kuchni"); // appended, not replaced
-  // the page's language, not the phone's (fixture locale is Polish)
-  expect(await page.evaluate(() => (window as unknown as { __lang: string }).__lang)).toBe("pl-PL");
+  await expect(page.getByRole("button", { name: t.voiceStop })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: t.voiceStop }).click();
+
+  await expect(notes).toHaveValue("Mam część. Cieknie kran w kuchni");
+  expect(uploads).toEqual([{ type: "audio/webm;codecs=opus", size: 4000 }]); // the recorder's own type
+  expect(bookings).toEqual([]); // nothing sent by itself
 
   await page.getByPlaceholder(t.namePlaceholder).fill("Iwan");
   await page.getByPlaceholder(t.phonePlaceholder).fill("+48123456789");
   await page.getByRole("button", { name: t.submitBooking }).click();
-  await expect.poll(() => sent.length).toBe(1);
-  expect(sent[0].notes).toBe("Mam część. Cieknie kran w kuchni");
+  await expect.poll(() => bookings.length).toBe(1);
+  expect(bookings[0].notes).toBe("Mam część. Cieknie kran w kuchni");
 });
 
-test("no speech recognition in the browser — no microphone button", async ({ page }) => {
+test("nothing heard and server unavailable are said plainly", async ({ page }) => {
+  await page.addInitScript(fakeMic, "ok" as MicMode);
+  let answer = { status: 200, body: '{"text":""}' };
+  await page.route("**/api/transcribe", (route) =>
+    route.fulfill({ status: answer.status, contentType: "application/json", body: answer.body }),
+  );
+  await openBookingForm(page);
+  const mic = () => page.getByRole("button", { name: t.voiceStart }).first();
+
+  await mic().click();
+  await page.getByRole("button", { name: t.voiceStop }).click();
+  await expect(page.getByText(t.voiceNothing)).toBeVisible();
+
+  answer = { status: 503, body: '{"detail":"x"}' };
+  await mic().click();
+  await page.getByRole("button", { name: t.voiceStop }).click();
+  await expect(page.getByText(t.voiceFailed)).toBeVisible();
+});
+
+test("blocked microphone in a browser: steps shown, gone once allowed", async ({ page }) => {
+  await page.addInitScript(fakeMic, "blocked" as MicMode);
   await page.addInitScript(() => {
-    const w = window as unknown as Record<string, unknown>;
-    delete w.SpeechRecognition;
-    delete w.webkitSpeechRecognition;
+    const status = new EventTarget() as EventTarget & { state: string };
+    status.state = "denied";
+    (window as unknown as { __micStatus: unknown }).__micStatus = status;
+    Object.defineProperty(navigator, "permissions", {
+      configurable: true,
+      value: { query: async () => status },
+    });
   });
-  await mockCatalog(page);
-  await mockAvailability(page, [SLOT_A]);
-  await mockCreateBooking(page, () => ({ status: 201, body: bookingResponse("pending") }));
-  await page.goto("/");
-  await page.getByRole("button", { name: t.chooseMasterButton }).click();
-  await page.getByRole("button", { name: new RegExp(formatTime(SLOT_A.start_at, "pl")) }).click();
+  await openBookingForm(page);
+  await page.getByRole("button", { name: t.voiceStart }).first().click();
+  await expect(page.getByText(t.voiceBlockedBrowser)).toBeVisible();
+  await expect(page.getByRole("button", { name: t.voiceOpenSettings })).toHaveCount(0); // not in the app
+
+  await page.evaluate(() => {
+    const s = (window as unknown as { __micStatus: EventTarget & { state: string } }).__micStatus;
+    s.state = "granted";
+    s.dispatchEvent(new Event("change"));
+  });
+  await expect(page.getByText(t.voiceBlockedBrowser)).toHaveCount(0);
+});
+
+test("no MediaRecorder — no microphone button", async ({ page }) => {
+  await page.addInitScript(() => {
+    delete (window as unknown as Record<string, unknown>).MediaRecorder;
+  });
+  await openBookingForm(page);
   await expect(page.getByRole("textbox", { name: t.bookingNotesPlaceholder })).toBeVisible();
   await expect(page.getByRole("button", { name: t.voiceStart })).toHaveCount(0);
 });

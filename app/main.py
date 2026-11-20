@@ -63,6 +63,7 @@ from decimal import Decimal
 from datetime import date, datetime, time, timedelta, timezone
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -103,6 +104,7 @@ from app.geo_watchdog import run_geo_watchdog
 from app.notifications import notify_client, notify_master, reply_telegram, run_in_background
 from app.public_cache import cache_control, is_missing, public_cache, write_invalidates
 from app.geocode import GeocoderUnavailable, geocode
+from app.speech import MAX_AUDIO_BYTES, TranscriptionUnavailable, audio_extension, transcribe
 from app.phone import normalize_phone
 from app.schemas import (
     MyAboutUpdate,
@@ -402,6 +404,35 @@ def _providers_in_city(slug: str):
         .join(City, City.id == ProviderCity.city_id)
         .where(City.slug == slug, City.is_active.is_(True))
     )
+
+
+@app.post("/api/transcribe")
+@limiter.limit(lambda: f"{settings.RATE_VOICE_PER_MIN}/minute;{settings.RATE_VOICE_PER_DAY}/day")
+async def transcribe_voice(request: Request) -> dict:
+    """Голосовой ввод клиента (20.11.2026): сырое аудио в теле
+    (Content-Type audio/webm|ogg|mp4|mpeg|wav; параметры вроде codecs=opus
+    игнорируются) → {"text": ...}. Пустая строка — ничего не услышано, не
+    ошибка. 415 — не аудио, 413 — больше 2 МБ, 422 — пусто, 503 — нет ключа,
+    исчерпан суточный бюджет или сбой OpenAI. Звук и текст не хранятся и не
+    логируются (app/speech.py)."""
+    extension = audio_extension(request.headers.get("content-type"))
+    if extension is None:
+        raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Send audio/webm, ogg, mp4, mpeg or wav")
+    # size counted while reading — Content-Length can lie
+    chunks: list[bytes] = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > MAX_AUDIO_BYTES:
+            raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Recording too long")
+        chunks.append(chunk)
+    if size == 0:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Empty recording")
+    try:
+        text = await run_in_threadpool(transcribe, b"".join(chunks), extension)
+    except TranscriptionUnavailable:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Voice input unavailable, please type")
+    return {"text": text}
 
 
 @app.post("/api/geocode", response_model=GeocodeOut)
