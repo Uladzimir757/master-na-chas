@@ -150,6 +150,7 @@ export interface Translations {
   locationAlwaysHint: string;
   locationAlwaysButton: string;
   masterLocationTitle: string;
+  masterPhotoOpen: string;
   voiceStart: string;
   voiceStop: string;
   voiceTranscribing: string;
@@ -639,6 +640,7 @@ export function buildTranslations(map: TranslationMap): Translations {
     locationAlwaysHint: pick(map, "locationAlwaysHint"),
     locationAlwaysButton: pick(map, "locationAlwaysButton"),
     masterLocationTitle: pick(map, "masterLocationTitle"),
+    masterPhotoOpen: pick(map, "masterPhotoOpen"),
     voiceStart: pick(map, "voiceStart"),
     voiceStop: pick(map, "voiceStop"),
     voiceTranscribing: pick(map, "voiceTranscribing"),

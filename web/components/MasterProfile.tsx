@@ -35,7 +35,7 @@ export default function MasterProfile({
   const [failed, setFailed] = useState(false);
   // full-screen photo viewer: opening a data: URL in a new tab was awkward
   // on a phone (tester 17.11.2026)
-  const [viewer, setViewer] = useState<{ photos: string[]; index: number } | null>(null);
+  const [viewer, setViewer] = useState<{ photos: string[]; index: number; label: string } | null>(null);
   const viewerOpen = useRef(false);
   useEffect(() => {
     viewerOpen.current = viewer !== null;
@@ -80,7 +80,20 @@ export default function MasterProfile({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start gap-4">
-          <MasterAvatar name={provider.name} photo={provider.avatar} />
+          {provider.avatar ? (
+            // tap to see the master's photo full screen (tester 20.11.2026:
+            // «фото мастера не открывается»)
+            <button
+              type="button"
+              aria-label={t.masterPhotoOpen}
+              onClick={() => setViewer({ photos: [provider.avatar!], index: 0, label: t.masterPhotoOpen })}
+              className="shrink-0 rounded-full"
+            >
+              <MasterAvatar name={provider.name} photo={provider.avatar} />
+            </button>
+          ) : (
+            <MasterAvatar name={provider.name} photo={provider.avatar} />
+          )}
           <div className="min-w-0 flex-1">
             <h2 id="master-profile-name" className="text-xl font-bold">
               {provider.name}
@@ -149,7 +162,7 @@ export default function MasterProfile({
                           key={i}
                           type="button"
                           aria-label={t.reviewPhotoOpen}
-                          onClick={() => setViewer({ photos: r.photos, index: i })}
+                          onClick={() => setViewer({ photos: r.photos, index: i, label: t.reviewPhotoOpen })}
                           className="rounded-md"
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element -- data: URLs */}
@@ -172,7 +185,7 @@ export default function MasterProfile({
         <div
           role="dialog"
           aria-modal="true"
-          aria-label={t.reviewPhotoOpen}
+          aria-label={viewer.label}
           className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/90"
           onClick={(e) => {
             e.stopPropagation();

@@ -232,7 +232,15 @@ export default function MasterPicker({
             className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-5 shadow-card transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_2px_4px_rgb(43_38_34/0.06),0_14px_32px_rgb(43_38_34/0.10)] sm:flex-row sm:items-center"
           >
             <div className="flex min-w-0 flex-1 items-center gap-4">
-              <MasterAvatar name={p.name} photo={p.avatar} />
+              {/* the photo opens the master's profile (bigger photo there) */}
+              <button
+                type="button"
+                aria-label={p.name}
+                onClick={() => setProfile(p)}
+                className="shrink-0 rounded-full"
+              >
+                <MasterAvatar name={p.name} photo={p.avatar} />
+              </button>
               {/* one item per line: rating, distance, contact (phone), then
                   «about & reviews» as its own button — side by side they ran
                   together into «O mistrzu i opinie+48777333111» (17.11.2026) */}

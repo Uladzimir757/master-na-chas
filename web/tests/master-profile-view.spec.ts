@@ -77,3 +77,26 @@ test("a review photo opens full screen, flips to the next one and closes", async
   await expect(viewer).toHaveCount(0);
   await expect(page.getByRole("dialog", { name: PROVIDER.name })).toBeVisible(); // back in the profile
 });
+
+test("the master's photo opens full screen from his profile; on the card it opens the profile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockCatalog(page);
+  await page.route(/\/api\/providers(\?.*)?$/, (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([{ ...PROVIDER, avatar: RED }]) }),
+  );
+  await page.route("**/api/providers/*/reviews", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
+  );
+  await page.goto("/");
+  // tapping the photo on the card opens the profile
+  await page.locator("img[src^='data:image/png']").first().click();
+  const profile = page.getByRole("dialog", { name: PROVIDER.name });
+  await expect(profile).toBeVisible();
+
+  await profile.getByRole("button", { name: t.masterPhotoOpen }).click();
+  const viewer = page.getByRole("dialog", { name: t.masterPhotoOpen });
+  await expect(viewer.locator("img")).toHaveAttribute("src", RED);
+  await viewer.getByRole("button", { name: t.masterProfileClose }).click();
+  await expect(viewer).toHaveCount(0);
+  await expect(profile).toBeVisible();
+});
