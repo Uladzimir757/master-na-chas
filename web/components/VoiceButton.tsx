@@ -32,6 +32,7 @@ export default function VoiceButton({
   const [state, setState] = useState<"idle" | "recording" | "transcribing">("idle");
   const [problem, setProblem] = useState<Problem>(null);
   const recRef = useRef<Recording | null>(null);
+  const startingRef = useRef(false);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- only knowable after mount (SSR has no window)
@@ -82,14 +83,23 @@ export default function VoiceButton({
       recRef.current?.stop();
       return;
     }
-    if (state === "transcribing") return;
-    const rec = await startRecording(
-      (audio) => void send(audio),
-      (why) => {
-        setState("idle");
-        setProblem(why);
-      },
-    );
+    // a second tap while the microphone is still being opened (permission
+    // window, slow device) used to start a second recorder in parallel — the
+    // same phrase came back twice (Redmi, 20.11.2026)
+    if (state === "transcribing" || startingRef.current) return;
+    startingRef.current = true;
+    let rec: Recording | null;
+    try {
+      rec = await startRecording(
+        (audio) => void send(audio),
+        (why) => {
+          setState("idle");
+          setProblem(why);
+        },
+      );
+    } finally {
+      startingRef.current = false;
+    }
     if (rec) {
       recRef.current = rec;
       setState("recording");

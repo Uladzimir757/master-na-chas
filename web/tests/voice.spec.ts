@@ -20,16 +20,19 @@ import {
 // the field — it never sends the form by itself. Microphone and server are
 // faked here.
 
-type MicMode = "ok" | "blocked";
+type MicMode = "ok" | "blocked" | "slow";
 
 const fakeMic = (mode: MicMode) => {
   const w = window as unknown as Record<string, unknown>;
+  w.__recordersStarted = 0;
   // navigator.mediaDevices is a read-only getter — plain assignment is ignored
   Object.defineProperty(navigator, "mediaDevices", {
     configurable: true,
     value: {
       getUserMedia: async () => {
         if (mode === "blocked") throw Object.assign(new Error("denied"), { name: "NotAllowedError" });
+        // «slow» = the permission window is up for a moment
+        if (mode === "slow") await new Promise((r) => setTimeout(r, 800));
         return { getTracks: () => [{ stop() {} }] };
       },
     },
@@ -44,6 +47,7 @@ const fakeMic = (mode: MicMode) => {
     onstop: (() => void) | null = null;
     start() {
       this.state = "recording";
+      (w.__recordersStarted as number)++;
     }
     stop() {
       this.state = "inactive";
@@ -92,6 +96,24 @@ test("record → server text → appended to the description; the client sends t
   await page.getByRole("button", { name: t.submitBooking }).click();
   await expect.poll(() => bookings.length).toBe(1);
   expect(bookings[0].notes).toBe("Mam część. Cieknie kran w kuchni");
+});
+
+test("a second tap while the microphone opens doesn't record the phrase twice", async ({ page }) => {
+  await page.addInitScript(fakeMic, "slow" as MicMode);
+  let calls = 0;
+  await page.route("**/api/transcribe", async (route) => {
+    calls++;
+    await route.fulfill({ status: 200, contentType: "application/json", body: '{"text":"Wymienić gniazdko"}' });
+  });
+  await openBookingForm(page);
+  const notes = page.getByRole("textbox", { name: t.bookingNotesPlaceholder });
+  const mic = page.getByRole("button", { name: t.voiceStart }).first();
+  await mic.click();
+  await mic.click(); // still opening — must be ignored
+  await page.getByRole("button", { name: t.voiceStop }).click();
+  await expect(notes).toHaveValue("Wymienić gniazdko");
+  expect(await page.evaluate(() => (window as unknown as { __recordersStarted: number }).__recordersStarted)).toBe(1);
+  expect(calls).toBe(1);
 });
 
 test("nothing heard and server unavailable are said plainly", async ({ page }) => {
