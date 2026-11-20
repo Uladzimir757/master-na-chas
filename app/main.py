@@ -881,9 +881,11 @@ async def _notify_master_of_booking(db: AsyncSession, booking: Booking, service_
         **_when_facts(booking.start_at),
         "client_name": booking.client_name,
         "client_phone": _client_phone_for_master(booking),
+        "client_description": booking.notes,
     }
     purpose = (
         "Tell the master that a client has just booked a new job and give the job, the time and how to reach the client."
+        " If client_description is given, include what the client wrote about the job."
     )
     if booking.confirm_deadline_at is not None:
         facts["minutes_to_confirm"] = _minutes_left(booking, now)

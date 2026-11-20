@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import VoiceButton, { appendDictation } from "@/components/VoiceButton";
 import { ApiError, api } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
@@ -234,15 +235,18 @@ export default function ReviewPage() {
               </div>
             ) : (
               <div className="flex flex-col gap-2">
-                <textarea
-                  className={inputClass}
-                  rows={4}
-                  placeholder={t.jobProblemPlaceholder}
-                  value={problemText}
-                  onChange={(e) => setProblemText(e.target.value)}
-                  maxLength={2000}
-                  autoFocus
-                />
+                <div className="flex items-start gap-2">
+                  <textarea
+                    className={`${inputClass} flex-1`}
+                    rows={4}
+                    placeholder={t.jobProblemPlaceholder}
+                    value={problemText}
+                    onChange={(e) => setProblemText(e.target.value)}
+                    maxLength={2000}
+                    autoFocus
+                  />
+                  <VoiceButton onText={(x) => setProblemText((v) => appendDictation(v, x).slice(0, 2000))} />
+                </div>
                 <Button onClick={() => void answer(false)} disabled={answering}>
                   {t.jobProblemSend}
                 </Button>
@@ -294,14 +298,17 @@ export default function ReviewPage() {
               </div>
             </div>
 
-            <textarea
-              className={inputClass}
-              rows={4}
-              placeholder={ready ? t.reviewTextPlaceholder : ""}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              maxLength={2000}
-            />
+            <div className="flex items-start gap-2">
+              <textarea
+                className={`${inputClass} flex-1`}
+                rows={4}
+                placeholder={ready ? t.reviewTextPlaceholder : ""}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                maxLength={2000}
+              />
+              <VoiceButton onText={(x) => setText((v) => appendDictation(v, x).slice(0, 2000))} />
+            </div>
 
             <div>
               <div className="mb-1 text-sm font-medium">{ready ? t.reviewPhotosLabel : ""}</div>

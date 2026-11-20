@@ -1,6 +1,7 @@
 "use client";
 
 import { rememberBooking, rememberClient, savedClient } from "@/lib/myBookings";
+import VoiceButton, { appendDictation } from "@/components/VoiceButton";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -78,6 +79,8 @@ export default function SlotPicker({
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [phoneVisible, setPhoneVisible] = useState(true);
+  // «Opisz, co trzeba zrobić» — typed or dictated (20.11.2026)
+  const [notes, setNotes] = useState("");
   const phoneBad = clientPhone.trim() !== "" && !isValidPhone(clientPhone);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -219,6 +222,7 @@ export default function SlotPicker({
         client_name: clientName.trim(),
         client_phone: normalizePhone(clientPhone) ?? undefined,
         client_phone_visible: phoneVisible,
+        notes: notes.trim() || undefined,
         city_id: cityId,
       });
       setBooking(result);
@@ -488,6 +492,18 @@ export default function SlotPicker({
                   {t.clientPhoneVisibleLabel}
                 </label>
               )}
+              <div className="flex items-start gap-2">
+                <textarea
+                  className={`${inputClass} flex-1`}
+                  rows={3}
+                  maxLength={1000}
+                  placeholder={t.bookingNotesPlaceholder}
+                  aria-label={t.bookingNotesPlaceholder}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+                <VoiceButton onText={(text) => setNotes((n) => appendDictation(n, text).slice(0, 1000))} />
+              </div>
               <Button
                 className="mt-1"
                 disabled={clientName.trim().length === 0 || phoneBad || submitting}

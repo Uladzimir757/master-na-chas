@@ -553,6 +553,12 @@ export function EventDetailsModal({
           >
             {t.bookingStatusLabel[event.status] ?? event.status}
           </span>
+          {event.notes && (
+            <div className="mb-3 rounded-lg border border-line bg-bg p-2.5 text-sm">
+              <p className="font-semibold text-ink">{t.bookingNotesTitle}</p>
+              <p className="mt-1 whitespace-pre-line text-ink">{event.notes}</p>
+            </div>
+          )}
           {event.client_confirmation === "confirmed" && (
             <p className="mb-3 text-sm font-medium text-accent-2">✓ {t.clientConfirmedJob}</p>
           )}

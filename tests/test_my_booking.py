@@ -180,3 +180,27 @@ async def test_master_writes_about_and_it_shows_publicly(logged_in_client: Async
     assert too_long.status_code == 422
     cleared = await logged_in_client.put("/api/providers/me/about", json={"about": "   "})
     assert cleared.json()["about"] is None
+
+
+async def test_booking_description_reaches_the_master(
+    client: AsyncClient, logged_in_client: AsyncClient, db_session, bookable_provider: Provider, service: Service
+):
+    # «Opisz, co trzeba zrobić» (20.11.2026) — trimmed, capped, shown to the master
+    payload = {
+        "service_id": str(service.id),
+        "provider_id": str(bookable_provider.id),
+        "start_at": _dt(10).isoformat(),
+        "client_name": "Klient",
+        "client_phone": "+48600111222",
+        "notes": "  Cieknie kran w kuchni, mam część zamienną.  ",
+    }
+    r = await client.post("/api/bookings", json=payload)
+    assert r.status_code == 201, r.text
+    cal = await logged_in_client.get(
+        "/api/providers/me/calendar", params={"date_from": NEXT_MONDAY.isoformat(), "date_to": NEXT_MONDAY.isoformat()}
+    )
+    mine = [b for b in cal.json()["bookings"] if b["id"] == r.json()["id"]]
+    assert mine and mine[0]["notes"] == "Cieknie kran w kuchni, mam część zamienną."
+
+    too_long = await client.post("/api/bookings", json={**payload, "start_at": _dt(14).isoformat(), "notes": "x" * 1001})
+    assert too_long.status_code == 422

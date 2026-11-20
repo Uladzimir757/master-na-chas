@@ -10,3 +10,6 @@ project(':capacitor-app').projectDir = new File('../node_modules/@capacitor/app/
 
 include ':capgo-background-geolocation'
 project(':capgo-background-geolocation').projectDir = new File('../node_modules/@capgo/background-geolocation/android')
+
+include ':capgo-capacitor-speech-recognition'
+project(':capgo-capacitor-speech-recognition').projectDir = new File('../node_modules/@capgo/capacitor-speech-recognition/android')

@@ -9,6 +9,7 @@
  */
 
 import { rememberBooking } from "@/lib/myBookings";
+import VoiceButton, { appendDictation } from "@/components/VoiceButton";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
@@ -539,14 +540,17 @@ function JobDoneBlock({
             </div>
           ) : (
             <div className="flex flex-col gap-2">
-              <textarea
-                className={inputClass}
-                rows={3}
-                placeholder={t.jobProblemPlaceholder}
-                value={problemText}
-                onChange={(e) => setProblemText(e.target.value)}
-                maxLength={2000}
-              />
+              <div className="flex items-start gap-2">
+                <textarea
+                  className={`${inputClass} flex-1`}
+                  rows={3}
+                  placeholder={t.jobProblemPlaceholder}
+                  value={problemText}
+                  onChange={(e) => setProblemText(e.target.value)}
+                  maxLength={2000}
+                />
+                <VoiceButton onText={(x) => setProblemText((v) => appendDictation(v, x).slice(0, 2000))} />
+              </div>
               <div className="flex flex-wrap gap-2">
                 <CompactButton disabled={busy} onClick={() => void send(false)}>
                   {t.jobProblemSend}

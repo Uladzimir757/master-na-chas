@@ -246,6 +246,7 @@ export interface Booking {
   confirm_deadline_at?: string | null;
   cancel_reason?: string | null;
   travel_minutes?: number | null;
+  notes?: string | null; // описание заказа от клиента
   // клиент после «выполнено»: подтвердил / сообщил о проблеме
   client_confirmation?: "confirmed" | "problem" | null;
   client_problem?: string | null;

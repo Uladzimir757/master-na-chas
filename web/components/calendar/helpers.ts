@@ -27,6 +27,7 @@ export type CalEvent =
       travel_minutes: number | null;
       client_confirmation: "confirmed" | "problem" | null;
       client_problem: string | null;
+      notes: string | null;
     }
   | { kind: "block"; id: string; start_at: string; end_at: string; reason: string | null };
 
@@ -50,6 +51,7 @@ export function toEvents(bookings: Booking[], blocks: CalendarBlock[]): CalEvent
     travel_minutes: b.travel_minutes ?? null,
     client_confirmation: b.client_confirmation ?? null,
     client_problem: b.client_problem ?? null,
+    notes: b.notes ?? null,
   }));
   const blockEvents: CalEvent[] = blocks.map((b) => ({
     kind: "block",

@@ -38,7 +38,14 @@ class BookingCreate(BaseModel):
     # галочка «показать мой номер мастеру»; без неё мастер номера не видит
     # (SMS клиенту всё равно уходят)
     client_phone_visible: bool = True
-    notes: str | None = None
+    # «Opisz, co trzeba zrobić» — клиент пишет или надиктовывает (20.11.2026),
+    # мастер видит в окне заказа и в уведомлении о новом заказе
+    notes: str | None = Field(default=None, max_length=1000)
+
+    @field_validator("notes")
+    @classmethod
+    def _notes(cls, v: str | None) -> str | None:
+        return (v or "").strip() or None
 
     @field_validator("client_phone")
     @classmethod
@@ -73,6 +80,7 @@ class BookingOut(BaseModel):
     cancel_reason: str | None = None
     travel_minutes: int | None = None
     client_phone_visible: bool = True
+    notes: str | None = None  # описание заказа от клиента
     # клиент после «выполнено»: 'confirmed' | 'problem' | None, и его текст
     client_confirmation: str | None = None
     client_problem: str | None = None

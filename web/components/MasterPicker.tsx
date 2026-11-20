@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import VoiceButton, { appendDictation } from "@/components/VoiceButton";
 import { locateClient, saveClientPos, type ClientPos } from "@/lib/clientPosition";
 import { api, ApiError, type Provider } from "@/lib/api";
 import { useLocale } from "@/lib/LocaleContext";
@@ -94,13 +95,17 @@ export default function MasterPicker({
       </h1>
 
       <div className="mb-3 flex flex-col gap-2 sm:flex-row">
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={t.pickMasterSearch}
-          className={inputClass}
-        />
+        <div className="flex flex-1 items-start gap-2">
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t.pickMasterSearch}
+            className={`${inputClass} flex-1`}
+          />
+          {/* search is a name — the dictation replaces it, not appends */}
+          <VoiceButton onText={(x) => setQuery(x)} />
+        </div>
         <select
           aria-label={t.pickMasterSortLabel}
           value={sort}
@@ -207,6 +212,7 @@ export default function MasterPicker({
               maxLength={200}
               autoComplete="street-address"
             />
+            <VoiceButton onText={(x) => setAddress((v) => appendDictation(v, x).slice(0, 200))} />
             <CompactButton type="submit" disabled={addressBusy || address.trim().length < 3}>
               {t.addressCheck}
             </CompactButton>

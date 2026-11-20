@@ -75,4 +75,15 @@
     <!-- Кнопка «Bez ograniczeń baterii» в кабинете (GeoRestartPlugin):
          системный запрос вместо поиска пункта в настройках. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- Голосовой ввод клиента (@capgo/capacitor-speech-recognition, 20.11.2026):
+         микрофон (разрешение даёт сам плагин) и видимость системной службы
+         распознавания речи — без <queries> на Android 11+ приложение её «не
+         видит» и голос молча не работает. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
 </manifest>
