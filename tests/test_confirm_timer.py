@@ -37,8 +37,10 @@ def tick_secret(monkeypatch: pytest.MonkeyPatch) -> str:
 def staff_notices(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
     sent: list[dict] = []
 
-    async def fake(db, provider_id, purpose, facts, url="/cabinet/"):
-        sent.append({"provider_id": provider_id, "purpose": purpose, "facts": facts, "url": url})
+    async def fake(db, provider_id, purpose, facts, url="/cabinet/", push_ttl_seconds=None):
+        sent.append(
+            {"provider_id": provider_id, "purpose": purpose, "facts": facts, "url": url, "ttl": push_ttl_seconds}
+        )
 
     monkeypatch.setattr(main_module, "_notify_staff", fake)
     return sent
@@ -152,6 +154,8 @@ async def test_tick_sends_reminder_once(
     assert "Remind" in staff_notices[0]["purpose"]
     assert staff_notices[0]["facts"]["minutes_left"] == 9
     assert staff_notices[0]["url"] == f"/cabinet/?booking={booking.id}"
+    # a phone offline past the deadline must not get «confirm it» about a cancelled job
+    assert 9 * 60 < staff_notices[0]["ttl"] <= 10 * 60 + 5
     await db_session.refresh(booking)
     assert booking.confirm_notices_sent == 2
 

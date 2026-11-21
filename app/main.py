@@ -849,9 +849,16 @@ def _cabinet_booking_url(booking_id: uuid.UUID) -> str:
 
 
 async def _notify_staff(
-    db: AsyncSession, provider_id: uuid.UUID, purpose: str, facts: dict, url: str = "/cabinet/"
+    db: AsyncSession,
+    provider_id: uuid.UUID,
+    purpose: str,
+    facts: dict,
+    url: str = "/cabinet/",
+    push_ttl_seconds: int | None = None,
 ) -> None:
-    """Уведомление хозяину и менеджерам (кто управляет бронями). Best-effort."""
+    """Уведомление хозяину и менеджерам (кто управляет бронями). Best-effort.
+    push_ttl_seconds — пуш, который позже уже не нужен (_confirm_push_ttl):
+    FCM его выбросит, а не доставит после долгого офлайна."""
     staff = (await db.execute(select(MasterUser).where(MasterUser.provider_id == provider_id))).scalars().all()
     recipients = [u for u in staff if "bookings_status" in effective_permissions(u.role, u.permissions)]
     for master_user in recipients:
@@ -870,6 +877,7 @@ async def _notify_staff(
                 fcm_tokens=list(fcm_tokens),
                 on_dead_fcm_tokens=_prune_dead_fcm_tokens,
                 url=url,
+                push_ttl_seconds=push_ttl_seconds,
             )
         )
 
@@ -900,6 +908,15 @@ def _minutes_left(booking: Booking, now: datetime) -> int:
     return max(0, math.ceil((booking.confirm_deadline_at - now).total_seconds() / 60))
 
 
+def _confirm_push_ttl(booking: Booking, now: datetime) -> int | None:
+    """«Подтверди заказ» нужен только до дедлайна таймера: телефон без сети
+    получил бы его позже — уже про автоотменённый заказ. Минута сверху на
+    доставку; без дедлайна (таймера нет) — срок FCM по умолчанию."""
+    if booking.confirm_deadline_at is None:
+        return None
+    return max(60, math.ceil((booking.confirm_deadline_at - now).total_seconds()) + 60)
+
+
 def _manage_url(booking: Booking) -> str:
     return f"{settings.WEB_PUBLIC_URL}/booking/?id={booking.id}&token={booking.manage_token}"
 
@@ -921,7 +938,14 @@ async def _notify_master_of_booking(db: AsyncSession, booking: Booking, service_
     if booking.confirm_deadline_at is not None:
         facts["minutes_to_confirm"] = _minutes_left(booking, now)
         purpose += " Say he must confirm it in the app within the given minutes or it is cancelled automatically."
-    await _notify_staff(db, booking.provider_id, purpose, facts, url=_cabinet_booking_url(booking.id))
+    await _notify_staff(
+        db,
+        booking.provider_id,
+        purpose,
+        facts,
+        url=_cabinet_booking_url(booking.id),
+        push_ttl_seconds=_confirm_push_ttl(booking, now),
+    )
 
 
 async def _notify_new_booking(db: AsyncSession, booking: Booking, service: Service, *, staff: bool = True) -> None:
@@ -1020,6 +1044,7 @@ async def _run_confirm_timer(db: AsyncSession) -> int:
             "and say how many minutes are left before it is cancelled automatically.",
             {"service": service_name, **_when_facts(booking.start_at), "minutes_left": _minutes_left(booking, now)},
             url=_cabinet_booking_url(booking.id),
+            push_ttl_seconds=_confirm_push_ttl(booking, now),
         )
     return len(claimed)
 

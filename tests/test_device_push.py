@@ -102,6 +102,98 @@ async def test_fcm_other_failure_is_swallowed_and_token_kept(fcm_enabled, monkey
     assert await notifications.send_fcm(token=FCM_TOKEN, title="T", body="B") is True
 
 
+def _mock_fcm_sequence(monkeypatch: pytest.MonkeyPatch, outcomes: list) -> list[httpx.Request]:
+    """FCM send answers in turn: an int is a status, an exception class is
+    raised as if the network failed. OAuth always succeeds."""
+    seen: list[httpx.Request] = []
+    left = list(outcomes)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "oauth2.googleapis.com":
+            return httpx.Response(200, json={"access_token": "at", "expires_in": 3600})
+        seen.append(request)
+        outcome = left.pop(0)
+        if isinstance(outcome, type):
+            raise outcome("boom", request=request)
+        return httpx.Response(outcome, json={})
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        notifications.httpx, "AsyncClient", lambda *a, **kw: real_client(transport=httpx.MockTransport(handler))
+    )
+    return seen
+
+
+@pytest.mark.parametrize("first", [503, 429, httpx.ConnectError, httpx.ReadTimeout])
+async def test_fcm_retries_temporary_failure(fcm_enabled, monkeypatch: pytest.MonkeyPatch, first):
+    seen = _mock_fcm_sequence(monkeypatch, [first, 200])
+
+    assert await notifications.send_fcm(token=FCM_TOKEN, title="T", body="B") is True
+    assert len(seen) == 2
+    # a retry after a timeout may duplicate — the same tag makes Android replace it
+    tags = {json.loads(r.content)["message"]["android"]["notification"]["tag"] for r in seen}
+    assert len(tags) == 1
+
+
+async def test_fcm_gives_up_after_three_attempts(fcm_enabled, monkeypatch: pytest.MonkeyPatch):
+    seen = _mock_fcm_sequence(monkeypatch, [500, 500, 500])
+
+    assert await notifications.send_fcm(token=FCM_TOKEN, title="T", body="B") is True
+    assert len(seen) == 3
+
+
+async def test_fcm_does_not_retry_client_error(fcm_enabled, monkeypatch: pytest.MonkeyPatch):
+    seen = _mock_fcm_sequence(monkeypatch, [404])
+
+    assert await notifications.send_fcm(token=FCM_TOKEN, title="T", body="B") is False
+    assert len(seen) == 1
+
+
+async def test_fcm_ttl_drops_stale_push(fcm_enabled, monkeypatch: pytest.MonkeyPatch):
+    seen = _mock_fcm_sequence(monkeypatch, [200, 200])
+
+    await notifications.send_fcm(token=FCM_TOKEN, title="T", body="B", ttl_seconds=900)
+    await notifications.send_fcm(token=FCM_TOKEN, title="T", body="B")
+
+    with_ttl, without = (json.loads(r.content)["message"] for r in seen)
+    assert with_ttl["android"]["ttl"] == "900s"
+    assert "apns-expiration" in with_ttl["apns"]["headers"]
+    assert "ttl" not in without["android"] and "headers" not in without["apns"]
+
+
+def _mock_telegram(monkeypatch: pytest.MonkeyPatch, outcomes: list) -> list[httpx.Request]:
+    seen: list[httpx.Request] = []
+    left = list(outcomes)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        outcome = left.pop(0)
+        if isinstance(outcome, type):
+            raise outcome("boom", request=request)
+        return httpx.Response(outcome, json={"ok": True})
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        notifications.httpx, "AsyncClient", lambda *a, **kw: real_client(transport=httpx.MockTransport(handler))
+    )
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "123:abc")
+    return seen
+
+
+@pytest.mark.parametrize("first", [502, 429, httpx.ConnectError])
+async def test_telegram_retries_when_message_surely_not_sent(monkeypatch: pytest.MonkeyPatch, first):
+    seen = _mock_telegram(monkeypatch, [first, 200])
+    await notifications.send_telegram_message("42", "hi")
+    assert len(seen) == 2
+
+
+async def test_telegram_no_retry_after_read_timeout(monkeypatch: pytest.MonkeyPatch):
+    """The message may already be in the chat — a retry would post it twice."""
+    seen = _mock_telegram(monkeypatch, [httpx.ReadTimeout, 200])
+    await notifications.send_telegram_message("42", "hi")
+    assert len(seen) == 1
+
+
 async def test_notify_master_fcm_only_channel_and_prunes_dead(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "")
     monkeypatch.setattr(settings, "WEB_PUSH_ENABLED", False)
@@ -112,7 +204,7 @@ async def test_notify_master_fcm_only_channel_and_prunes_dead(monkeypatch: pytes
     async def fake_compose(**kwargs):
         return "Tytuł\n\nTreść"
 
-    async def fake_send_fcm(*, token, title, body, data=None):
+    async def fake_send_fcm(*, token, title, body, data=None, ttl_seconds=None):
         sent.append((token, title, body, data))
         return token != "dead"
 
@@ -138,7 +230,7 @@ async def test_notify_client_push_carries_link(monkeypatch: pytest.MonkeyPatch):
     async def fake_compose(**kwargs):
         return "Text https://zr/booking"
 
-    async def fake_send_fcm(*, token, title, body, data=None):
+    async def fake_send_fcm(*, token, title, body, data=None, ttl_seconds=None):
         sent.append((token, title, body, data))
         return True
 

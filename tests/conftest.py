@@ -63,6 +63,15 @@ def _no_confirm_timer_sweep(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _no_retry_pauses(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Повторы отправки уведомлений (notifications.RETRY_DELAYS) — без пауз:
+    те же попытки, но тесты не ждут секунды."""
+    from app import notifications
+
+    monkeypatch.setattr(notifications, "RETRY_DELAYS", (0.0, 0.0))
+
+
+@pytest.fixture(autouse=True)
 def _fresh_public_cache():
     """Каждый тест сидит свои строки — кэш каталога от прошлого теста
     (app/public_cache.py) не должен их подменять."""

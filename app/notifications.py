@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import json
 import logging
 import time
@@ -25,6 +26,37 @@ MASTER_MAX_CHARS = 400
 
 _background_tasks: set[asyncio.Task] = set()
 
+# Повторы при временном сбое (21.11.2026: Telegram ответил ReadTimeout на
+# новый заказ — своей очереди у нас нет, сообщение могло пропасть). Пауза
+# перед 2-й и 3-й попыткой; уведомления и так уходят в фоне.
+RETRY_DELAYS: tuple[float, ...] = (1.0, 3.0)
+
+# Ошибки, при которых запрос точно не дошёл до сервиса: повтор не даст дубля.
+_NOT_SENT_ERRORS = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)
+
+
+async def _post_with_retry(
+    client: httpx.AsyncClient, url: str, *, what: str, retry_unsure: bool, **kwargs: Any
+) -> httpx.Response:
+    """POST с повторами на сетевую ошибку, 429 и 5xx. retry_unsure=False — не
+    повторять, если запрос мог дойти (таймаут ответа, обрыв): для Telegram,
+    где повтор дал бы второе такое же сообщение. FCM повторять можно — у
+    пуша есть tag, и Android заменяет дубль, а не показывает второй."""
+    for attempt, delay in enumerate((*RETRY_DELAYS, None), start=1):
+        try:
+            response = await client.post(url, **kwargs)
+        except httpx.TransportError as exc:
+            unsure = not isinstance(exc, _NOT_SENT_ERRORS)
+            if delay is None or (unsure and not retry_unsure):
+                raise
+            logger.info("%s_retry attempt=%d error=%s", what, attempt, type(exc).__name__)
+        else:
+            if delay is None or not (response.status_code == 429 or response.status_code >= 500):
+                return response
+            logger.info("%s_retry attempt=%d status=%d", what, attempt, response.status_code)
+        await asyncio.sleep(delay)
+    raise AssertionError("unreachable")
+
 
 async def send_telegram_message(chat_id: str, text: str) -> None:
     if not settings.TELEGRAM_BOT_TOKEN:
@@ -36,7 +68,9 @@ async def send_telegram_message(chat_id: str, text: str) -> None:
     url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            response = await client.post(url, json={"chat_id": chat_id, "text": text})
+            response = await _post_with_retry(
+                client, url, what="telegram", retry_unsure=False, json={"chat_id": chat_id, "text": text}
+            )
             response.raise_for_status()
     except Exception:
         logger.exception("telegram_send_failed chat_id=%s", chat_id)
@@ -131,8 +165,11 @@ async def _get_fcm_access_token(client: httpx.AsyncClient, info: dict) -> str:
     )
     key = serialization.load_pem_private_key(info["private_key"].encode(), password=None)
     signature = key.sign(f"{header}.{claims}".encode(), padding.PKCS1v15(), hashes.SHA256())
-    response = await client.post(
+    response = await _post_with_retry(
+        client,
         token_uri,
+        what="fcm_oauth",
+        retry_unsure=True,
         data={
             "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
             "assertion": f"{header}.{claims}.{_b64url(signature)}",
@@ -144,10 +181,22 @@ async def _get_fcm_access_token(client: httpx.AsyncClient, info: dict) -> str:
     return _fcm_access_token[0]
 
 
-async def send_fcm(*, token: str, title: str, body: str, data: dict[str, str] | None = None) -> bool:
+def _push_tag(title: str, body: str) -> str:
+    """Одинаковый tag у одинакового пуша: повтор после таймаута (первый мог
+    дойти) заменяет уведомление на телефоне, а не добавляет второе."""
+    return hashlib.sha1(f"{title}\n{body}".encode()).hexdigest()[:16]
+
+
+async def send_fcm(
+    *, token: str, title: str, body: str, data: dict[str, str] | None = None, ttl_seconds: int | None = None
+) -> bool:
     """Шлёт один пуш. False — только когда FCM ответил, что токена больше нет
     (404 UNREGISTERED): вызывающий удаляет его. Любая другая ошибка
-    логируется и считается временной — токен остаётся."""
+    логируется и считается временной — токен остаётся.
+
+    ttl_seconds — сколько FCM держит пуш для телефона без сети, потом
+    выбрасывает (заказ, уже отменённый по таймеру, не «прилетит» через час).
+    None — срок FCM по умолчанию (4 недели)."""
     if not settings.FCM_ENABLED:
         logger.info("fcm_disabled, skipping send")
         return True
@@ -156,15 +205,22 @@ async def send_fcm(*, token: str, title: str, body: str, data: dict[str, str] | 
         message: dict[str, Any] = {
             "token": token,
             "notification": {"title": title, "body": body},
-            "android": {"priority": "high"},
+            "android": {"priority": "high", "notification": {"tag": _push_tag(title, body)}},
             "apns": {"payload": {"aps": {"sound": "default"}}},
         }
+        if ttl_seconds is not None:
+            ttl_seconds = max(0, int(ttl_seconds))
+            message["android"]["ttl"] = f"{ttl_seconds}s"
+            message["apns"]["headers"] = {"apns-expiration": str(int(time.time()) + ttl_seconds)}
         if data:
             message["data"] = data
         async with httpx.AsyncClient(timeout=10) as client:
             access_token = await _get_fcm_access_token(client, info)
-            response = await client.post(
+            response = await _post_with_retry(
+                client,
                 f"https://fcm.googleapis.com/v1/projects/{info['project_id']}/messages:send",
+                what="fcm",
+                retry_unsure=True,
                 headers={"Authorization": f"Bearer {access_token}"},
                 json={"message": message},
             )
@@ -193,8 +249,11 @@ async def send_fcm_data(*, token: str, data: dict[str, str], ttl_seconds: int = 
         }
         async with httpx.AsyncClient(timeout=10) as client:
             access_token = await _get_fcm_access_token(client, info)
-            response = await client.post(
+            response = await _post_with_retry(
+                client,
                 f"https://fcm.googleapis.com/v1/projects/{info['project_id']}/messages:send",
+                what="fcm",
+                retry_unsure=True,
                 headers={"Authorization": f"Bearer {access_token}"},
                 json={"message": message},
             )
@@ -208,9 +267,17 @@ async def send_fcm_data(*, token: str, data: dict[str, str], ttl_seconds: int = 
 
 
 async def _send_fcm_all(
-    tokens: list[str], *, title: str, body: str, data: dict[str, str] | None, on_dead: DeadTokensCallback | None
+    tokens: list[str],
+    *,
+    title: str,
+    body: str,
+    data: dict[str, str] | None,
+    on_dead: DeadTokensCallback | None,
+    ttl_seconds: int | None = None,
 ) -> None:
-    dead = [t for t in tokens if not await send_fcm(token=t, title=title, body=body, data=data)]
+    dead = [
+        t for t in tokens if not await send_fcm(token=t, title=title, body=body, data=data, ttl_seconds=ttl_seconds)
+    ]
     if dead and on_dead is not None:
         try:
             await on_dead(dead)
@@ -235,6 +302,7 @@ async def notify_client(
     must_include: str | None = None,
     fcm_tokens: list[str] | None = None,
     on_dead_fcm_tokens: DeadTokensCallback | None = None,
+    push_ttl_seconds: int | None = None,
 ) -> None:
     """Один текст на SMS и пуш в приложение (если клиент открывал в нём «мою
     запись» с этого телефона). Ссылка must_include уходит в пуш ещё и как
@@ -263,6 +331,7 @@ async def notify_client(
             body=text,
             data={"url": must_include} if must_include else None,
             on_dead=on_dead_fcm_tokens,
+            ttl_seconds=push_ttl_seconds,
         )
 
 
@@ -275,10 +344,12 @@ async def notify_master(
     fcm_tokens: list[str] | None = None,
     on_dead_fcm_tokens: DeadTokensCallback | None = None,
     url: str = "/cabinet/",
+    push_ttl_seconds: int | None = None,
 ) -> None:
     """Один текст на все каналы: первая строка — заголовок пуша (web push и
     FCM), Telegram получает сообщение целиком. url — куда ведёт тап по пушу
-    (детали конкретной брони или просто кабинет)."""
+    (детали конкретной брони или просто кабинет). push_ttl_seconds — срок
+    жизни пуша в FCM для телефона без сети (см. send_fcm)."""
     telegram_on = bool(telegram_chat_id and settings.TELEGRAM_BOT_TOKEN)
     push_on = bool(push_subscriptions and settings.WEB_PUSH_ENABLED)
     fcm_on = bool(fcm_tokens and settings.FCM_ENABLED)
@@ -309,7 +380,12 @@ async def notify_master(
             )
     if fcm_on:
         await _send_fcm_all(
-            fcm_tokens, title=title, body=body, data={"url": url}, on_dead=on_dead_fcm_tokens
+            fcm_tokens,
+            title=title,
+            body=body,
+            data={"url": url},
+            on_dead=on_dead_fcm_tokens,
+            ttl_seconds=push_ttl_seconds,
         )
 
 
