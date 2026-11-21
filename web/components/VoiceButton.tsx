@@ -69,6 +69,19 @@ export default function VoiceButton({
     };
   }, []);
 
+  // «nothing heard» / «failed» go away by themselves — the bubble covers what's above
+  useEffect(() => {
+    if (problem !== "nothing" && problem !== "failed") return;
+    const id = setTimeout(() => setProblem(null), 6000);
+    return () => clearTimeout(id);
+  }, [problem]);
+
+  useEffect(() => {
+    if (!hint) return;
+    const id = setTimeout(() => setHint(false), 6000);
+    return () => clearTimeout(id);
+  }, [hint]);
+
   // while the «blocked» hint is up, drop it as soon as the browser's
   // microphone permission is no longer «denied» (where the API exists)
   useEffect(() => {
@@ -278,7 +291,12 @@ export default function VoiceButton({
         </span>
       )}
       {message && (
-        <span role="status" className="mt-1 max-w-44 text-center text-xs text-danger">
+        // also a bubble, not text under the button: it moved the button up,
+        // and the next tap landed on the field beside it (Redmi, 21.11.2026)
+        <span
+          role="status"
+          className="absolute bottom-full right-0 z-20 mb-2 w-56 rounded-xl border border-danger bg-surface px-3 py-2 text-center text-xs text-danger shadow-lg"
+        >
           {message}
           {problem === "blocked" && inApp && canOpenAppSettings() && (
             <button
