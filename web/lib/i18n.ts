@@ -159,6 +159,9 @@ export interface Translations {
   voiceOpenSettings: string;
   voiceFailed: string;
   voiceNothing: string;
+  voiceHoldHint: string;
+  voiceReleaseToStop: string;
+  voiceTapToStop: string;
   bookingNotesPlaceholder: string;
   bookingNotesTitle: string;
   reviewPhotoOpen: string;
@@ -649,6 +652,9 @@ export function buildTranslations(map: TranslationMap): Translations {
     voiceOpenSettings: pick(map, "voiceOpenSettings"),
     voiceFailed: pick(map, "voiceFailed"),
     voiceNothing: pick(map, "voiceNothing"),
+    voiceHoldHint: pick(map, "voiceHoldHint"),
+    voiceReleaseToStop: pick(map, "voiceReleaseToStop"),
+    voiceTapToStop: pick(map, "voiceTapToStop"),
     bookingNotesPlaceholder: pick(map, "bookingNotesPlaceholder"),
     bookingNotesTitle: pick(map, "bookingNotesTitle"),
     reviewPhotoOpen: pick(map, "reviewPhotoOpen"),

@@ -58,6 +58,22 @@ const fakeMic = (mode: MicMode) => {
   w.MediaRecorder = FakeRecorder;
 };
 
+/** Hold the microphone button for `ms`, as a finger would (21.11.2026: hold to talk). */
+async function holdMic(page: Page, ms: number, during?: () => Promise<void>) {
+  const mic = page.getByRole("button", { name: t.voiceStart }).first();
+  await mic.scrollIntoViewIfNeeded();
+  const box = await mic.boundingBox();
+  if (!box) throw new Error("no mic button");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(ms);
+  await during?.();
+  await page.mouse.up();
+}
+
+const recordersStarted = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __recordersStarted: number }).__recordersStarted);
+
 async function openBookingForm(page: Page) {
   await mockCatalog(page);
   await mockAvailability(page, [SLOT_A]);
@@ -66,7 +82,7 @@ async function openBookingForm(page: Page) {
   await page.getByRole("button", { name: new RegExp(formatTime(SLOT_A.start_at, "pl")) }).click();
 }
 
-test("record → server text → appended to the description; the client sends the form himself", async ({ page }) => {
+test("hold to talk → server text → appended to the description; the client sends the form himself", async ({ page }) => {
   await page.addInitScript(fakeMic, "ok" as MicMode);
   const uploads: { type: string; size: number }[] = [];
   await page.route("**/api/transcribe", async (route) => {
@@ -83,9 +99,10 @@ test("record → server text → appended to the description; the client sends t
 
   const notes = page.getByRole("textbox", { name: t.bookingNotesPlaceholder });
   await notes.fill("Mam część.");
-  await page.getByRole("button", { name: t.voiceStart }).first().click();
-  await expect(page.getByRole("button", { name: t.voiceStop })).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: t.voiceStop }).click();
+  await holdMic(page, 600, async () => {
+    await expect(page.getByRole("button", { name: t.voiceStop })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByText(t.voiceReleaseToStop)).toBeVisible();
+  });
 
   await expect(notes).toHaveValue("Mam część. Cieknie kran w kuchni");
   expect(uploads).toEqual([{ type: "audio/webm;codecs=opus", size: 4000 }]); // the recorder's own type
@@ -98,7 +115,9 @@ test("record → server text → appended to the description; the client sends t
   expect(bookings[0].notes).toBe("Mam część. Cieknie kran w kuchni");
 });
 
-test("a second tap while the microphone opens doesn't record the phrase twice", async ({ page }) => {
+test("double tap records without holding, a tap finishes; one recorder even while the mic opens", async ({ page }) => {
+  // «slow»: both taps land while the microphone is still opening — that
+  // used to start a second recorder and the phrase came back twice
   await page.addInitScript(fakeMic, "slow" as MicMode);
   let calls = 0;
   await page.route("**/api/transcribe", async (route) => {
@@ -107,13 +126,43 @@ test("a second tap while the microphone opens doesn't record the phrase twice", 
   });
   await openBookingForm(page);
   const notes = page.getByRole("textbox", { name: t.bookingNotesPlaceholder });
-  const mic = page.getByRole("button", { name: t.voiceStart }).first();
-  await mic.click();
-  await mic.click(); // still opening — must be ignored
+  await page.getByRole("button", { name: t.voiceStart }).first().dblclick();
+  await expect(page.getByText(t.voiceTapToStop)).toBeVisible();
+  await page.waitForTimeout(500); // fixed: keeps recording with no finger on it
+  await expect(page.getByRole("button", { name: t.voiceStop })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: t.voiceStop }).click();
   await expect(notes).toHaveValue("Wymienić gniazdko");
-  expect(await page.evaluate(() => (window as unknown as { __recordersStarted: number }).__recordersStarted)).toBe(1);
+  expect(await recordersStarted(page)).toBe(1);
   expect(calls).toBe(1);
+});
+
+test("one short tap sends nothing and says how to use the button", async ({ page }) => {
+  await page.addInitScript(fakeMic, "ok" as MicMode);
+  let calls = 0;
+  await page.route("**/api/transcribe", async (route) => {
+    calls++;
+    await route.fulfill({ status: 200, contentType: "application/json", body: '{"text":"x"}' });
+  });
+  await openBookingForm(page);
+  await page.getByRole("button", { name: t.voiceStart }).first().click();
+  await expect(page.getByText(t.voiceHoldHint)).toBeVisible();
+  await page.waitForTimeout(600); // past the double-tap window: still nothing
+  await expect(page.getByRole("button", { name: t.voiceStart }).first()).toHaveAttribute("aria-pressed", "false");
+  expect(calls).toBe(0);
+  await expect(page.getByRole("textbox", { name: t.bookingNotesPlaceholder })).toHaveValue("");
+});
+
+test("keyboard: Enter starts, Enter finishes", async ({ page }) => {
+  await page.addInitScript(fakeMic, "ok" as MicMode);
+  await page.route("**/api/transcribe", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: '{"text":"Kran"}' }),
+  );
+  await openBookingForm(page);
+  await page.getByRole("button", { name: t.voiceStart }).first().focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: t.voiceStop })).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("textbox", { name: t.bookingNotesPlaceholder })).toHaveValue("Kran");
 });
 
 test("nothing heard and server unavailable are said plainly", async ({ page }) => {
@@ -123,15 +172,12 @@ test("nothing heard and server unavailable are said plainly", async ({ page }) =
     route.fulfill({ status: answer.status, contentType: "application/json", body: answer.body }),
   );
   await openBookingForm(page);
-  const mic = () => page.getByRole("button", { name: t.voiceStart }).first();
 
-  await mic().click();
-  await page.getByRole("button", { name: t.voiceStop }).click();
+  await holdMic(page, 500);
   await expect(page.getByText(t.voiceNothing)).toBeVisible();
 
   answer = { status: 503, body: '{"detail":"x"}' };
-  await mic().click();
-  await page.getByRole("button", { name: t.voiceStop }).click();
+  await holdMic(page, 500);
   await expect(page.getByText(t.voiceFailed)).toBeVisible();
 });
 

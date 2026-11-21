@@ -31,7 +31,8 @@ function pickMime(): string | undefined {
   return MIME_CANDIDATES.find((m) => MediaRecorder.isTypeSupported(m));
 }
 
-export type Recording = { stop: () => void };
+/** stop — finish and hand the audio to onDone; cancel — drop it, onDone isn't called. */
+export type Recording = { stop: () => void; cancel: () => void };
 
 /**
  * Starts recording; `onDone(blob)` gets the audio (or null for a too-short
@@ -59,11 +60,13 @@ export async function startRecording(
     return null;
   }
   const parts: Blob[] = [];
+  let cancelled = false;
   recorder.ondataavailable = (e) => {
     if (e.data && e.data.size > 0) parts.push(e.data);
   };
   recorder.onstop = () => {
     stream.getTracks().forEach((tr) => tr.stop()); // free the microphone
+    if (cancelled) return;
     // the recorder's own type — Safari gives audio/mp4, don't guess
     const blob = new Blob(parts, { type: recorder.mimeType || mime || "audio/webm" });
     onDone(blob.size >= MIN_BYTES ? blob : null);
@@ -72,6 +75,11 @@ export async function startRecording(
   const timer = setTimeout(() => recorder.state !== "inactive" && recorder.stop(), MAX_SECONDS * 1000);
   return {
     stop: () => {
+      clearTimeout(timer);
+      if (recorder.state !== "inactive") recorder.stop();
+    },
+    cancel: () => {
+      cancelled = true;
       clearTimeout(timer);
       if (recorder.state !== "inactive") recorder.stop();
     },
