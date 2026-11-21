@@ -14,7 +14,7 @@ import { useCallback, useEffect, useState } from "react";
 import AdminTelegramInvite from "@/components/AdminTelegramInvite";
 import { api, ApiError, type AdminCity, type AdminMaster } from "@/lib/api";
 import { Card, Centered, Button } from "@/components/ui";
-import AdminAnalyticsPanel from "@/components/AdminAnalytics";
+import Link from "next/link";
 import { PasswordInput } from "@/components/PasswordInput";
 import {
   CityCheckboxes,
@@ -279,9 +279,17 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     <div className="flex w-full max-w-3xl flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Админ-панель</h1>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/admin/analytics/"
+            className="inline-flex min-h-10 items-center rounded-md bg-accent px-4 text-sm font-semibold text-on-accent hover:brightness-90"
+          >
+            Аналитика
+          </Link>
         <Button variant="secondary" onClick={onLogout}>
           Выйти
         </Button>
+        </div>
       </div>
 
       <Card>
@@ -428,8 +436,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           <p className="mt-2 text-sm text-danger">{deleteError}</p>
         )}
       </Card>
-
-      <AdminAnalyticsPanel masters={masters} />
 
       <CreateMasterForm cities={cities} onCreated={load} />
 

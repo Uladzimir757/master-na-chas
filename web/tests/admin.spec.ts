@@ -7,6 +7,7 @@ import {
   mockAdminLogout,
   mockAdminMasters,
   mockAdminMe,
+  mockAdminOverview,
   mockDeleteMaster,
   mockTelegramLink,
   mockUpdateMasterRating,
@@ -246,8 +247,20 @@ test("logging out returns to the login form", async ({ page }) => {
   await expect(page.getByPlaceholder("Пароль администратора")).toBeVisible();
 });
 
-// GET /admin/analytics — блок «Аналитика»: сводка по мастерам и по работам.
-test("the analytics block shows per-master and per-service numbers", async ({ page }) => {
+// /admin/analytics — отдельная страница аналитики (кнопка «Аналитика» в панели).
+test("the panel has an «Аналитика» button that opens the analytics page", async ({ page }) => {
+  await mockAdminMe(page, { isAdmin: true });
+  await mockAdminMasters(page, [adminMaster({ name: "Владимир" })]);
+  await mockAdminOverview(page);
+
+  await page.goto("/admin/");
+  await page.getByRole("link", { name: "Аналитика" }).click();
+
+  await expect(page).toHaveURL(/\/admin\/analytics\/?$/);
+  await expect(page.getByRole("heading", { name: "Аналитика" })).toBeVisible();
+});
+
+test("the analytics page shows totals, funnel, per-master and per-service numbers", async ({ page }) => {
   await mockAdminMe(page, { isAdmin: true });
   await mockAdminMasters(page, [adminMaster({ name: "Владимир" })]);
   await mockAdminAnalytics(page, {
@@ -279,22 +292,47 @@ test("the analytics block shows per-master and per-service numbers", async ({ pa
       },
     ],
   });
+  await mockAdminOverview(
+    page,
+    { orders: 10, completed: 7, cancelled: 1, pending: 2, revenue: "350.00", completion_rate: 87.5, clients: 6 },
+    { previous: { orders: 5 } },
+  );
 
-  await page.goto("/admin/");
+  await page.goto("/admin/analytics/");
 
   await expect(page.getByRole("heading", { name: "Аналитика" })).toBeVisible();
+  await expect(page.getByText("▲ 100% к прошлому периоду")).toBeVisible();
+  await expect(page.getByText("87.5%")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Воронка заказов" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Gdynia" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "По мастерам" })).toBeVisible();
   await expect(page.getByText("Сборка шкафа")).toBeVisible();
-  await expect(page.getByText("Выполнено:")).toContainText("7");
 });
 
-test("a failed analytics request shows an error, the rest of the panel still works", async ({ page }) => {
+test("a period with no orders says so", async ({ page }) => {
+  await mockAdminMe(page, { isAdmin: true });
+  await mockAdminMasters(page, []);
+  await mockAdminOverview(page);
+
+  await page.goto("/admin/analytics/");
+
+  await expect(page.getByText("За период нет заказов.").first()).toBeVisible();
+});
+
+test("a failed analytics request shows an error", async ({ page }) => {
   await mockAdminMe(page, { isAdmin: true });
   await mockAdminMasters(page, [adminMaster({ name: "Владимир" })]);
-  await mockAdminAnalytics(page, { masters: [], services: [] }, { status: 500 });
+  await mockAdminOverview(page, {}, { status: 500 });
 
-  await page.goto("/admin/");
+  await page.goto("/admin/analytics/");
 
   await expect(page.getByText("Не удалось загрузить аналитику")).toBeVisible();
-  await expect(masterName(page, "Владимир")).toBeVisible();
+});
+
+test("the analytics page without an admin session points to the login", async ({ page }) => {
+  await mockAdminMe(page, { isAdmin: false });
+
+  await page.goto("/admin/analytics/");
+
+  await expect(page.getByRole("link", { name: "Войти в админ-панель" })).toBeVisible();
 });

@@ -100,6 +100,7 @@ from app.models import (
     WorkingHours,
     WorkingHoursException,
 )
+from app.admin_analytics import AdminOverviewOut, build_overview
 from app.geo_watchdog import run_geo_watchdog
 from app.notifications import notify_client, notify_master, reply_telegram, run_in_background
 from app.public_cache import cache_control, is_missing, public_cache, write_invalidates
@@ -3147,6 +3148,24 @@ async def admin_analytics(
     # less visible since it happened to match for Russian-era rows.
     services, masters = await _collect_analytics(db, date_from, date_to, provider_id, DEFAULT_LANG)
     return AdminAnalyticsOut(date_from=date_from, date_to=date_to, services=services, masters=masters)
+
+
+@app.get("/admin/analytics/overview", response_model=AdminOverviewOut, dependencies=[Depends(require_admin)])
+async def admin_analytics_overview(
+    date_from: date,
+    date_to: date,
+    provider_id: uuid.UUID | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> AdminOverviewOut:
+    """Обзор для страницы /admin/analytics: воронка статусов, динамика по
+    дням, часы/дни недели, города, клиенты, отзывы и сравнение с прошлым
+    периодом. Только чтение."""
+    if date_to < date_from:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "date_to must be >= date_from")
+    if (date_to - date_from).days > 366:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "range too large, max 366 days")
+    await _expire_overdue(db)
+    return await build_overview(db, date_from, date_to, provider_id)
 
 
 @app.get("/admin/masters", response_model=list[MasterOut], dependencies=[Depends(require_admin)])

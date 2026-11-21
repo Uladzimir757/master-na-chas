@@ -395,3 +395,20 @@ async def test_admin_analytics_validates_dates(client: AsyncClient):
     h = {"x-admin-secret": TEST_SECRET}
     assert (await client.get("/admin/analytics?date_from=2030-02-01&date_to=2030-01-01", headers=h)).status_code == 400
     assert (await client.get("/admin/analytics?date_from=2020-01-01&date_to=2030-01-01", headers=h)).status_code == 400
+
+
+async def test_admin_analytics_overview(client: AsyncClient, db_session: AsyncSession, provider: Provider, service: Service):
+    other, d = await _seed_analytics(db_session, provider, service)
+    h = {"x-admin-secret": TEST_SECRET}
+    assert (await client.get(f"/admin/analytics/overview?date_from={d}&date_to={d}")).status_code == 403
+    body = (await client.get(f"/admin/analytics/overview?date_from={d}&date_to={d}", headers=h)).json()
+    t = body["totals"]
+    assert (t["orders"], t["completed"], t["cancelled"], t["no_show"]) == (5, 3, 1, 1)
+    assert float(t["revenue"]) == 350 and t["hours"] == 3.0
+    assert t["completion_rate"] == 60.0
+    assert len(body["days"]) == 1 and body["days"][0]["orders"] == 5
+    assert sum(x["orders"] for x in body["hours"]) == 4  # без отменённого
+    assert body["previous"]["orders"] == 0
+    one = (await client.get(f"/admin/analytics/overview?date_from={d}&date_to={d}&provider_id={other.id}", headers=h)).json()
+    assert one["totals"]["orders"] == 2
+    assert (await client.get("/admin/analytics/overview?date_from=2030-02-01&date_to=2030-01-01", headers=h)).status_code == 400

@@ -3,6 +3,7 @@ import { expect, test } from "./fixtures";
 import {
   adminMaster,
   mockAdminMe,
+  mockAdminOverview,
   mockAdminMasters,
   mockAuthMe,
   mockMyCalendar,
@@ -87,6 +88,7 @@ test.describe("superadmin analytics", () => {
   test("filters apply only on «Применить»", async ({ page }) => {
     await mockAdminMe(page, { isAdmin: true });
     await mockAdminMasters(page, [adminMaster({ name: "Владимир", provider_id: "p1" })]);
+    await mockAdminOverview(page);
     // registered after mockAdminMasters' own default route, so it wins
     const seen = await recordRequests(page, "**/admin/analytics?**", {
       date_from: "2026-09-01",
@@ -95,7 +97,7 @@ test.describe("superadmin analytics", () => {
       services: [],
     });
 
-    await page.goto("/admin/");
+    await page.goto("/admin/analytics/");
     await expect.poll(() => seen.length).toBe(1);
 
     const [from, to] = await page.locator('input[type="date"]').all();

@@ -1099,6 +1099,40 @@ export async function mockAdminAnalytics(
   );
 }
 
+const ZERO_TOTALS = {
+  orders: 0, pending: 0, confirmed: 0, completed: 0, cancelled: 0, timed_out: 0, no_show: 0,
+  revenue: "0.00", priced_jobs: 0, avg_price: null, hours: 0, clients: 0, repeat_clients: 0,
+  problems: 0, reviews: 0, avg_rating: null, completion_rate: null, cancel_rate: null, timeout_rate: null,
+};
+
+/** GET /admin/analytics/overview (страница /admin/analytics). Регистрировать
+ * после mockAdminAnalytics: его шаблон "analytics?**" тоже цепляет этот путь. */
+export async function mockAdminOverview(
+  page: Page,
+  totals: Record<string, unknown> = {},
+  opts?: { status?: number; previous?: Record<string, unknown> },
+) {
+  await page.route("**/admin/analytics/overview?**", (route) =>
+    route.fulfill({
+      status: opts?.status ?? 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        date_from: "2026-09-11",
+        date_to: "2026-09-12",
+        totals: { ...ZERO_TOTALS, ...totals },
+        previous: { ...ZERO_TOTALS, ...(opts?.previous ?? {}) },
+        days: [
+          { day: "2026-09-11", orders: 2, completed: 1, cancelled: 1, revenue: "100.00" },
+          { day: "2026-09-12", orders: 1, completed: 1, cancelled: 0, revenue: "50.00" },
+        ],
+        hours: Array.from({ length: 24 }, (_, key) => ({ key, orders: key === 9 ? 2 : 0 })),
+        weekdays: Array.from({ length: 7 }, (_, key) => ({ key, orders: key === 0 ? 3 : 0 })),
+        cities: [{ name: "Gdynia", orders: 3, completed: 2, revenue: "150.00" }],
+      }),
+    }),
+  );
+}
+
 export async function mockAdminMasters(
   page: Page,
   initial: AdminMasterFixture[] = [],

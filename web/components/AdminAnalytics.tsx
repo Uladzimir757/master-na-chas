@@ -1,112 +1,24 @@
 "use client";
 
-/** Аналитика суперадмина: сводка по мастерам и цифры по каждой работе. */
+/** Детали аналитики суперадмина: цифры по каждому мастеру и каждой работе.
+ *  Данные и фильтры — на странице /admin/analytics (AdminAnalyticsPage). */
 
-import { useEffect, useState } from "react";
-import { api, type AdminAnalytics, type AdminMaster } from "@/lib/api";
-import { addDays, toDateParam } from "@/lib/format";
-import { Card, CompactButton } from "@/components/ui";
+import type { AdminAnalytics } from "@/lib/api";
 
-const inputClass =
-  "w-full rounded-lg border border-line bg-surface px-3 py-2 text-ink";
 const hours = (min: number) => (min / 60).toFixed(1);
 const money = (v: string) => Number(v).toFixed(2);
 
-export default function AdminAnalyticsPanel({
-  masters,
+export default function AdminAnalyticsDetails({
+  data,
 }: {
-  masters: AdminMaster[] | null;
+  data: AdminAnalytics;
 }) {
-  const [from, setFrom] = useState(() => toDateParam(addDays(new Date(), -29)));
-  const [to, setTo] = useState(() => toDateParam(new Date()));
-  const [providerId, setProviderId] = useState("");
-  // Loaded filters — change only on mount and on «Применить»/Enter, not on
-  // every field edit (same as components/AnalyticsPanel.tsx).
-  const [applied, setApplied] = useState(() => ({ from, to, providerId }));
-  const [data, setData] = useState<AdminAnalytics | null>(null);
-  const [error, setError] = useState(false);
-  const canApply = Boolean(from && to && to >= from);
-
-  useEffect(() => {
-    let alive = true;
-    api
-      .adminAnalytics(applied.from, applied.to, applied.providerId || undefined)
-      .then((d) => {
-        if (alive) {
-          setData(d);
-          setError(false);
-        }
-      })
-      .catch(() => alive && setError(true));
-    return () => {
-      alive = false;
-    };
-  }, [applied]);
-
-  const totalDone = data?.masters.reduce((a, m) => a + m.completed, 0) ?? 0;
-  const totalRevenue =
-    data?.masters.reduce((a, m) => a + Number(m.revenue), 0) ?? 0;
-
   return (
-    <Card>
-      <h2 className="mb-3 text-lg font-semibold text-ink">Аналитика</h2>
-      <form
-        className="mb-4 flex flex-wrap items-end gap-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (canApply) setApplied({ from, to, providerId });
-        }}
-      >
-        <label className="text-xs text-ink-2">
-          С
-          <input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            className={`${inputClass} mt-1`}
-          />
-        </label>
-        <label className="text-xs text-ink-2">
-          По
-          <input
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            className={`${inputClass} mt-1`}
-          />
-        </label>
-        <label className="text-xs text-ink-2">
-          Мастер
-          <select
-            value={providerId}
-            onChange={(e) => setProviderId(e.target.value)}
-            className={`${inputClass} mt-1`}
-          >
-            <option value="">Все мастера</option>
-            {(masters ?? []).map((m) => (
-              <option key={m.provider_id} value={m.provider_id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <CompactButton type="submit" disabled={!canApply}>
-          Применить
-        </CompactButton>
-      </form>
-      {error && (
-        <p className="text-sm text-danger">Не удалось загрузить аналитику</p>
-      )}
-      {data && data.masters.length === 0 && (
+    <section>
+      {data.masters.length === 0 ? (
         <p className="text-sm text-ink-2">За период нет заказов.</p>
-      )}
-      {data && data.masters.length > 0 && (
+      ) : (
         <>
-          <p className="mb-4 text-sm text-ink/80">
-            Выполнено: <b>{totalDone}</b> · Выручка:{" "}
-            <b>{totalRevenue.toFixed(2)}</b>
-          </p>
-
           <h3 className="mb-2 text-sm font-semibold text-ink">По мастерам</h3>
           <div className="mb-6 grid gap-3 sm:grid-cols-2">
             {data.masters.map((m) => (
@@ -175,6 +87,6 @@ export default function AdminAnalyticsPanel({
       <p className="mt-4 text-xs text-ink-3">
         Выручка считается только по заказам с проставленной итоговой ценой.
       </p>
-    </Card>
+    </section>
   );
 }

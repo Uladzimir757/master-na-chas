@@ -313,6 +313,45 @@ export interface AdminAnalytics {
   masters: MasterStat[];
 }
 
+export interface OverviewTotals {
+  orders: number;
+  pending: number;
+  confirmed: number;
+  completed: number;
+  cancelled: number;
+  timed_out: number;
+  no_show: number;
+  revenue: string;
+  priced_jobs: number;
+  avg_price: string | null;
+  hours: number;
+  clients: number;
+  repeat_clients: number;
+  problems: number;
+  reviews: number;
+  avg_rating: number | null;
+  completion_rate: number | null;
+  cancel_rate: number | null;
+  timeout_rate: number | null;
+}
+
+export interface AdminOverview {
+  date_from: string;
+  date_to: string;
+  totals: OverviewTotals;
+  previous: OverviewTotals;
+  days: {
+    day: string;
+    orders: number;
+    completed: number;
+    cancelled: number;
+    revenue: string;
+  }[];
+  hours: { key: number; orders: number }[];
+  weekdays: { key: number; orders: number }[];
+  cities: { name: string; orders: number; completed: number; revenue: string }[];
+}
+
 export interface ProviderSettings {
   id: string;
   name: string;
@@ -923,6 +962,12 @@ export const api = {
   adminAnalytics: (from: string, to: string, providerId?: string) =>
     request<AdminAnalytics>(
       `/admin/analytics?date_from=${from}&date_to=${to}${
+        providerId ? `&provider_id=${providerId}` : ""
+      }`,
+    ),
+  adminAnalyticsOverview: (from: string, to: string, providerId?: string) =>
+    request<AdminOverview>(
+      `/admin/analytics/overview?date_from=${from}&date_to=${to}${
         providerId ? `&provider_id=${providerId}` : ""
       }`,
     ),
