@@ -325,6 +325,9 @@ CREATE TABLE booking (
     client_confirmation   text CHECK (client_confirmation IN ('confirmed', 'problem')),
     client_confirmation_at timestamptz,
     client_problem        text,
+    -- заказ внёс сам мастер в календаре: отзыв по такому заказу не приглашаем
+    -- (защита от накрутки рейтинга самим мастером)
+    created_by_master     boolean NOT NULL DEFAULT false,
     created_at    timestamptz NOT NULL DEFAULT now(),
 
     -- THE important line: Postgres itself refuses to let two active bookings
@@ -474,6 +477,9 @@ CREATE TABLE review (
     -- эту фичу для MVP на 2 мастеров избыточно. Если объём отзывов/фото
     -- вырастет — перенести на внешнее хранилище, см. handoff этой задачи.
     photos        jsonb NOT NULL DEFAULT '[]'::jsonb,
+    -- скрыт суперадмином (подозрение на накрутку): не показывается и не
+    -- входит в рейтинг
+    hidden        boolean NOT NULL DEFAULT false,
     created_at    timestamptz NOT NULL DEFAULT now()
 );
 

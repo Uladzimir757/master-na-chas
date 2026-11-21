@@ -67,7 +67,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy import case, delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.sessions import SessionMiddleware
@@ -101,6 +101,7 @@ from app.models import (
     WorkingHoursException,
 )
 from app.admin_analytics import AdminOverviewOut, build_overview
+from app.admin_reviews import MIN_REVIEWS_FOR_RATING, AdminReviewOut, list_admin_reviews, public_rating
 from app.geo_watchdog import run_geo_watchdog
 from app.notifications import notify_client, notify_master, reply_telegram, run_in_background
 from app.public_cache import cache_control, is_missing, public_cache, write_invalidates
@@ -173,6 +174,7 @@ from app.schemas import (
     DeviceTokenRequest,
     DeviceTokenUnregister,
     ReviewCreate,
+    ReviewHiddenUpdate,
     ReviewInviteOut,
     ReviewOut,
     ServiceOut,
@@ -557,7 +559,10 @@ async def _list_providers_cached(
     stmt = (
         select(Provider)
         .where(Provider.is_active.is_(True))
-        .order_by(Provider.rating.desc().nulls_last(), Provider.name)
+        .order_by(
+            case((Provider.rating_count >= MIN_REVIEWS_FOR_RATING, Provider.rating), else_=None).desc().nulls_last(),
+            Provider.name,
+        )
     )
     if city is not None:
         stmt = stmt.where(Provider.id.in_(_providers_in_city(city)))
@@ -582,7 +587,7 @@ async def _list_providers_cached(
         ProviderOut(
             id=p.id,
             name=p.name,
-            rating=p.rating,
+            rating=public_rating(p),
             rating_count=p.rating_count,
             call_out_fee=p.call_out_fee,
             location=await _resolve_provider_location(db, p, now),
@@ -711,7 +716,7 @@ async def dispatcher_masters(
     if subcategory in DISPATCHER_SUBCATEGORIES:
         stmt = stmt.where(Service.category == DISPATCHER_SUBCATEGORIES[subcategory])
     providers = (await db.execute(stmt)).scalars().all()
-    providers = sorted(providers, key=lambda p: (p.rating is None, -(p.rating or 0), p.name))
+    providers = sorted(providers, key=lambda p: (public_rating(p) is None, -(public_rating(p) or 0), p.name))
     now = datetime.now(timezone.utc)
     out = []
     for p in providers:
@@ -723,7 +728,7 @@ async def dispatcher_masters(
                 phone=p.phone,
                 lat=location.lat if location else None,
                 lng=location.lng if location else None,
-                rating=p.rating,
+                rating=public_rating(p),
                 reviews=p.rating_count,
                 url=f"{settings.WEB_PUBLIC_URL}/",
             )
@@ -1331,6 +1336,7 @@ async def create_manual_booking(
         notes=payload.notes,
         status=payload.status,
         travel_minutes=payload.travel_minutes,
+        created_by_master=True,
     )
     db.add(booking)
     try:
@@ -2661,6 +2667,8 @@ async def _issue_review_invite(db: AsyncSession, booking: Booking, provider: Pro
     booking_id UNIQUE на review_invite — если бронь уже проходила через
     completed раньше (completed -> cancelled -> completed снова), invite
     уже существует; не плодим второй и не шлём повторную SMS."""
+    if booking.created_by_master:
+        return  # заказ внёс сам мастер — отзыв по нему не приглашаем (накрутка)
     existing = (
         await db.execute(select(ReviewInvite).where(ReviewInvite.booking_id == booking.id))
     ).scalar_one_or_none()
@@ -2706,7 +2714,9 @@ async def _recompute_provider_rating(db: AsyncSession, provider_id: uuid.UUID) -
     больше не нужно."""
     row = (
         await db.execute(
-            select(func.avg(Review.rating), func.count(Review.id)).where(Review.provider_id == provider_id)
+            select(func.avg(Review.rating), func.count(Review.id)).where(
+                Review.provider_id == provider_id, Review.hidden.is_(False)
+            )
         )
     ).one()
     avg_rating, count = row
@@ -2859,7 +2869,11 @@ async def list_provider_reviews(
     provider = await db.get(Provider, provider_id)
     if provider is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Provider not found")
-    stmt = select(Review).where(Review.provider_id == provider_id).order_by(Review.created_at.desc())
+    stmt = (
+        select(Review)
+        .where(Review.provider_id == provider_id, Review.hidden.is_(False))
+        .order_by(Review.created_at.desc())
+    )
     return (await db.execute(stmt)).scalars().all()
 
 
@@ -3166,6 +3180,29 @@ async def admin_analytics_overview(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "range too large, max 366 days")
     await _expire_overdue(db)
     return await build_overview(db, date_from, date_to, provider_id)
+
+
+@app.get("/admin/reviews", response_model=list[AdminReviewOut], dependencies=[Depends(require_admin)])
+async def admin_list_reviews(
+    provider_id: uuid.UUID | None = None, db: AsyncSession = Depends(get_db)
+) -> list[AdminReviewOut]:
+    """Отзывы для модерации (включая скрытые) с подсказками «подозрительно»."""
+    return await list_admin_reviews(db, provider_id)
+
+
+@app.post("/admin/reviews/{review_id}/hidden", dependencies=[Depends(require_admin)])
+async def admin_set_review_hidden(
+    review_id: uuid.UUID, payload: ReviewHiddenUpdate, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Скрыть отзыв (или вернуть): пропадает из публичного списка, рейтинг
+    мастера пересчитывается без него."""
+    review = await db.get(Review, review_id)
+    if review is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Review not found")
+    review.hidden = payload.hidden
+    await db.commit()
+    await _recompute_provider_rating(db, review.provider_id)
+    return {"ok": True, "hidden": review.hidden}
 
 
 @app.get("/admin/masters", response_model=list[MasterOut], dependencies=[Depends(require_admin)])

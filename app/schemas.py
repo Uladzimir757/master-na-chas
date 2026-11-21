@@ -879,6 +879,10 @@ class RolesMetaOut(BaseModel):
     permissions: list[str]
 
 
+class ReviewHiddenUpdate(BaseModel):
+    hidden: bool
+
+
 class ServiceStatOut(BaseModel):
     service_id: uuid.UUID
     name: str

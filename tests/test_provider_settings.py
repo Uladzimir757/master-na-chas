@@ -129,8 +129,8 @@ async def test_public_providers_list_is_sorted_by_rating_best_first_unrated_last
 
     from app.models import Provider as ProviderModel
 
-    rated_low = ProviderModel(id=uuid.uuid4(), tenant_id=tenant.id, name="Низкий рейтинг", rating=3.5)
-    rated_high = ProviderModel(id=uuid.uuid4(), tenant_id=tenant.id, name="Высокий рейтинг", rating=4.9)
+    rated_low = ProviderModel(id=uuid.uuid4(), tenant_id=tenant.id, name="Низкий рейтинг", rating=3.5, rating_count=5)
+    rated_high = ProviderModel(id=uuid.uuid4(), tenant_id=tenant.id, name="Высокий рейтинг", rating=4.9, rating_count=5)
     db_session.add_all([rated_low, rated_high])
     # `provider` (the conftest fixture) stays unrated (rating=None by default)
     await db_session.commit()

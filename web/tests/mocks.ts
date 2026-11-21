@@ -1133,6 +1133,51 @@ export async function mockAdminOverview(
   );
 }
 
+export interface AdminReviewFixture {
+  id: string;
+  provider_id: string;
+  provider_name: string;
+  rating: number;
+  text: string | null;
+  photos: number;
+  client_name: string | null;
+  phone_tail: string | null;
+  created_at: string;
+  booking_created_at: string | null;
+  booking_start_at: string;
+  hidden: boolean;
+  flags: string[];
+}
+
+export function adminReview(overrides: Partial<AdminReviewFixture> = {}): AdminReviewFixture {
+  return {
+    id: "r1", provider_id: "p1", provider_name: "Владимир", rating: 5, text: "Super", photos: 0,
+    client_name: "Jan", phone_tail: "1234", created_at: "2026-09-10T10:00:00Z",
+    booking_created_at: "2026-09-10T09:50:00Z", booking_start_at: "2026-09-10T09:00:00Z",
+    hidden: false, flags: [], ...overrides,
+  };
+}
+
+/** GET /admin/reviews и POST /admin/reviews/{id}/hidden: скрытие отражается
+ * в следующем GET, как на настоящем бэкенде. Возвращает журнал POST. */
+export async function mockAdminReviews(page: Page, initial: AdminReviewFixture[]) {
+  const current = initial.map((r) => ({ ...r }));
+  const posts: { id: string; hidden: boolean }[] = [];
+  await page.route("**/admin/reviews**", (route) => {
+    const req = route.request();
+    if (req.method() === "POST") {
+      const id = req.url().split("/admin/reviews/")[1].split("/")[0];
+      const hidden = JSON.parse(req.postData() ?? "{}").hidden;
+      posts.push({ id, hidden });
+      const row = current.find((r) => r.id === id);
+      if (row) row.hidden = hidden;
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, hidden }) });
+    }
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(current) });
+  });
+  return posts;
+}
+
 export async function mockAdminMasters(
   page: Page,
   initial: AdminMasterFixture[] = [],
@@ -1141,6 +1186,7 @@ export async function mockAdminMasters(
   let current = [...initial];
   // блок «Аналитика» в панели всегда запрашивает отчёт; по умолчанию — пустой период
   await mockAdminAnalytics(page, { masters: [], services: [] });
+  await mockAdminReviews(page, []);
   await page.route("**/admin/cities", (route) =>
     route.fulfill({
       status: 200,

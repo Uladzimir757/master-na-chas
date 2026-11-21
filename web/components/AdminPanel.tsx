@@ -15,6 +15,7 @@ import AdminTelegramInvite from "@/components/AdminTelegramInvite";
 import { api, ApiError, type AdminCity, type AdminMaster } from "@/lib/api";
 import { Card, Centered, Button } from "@/components/ui";
 import Link from "next/link";
+import AdminReviews from "@/components/AdminReviews";
 import { PasswordInput } from "@/components/PasswordInput";
 import {
   CityCheckboxes,
@@ -436,6 +437,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           <p className="mt-2 text-sm text-danger">{deleteError}</p>
         )}
       </Card>
+
+      <AdminReviews masters={masters} onChanged={load} />
 
       <CreateMasterForm cities={cities} onCreated={load} />
 

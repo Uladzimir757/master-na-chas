@@ -10,7 +10,7 @@ import uuid
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, Numeric, SmallInteger, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, func, Integer, Numeric, SmallInteger, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ENUM as PgEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
@@ -346,6 +346,9 @@ class Booking(Base):
     client_confirmation: Mapped[str | None] = mapped_column(String)
     client_confirmation_at: Mapped[datetime | None] = mapped_column(TZDateTime)
     client_problem: Mapped[str | None] = mapped_column(Text)
+    # Заказ внёс сам мастер в календаре — по нему отзыв не приглашаем.
+    created_by_master: Mapped[bool] = mapped_column(default=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, server_default=func.now())
 
 
 class MasterUser(Base):
@@ -478,6 +481,8 @@ class Review(Base):
     rating: Mapped[int] = mapped_column(SmallInteger)
     text: Mapped[str | None] = mapped_column(Text)
     photos: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    # Скрыт суперадмином (подозрение на накрутку): не виден и не в рейтинге.
+    hidden: Mapped[bool] = mapped_column(default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (

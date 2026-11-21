@@ -352,6 +352,22 @@ export interface AdminOverview {
   cities: { name: string; orders: number; completed: number; revenue: string }[];
 }
 
+export interface AdminReview {
+  id: string;
+  provider_id: string;
+  provider_name: string;
+  rating: number;
+  text: string | null;
+  photos: number;
+  client_name: string | null;
+  phone_tail: string | null;
+  created_at: string;
+  booking_created_at: string | null;
+  booking_start_at: string;
+  hidden: boolean;
+  flags: string[];
+}
+
 export interface ProviderSettings {
   id: string;
   name: string;
@@ -971,6 +987,15 @@ export const api = {
         providerId ? `&provider_id=${providerId}` : ""
       }`,
     ),
+  adminListReviews: (providerId?: string) =>
+    request<AdminReview[]>(
+      `/admin/reviews${providerId ? `?provider_id=${providerId}` : ""}`,
+    ),
+  adminSetReviewHidden: (id: string, hidden: boolean) =>
+    request<{ ok: true; hidden: boolean }>(`/admin/reviews/${id}/hidden`, {
+      method: "POST",
+      body: JSON.stringify({ hidden }),
+    }),
   listMasters: () => request<AdminMaster[]>("/admin/masters"),
   adminListCities: () => request<AdminCity[]>("/admin/cities"),
   adminCreateCity: (body: { slug: string; name_pl: string; name_en: string }) =>

@@ -2,12 +2,14 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import {
   adminMaster,
+  adminReview,
   mockAdminAnalytics,
   mockAdminLogin,
   mockAdminLogout,
   mockAdminMasters,
   mockAdminMe,
   mockAdminOverview,
+  mockAdminReviews,
   mockDeleteMaster,
   mockTelegramLink,
   mockUpdateMasterRating,
@@ -335,4 +337,31 @@ test("the analytics page without an admin session points to the login", async ({
   await page.goto("/admin/analytics/");
 
   await expect(page.getByRole("link", { name: "Войти в админ-панель" })).toBeVisible();
+});
+
+// Модерация отзывов (защита рейтинга от накрутки).
+test("reviews: suspicious hints are shown and «Скрыть» hides a review", async ({ page }) => {
+  await mockAdminMe(page, { isAdmin: true });
+  await mockAdminMasters(page, [adminMaster({ name: "Владимир" })]);
+  const posts = await mockAdminReviews(page, [
+    adminReview({ id: "r1", text: "Подозрительный", flags: ["quick_cycle", "repeat_phone"] }),
+    adminReview({ id: "r2", text: "Обычный", phone_tail: "9999" }),
+  ]);
+
+  await page.goto("/admin/");
+
+  await expect(page.getByText("Подозрительный")).toBeVisible();
+  await expect(page.getByText("отзыв пришёл меньше чем через час после создания заказа")).toBeVisible();
+  await expect(page.getByText("…1234")).toBeVisible();
+
+  await page.getByRole("checkbox", { name: "Только с подсказками" }).check();
+  await expect(page.getByText("Обычный")).toHaveCount(0);
+  await page.getByRole("checkbox", { name: "Только с подсказками" }).uncheck();
+
+  await page.getByRole("button", { name: "Скрыть" }).first().click();
+  await expect.poll(() => posts).toEqual([{ id: "r1", hidden: true }]);
+  await expect(page.getByText("(скрыт)")).toBeVisible();
+  await page.getByRole("button", { name: "Вернуть" }).click();
+  await expect.poll(() => posts.length).toBe(2);
+  await expect(page.getByText("(скрыт)")).toHaveCount(0);
 });
