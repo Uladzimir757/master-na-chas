@@ -358,6 +358,14 @@ export interface Translations {
   myBookingHistoryTitle: string;
   myBookingHistoryEmpty: string;
   pickMasterSearch: string;
+  taskSearchPlaceholder: string;
+  taskSearchButton: string;
+  taskSearching: string;
+  taskNone: string;
+  taskError: string;
+  taskShowAll: string;
+  taskServiceFits: string;
+  taskFound: (services: string) => string;
   pickMasterSortLabel: string;
   pickMasterSortRating: string;
   pickMasterSortPrice: string;
@@ -886,6 +894,15 @@ export function buildTranslations(map: TranslationMap): Translations {
     myBookingHistoryTitle: pick(map, "myBookingHistoryTitle"),
     myBookingHistoryEmpty: pick(map, "myBookingHistoryEmpty"),
     pickMasterSearch: pick(map, "pickMasterSearch"),
+    taskSearchPlaceholder: pick(map, "taskSearchPlaceholder"),
+    taskSearchButton: pick(map, "taskSearchButton"),
+    taskSearching: pick(map, "taskSearching"),
+    taskNone: pick(map, "taskNone"),
+    taskError: pick(map, "taskError"),
+    taskShowAll: pick(map, "taskShowAll"),
+    taskServiceFits: pick(map, "taskServiceFits"),
+    taskFound: (services) =>
+      interpolate(pick(map, "taskFound"), { services }),
     pickMasterSortLabel: pick(map, "pickMasterSortLabel"),
     pickMasterSortRating: pick(map, "pickMasterSortRating"),
     pickMasterSortPrice: pick(map, "pickMasterSortPrice"),

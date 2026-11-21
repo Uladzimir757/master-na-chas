@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import VoiceButton, { appendDictation } from "@/components/VoiceButton";
 import { locateClient, saveClientPos, type ClientPos } from "@/lib/clientPosition";
-import { api, ApiError, type Provider } from "@/lib/api";
+import { api, ApiError, type Provider, type TaskMatch } from "@/lib/api";
+import { setTaskDraft } from "@/lib/taskDraft";
 import { useLocale } from "@/lib/LocaleContext";
 import { Button, Card, CompactButton, inputClass } from "@/components/ui";
 import { StarIcon } from "@/components/icons";
@@ -11,18 +12,25 @@ import MasterAvatar from "@/components/MasterAvatar";
 import MasterProfile from "@/components/MasterProfile";
 
 // Список приходит отсортированным по рейтингу (app/main.py list_providers);
-// здесь поиск по имени, фильтр по категории работ и смена сортировки —
-// всё на клиенте, мастеров немного.
+// фильтр по категории работ и смена сортировки — на клиенте, мастеров
+// немного. Поле сверху — «Co trzeba zrobić?» (21.11.2026): по кнопке задача
+// своими словами уходит на сервер, нейросеть выбирает услуги
+// (app/task_match.py), остаются мастера, которые их делают. Пока клиент
+// печатает, список сужается, только если текст совпал с именем мастера —
+// описание работы не опустошает список (раньше «powiesić półkę» давало
+// «Nie znaleziono mistrzów» без всякой кнопки).
 type SortMode = "rating" | "price" | "name";
 
 export default function MasterPicker({
   providers,
+  city,
   onSelect,
   hasPosition = false,
   onPosition,
   onClearPosition,
 }: {
   providers: Provider[];
+  city?: string;
   onSelect: (p: Provider) => void;
   // «distance to the master» (task 15.11.2026, part C)
   hasPosition?: boolean;
@@ -46,6 +54,38 @@ export default function MasterPicker({
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string | null>(null);
   const [sort, setSort] = useState<SortMode>("rating");
+  const [task, setTask] = useState<TaskMatch | null>(null);
+  const [taskBusy, setTaskBusy] = useState(false);
+  const [taskError, setTaskError] = useState(false);
+
+  const changeQuery = (v: string) => {
+    setQuery(v);
+    setTask(null);
+    setTaskError(false);
+    setTaskDraft(null);
+  };
+
+  const searchTask = async () => {
+    const text = query.trim();
+    if (text.length < 2 || taskBusy) return;
+    setTaskBusy(true);
+    setTaskError(false);
+    try {
+      const result = await api.taskMatch(text, city, locale);
+      setTask(result);
+      setCategory(null);
+      // a master's name isn't a job description — nothing to carry on
+      setTaskDraft(
+        result.by === "name" ? null : { text, serviceIds: result.services.map((s) => s.id) },
+      );
+    } catch {
+      setTask(null);
+      setTaskError(true);
+      setTaskDraft({ text, serviceIds: [] }); // the description still helps the master
+    } finally {
+      setTaskBusy(false);
+    }
+  };
 
   const catLabel = (c: string) =>
     ({
@@ -63,10 +103,15 @@ export default function MasterPicker({
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = providers.filter(
-      (p) =>
-        (!q || p.name.toLowerCase().includes(q)) &&
-        (!category || (p.categories ?? []).includes(category)),
+    let base: Provider[];
+    if (task && task.by !== "none") {
+      base = providers.filter((p) => task.provider_ids.includes(p.id));
+    } else {
+      const byName = q ? providers.filter((p) => p.name.toLowerCase().includes(q)) : providers;
+      base = byName.length > 0 ? byName : providers;
+    }
+    const list = base.filter(
+      (p) => !category || (p.categories ?? []).includes(category),
     );
     const byRating = (a: Provider, b: Provider) =>
       (b.rating ?? -1) - (a.rating ?? -1) || a.name.localeCompare(b.name);
@@ -79,7 +124,7 @@ export default function MasterPicker({
       );
     else list.sort(byRating);
     return list;
-  }, [providers, query, category, sort]);
+  }, [providers, query, category, sort, task]);
 
   const chip = (active: boolean) =>
     `min-h-11 rounded-full border px-4 py-1.5 text-base transition ${
@@ -94,18 +139,47 @@ export default function MasterPicker({
         {t.pickMasterTitle}
       </h1>
 
-      <div className="mb-3 flex flex-col gap-2 sm:flex-row">
-        <div className="flex flex-1 items-start gap-2">
+      <form
+        role="search"
+        className="mb-3 flex flex-col gap-2 sm:flex-row"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void searchTask();
+        }}
+      >
+        <div className="flex flex-1 items-center gap-2">
           <input
             type="search"
+            enterKeyHint="search"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t.pickMasterSearch}
-            className={`${inputClass} flex-1`}
+            onChange={(e) => changeQuery(e.target.value)}
+            placeholder={t.taskSearchPlaceholder}
+            aria-label={t.taskSearchPlaceholder}
+            maxLength={300}
+            className={`${inputClass} min-w-0 flex-1`}
           />
-          {/* search is a name — the dictation replaces it, not appends */}
-          <VoiceButton onText={(x) => setQuery(x)} />
+          {/* a new phrase replaces the old one — it's a new search */}
+          <VoiceButton onText={(x) => changeQuery(x.slice(0, 300))} />
         </div>
+        <Button type="submit" className="rounded-full sm:min-w-32" disabled={taskBusy || query.trim().length < 2}>
+          {taskBusy ? t.taskSearching : t.taskSearchButton}
+        </Button>
+      </form>
+
+      {taskError && <p className="mb-3 text-base text-danger">{t.taskError}</p>}
+      {task?.by === "none" && <p className="mb-3 text-base text-ink">{t.taskNone}</p>}
+      {task?.by === "task" && (
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-accent bg-surface px-4 py-3">
+          <span className="text-base font-semibold text-ink">
+            {t.taskFound(task.services.map((s) => s.name).join(", "))}
+          </span>
+          <CompactButton variant="secondary" onClick={() => changeQuery("")}>
+            {t.taskShowAll}
+          </CompactButton>
+        </div>
+      )}
+
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
         <select
           aria-label={t.pickMasterSortLabel}
           value={sort}

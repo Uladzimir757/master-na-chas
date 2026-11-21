@@ -1071,6 +1071,30 @@ class ClientChangeLimitUpdate(BaseModel):
     minutes: int = Field(ge=0, le=180)
 
 
+class TaskMatchIn(BaseModel):
+    """POST /api/task-match — «Co trzeba zrobić?» на главной: задача
+    клиента своими словами (в теле — в журнал доступа не попадает)."""
+
+    text: str = Field(min_length=2, max_length=300)
+    city: str | None = None
+    lang: str = "pl"
+
+
+class TaskMatchService(BaseModel):
+    id: uuid.UUID
+    name: str
+
+
+class TaskMatchOut(BaseModel):
+    """by: "name" — текст совпал с именем мастера (без нейросети); "task" —
+    нейросеть выбрала услуги; "none" — ни одна услуга не подходит.
+    provider_ids — подходящие мастера в порядке общего списка (рейтинг)."""
+
+    by: str
+    services: list[TaskMatchService] = []
+    provider_ids: list[uuid.UUID] = []
+
+
 class GeocodeIn(BaseModel):
     """POST /api/geocode — адрес клиента для «расстояния до мастера», если он
     не дал геолокацию. В теле, не в URL: в журнал доступа не попадает."""

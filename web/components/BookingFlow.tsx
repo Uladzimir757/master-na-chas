@@ -16,6 +16,7 @@ import MasterPicker from "@/components/MasterPicker";
 import { clearClientPos, savedClientPos, type ClientPos } from "@/lib/clientPosition";
 import SlotPicker from "@/components/SlotPicker";
 import CityPicker from "@/components/CityPicker";
+import { taskDraft } from "@/lib/taskDraft";
 
 // The element on the home page that wraps this flow.
 export const BOOKING_ID = "masters";
@@ -137,6 +138,9 @@ export default function BookingFlow() {
       setSelectedService(null);
       try {
         const svc = await api.listProviderServices(selectedProvider.id, locale);
+        // services that fit the job from «Co trzeba zrobić?» go first
+        const fits = new Set(taskDraft()?.serviceIds ?? []);
+        svc.sort((a, b) => Number(fits.has(b.id)) - Number(fits.has(a.id)));
         setProviderServices(svc);
         if (svc.length === 1) {
           setSelectedService(svc[0]);
@@ -245,6 +249,7 @@ export default function BookingFlow() {
         ) : (
           <MasterPicker
             providers={providers}
+            city={city.slug}
             onSelect={pickProvider}
             hasPosition={clientPos !== null}
             onPosition={(p) => setClientPos(p)}
@@ -283,16 +288,25 @@ export default function BookingFlow() {
             providerServices !== null &&
             providerServices.length > 0 && (
               <div className="flex flex-col gap-3">
-                {providerServices.map((s) => (
+                {providerServices.map((s) => {
+                  const fits = taskDraft()?.serviceIds.includes(s.id) ?? false;
+                  return (
                   <button
                     key={s.id}
-                    className="flex items-center gap-4 rounded-2xl border border-line-soft bg-surface p-5 text-left shadow-card transition hover:border-accent"
+                    className={`flex items-center gap-4 rounded-2xl border bg-surface p-5 text-left shadow-card transition hover:border-accent ${
+                      fits ? "border-2 border-accent" : "border-line-soft"
+                    }`}
                     onClick={() => pickService(s)}
                   >
                     <IconBadge>
                       <WrenchIcon />
                     </IconBadge>
                     <div className="min-w-0 flex-1">
+                      {fits && (
+                        <span className="mb-1 inline-block rounded-full bg-accent px-2.5 py-0.5 text-xs font-semibold text-on-accent">
+                          {t.taskServiceFits}
+                        </span>
+                      )}
                       <div className="text-lg font-semibold">{s.name}</div>
                       <div className="text-base text-ink-2">
                         {t.durationMinutes(s.duration_minutes)}
@@ -317,7 +331,8 @@ export default function BookingFlow() {
                       <ChevronRightIcon className="h-6 w-6" />
                     </span>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             )}
         </Card>

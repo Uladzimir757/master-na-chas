@@ -3,6 +3,7 @@
 import { rememberBooking, rememberClient, savedClient } from "@/lib/myBookings";
 import { registerNativePush } from "@/lib/native";
 import VoiceButton, { appendDictation } from "@/components/VoiceButton";
+import { setTaskDraft, taskDraft } from "@/lib/taskDraft";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -81,7 +82,8 @@ export default function SlotPicker({
   const [clientPhone, setClientPhone] = useState("");
   const [phoneVisible, setPhoneVisible] = useState(true);
   // «Opisz, co trzeba zrobić» — typed or dictated (20.11.2026)
-  const [notes, setNotes] = useState("");
+  // the job typed or said in «Co trzeba zrobić?» on the home page
+  const [notes, setNotes] = useState(() => (taskDraft()?.text ?? "").slice(0, 1000));
   const phoneBad = clientPhone.trim() !== "" && !isValidPhone(clientPhone);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -227,6 +229,7 @@ export default function SlotPicker({
         city_id: cityId,
       });
       setBooking(result);
+      setTaskDraft(null); // a next order in this visit starts clean
       if (result.manage_token) {
         rememberBooking(result.id, result.manage_token);
         // В приложении — пуши клиенту сразу, а не только когда он откроет

@@ -204,6 +204,14 @@ export interface City {
 }
 
 // GET /api/cities: все активные города; has_masters=false — пока пусто.
+/** POST /api/task-match: by "name" (a master's name), "task" (services
+ * picked by the model) or "none" (nothing fits). */
+export type TaskMatch = {
+  by: "name" | "task" | "none";
+  services: { id: string; name: string }[];
+  provider_ids: string[];
+};
+
 export interface PublicCity extends City {
   lat: number | null;
   lng: number | null;
@@ -556,6 +564,12 @@ export const api = {
       method: "POST",
       body: audio,
       headers: { "Content-Type": audio.type || "audio/webm" },
+    }),
+  // «Co trzeba zrobić?»: the job in the client's words -> the masters doing it
+  taskMatch: (text: string, city: string | undefined, lang: string) =>
+    request<TaskMatch>("/api/task-match", {
+      method: "POST",
+      body: JSON.stringify({ text, city, lang }),
     }),
   // address -> point for «distance to the master» (OSM Nominatim, server side)
   geocode: (address: string) =>

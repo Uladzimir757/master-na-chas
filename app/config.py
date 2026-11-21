@@ -112,6 +112,14 @@ class Settings(BaseSettings):
     DAILY_TRANSCRIBE_CALLS: int = 1500
     RATE_VOICE_PER_MIN: int = 10
     RATE_VOICE_PER_DAY: int = 100
+    # «Co trzeba zrobić?» на главной (app/task_match.py, 21.11.2026): та же
+    # переключалка провайдера, но быстрая модель и короткий таймаут — клиент
+    # ждёт на странице. Суточный бюджет на весь сервис + лимиты по IP.
+    TASK_MATCH_ANTHROPIC_MODEL: str = "claude-haiku-5-5"
+    TASK_MATCH_TIMEOUT_SECONDS: float = 15.0
+    DAILY_TASK_MATCH_CALLS: int = 2000
+    RATE_TASK_MATCH_PER_MIN: int = 20
+    RATE_TASK_MATCH_PER_DAY: int = 300
     ANTHROPIC_API_KEY: str = ""
     NOTIFICATION_LLM_MODEL: str = "claude-opus-5-5"
     # Серверный fallback на случай отказа классификатора безопасности; пустая

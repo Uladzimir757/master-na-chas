@@ -105,10 +105,14 @@ from app.notifications import notify_client, notify_master, reply_telegram, run_
 from app.public_cache import cache_control, is_missing, public_cache, write_invalidates
 from app.geocode import GeocoderUnavailable, geocode
 from app.speech import MAX_AUDIO_BYTES, TranscriptionUnavailable, audio_extension, transcribe
+from app.task_match import TaskMatchUnavailable, pick_services
 from app.phone import normalize_phone
 from app.schemas import (
     MyAboutUpdate,
     GeocodeIn,
+    TaskMatchIn,
+    TaskMatchOut,
+    TaskMatchService,
     GeocodeOut,
     ClientChangeLimitUpdate,
     MyAvatarUpdate,
@@ -433,6 +437,58 @@ async def transcribe_voice(request: Request) -> dict:
     except TranscriptionUnavailable:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Voice input unavailable, please type")
     return {"text": text}
+
+
+@app.post("/api/task-match", response_model=TaskMatchOut)
+@limiter.limit(lambda: f"{settings.RATE_TASK_MATCH_PER_MIN}/minute;{settings.RATE_TASK_MATCH_PER_DAY}/day")
+async def task_match(request: Request, payload: TaskMatchIn, db: AsyncSession = Depends(get_db)) -> TaskMatchOut:
+    """«Co trzeba zrobić?» (21.11.2026): задача своими словами → мастера
+    города, которые её делают (app/task_match.py). Совпало с именем мастера
+    — сразу он, без нейросети. 503 — нейросеть недоступна (нет ключа,
+    бюджет, сбой): страница предлагает выбрать категорию."""
+    lang = _resolve_lang(payload.lang)
+    text = payload.text.strip()
+    if len(text) < 2:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Text too short")
+    providers = await _list_providers_cached(Response(), payload.city, db)
+    by_name = [p.id for p in providers if text.casefold() in p.name.casefold()]
+    if by_name:
+        return TaskMatchOut(by="name", provider_ids=by_name)
+
+    provider_ids = [p.id for p in providers]
+    rows = (
+        await db.execute(
+            select(Service, ProviderService.provider_id)
+            .join(ProviderService, ProviderService.service_id == Service.id)
+            .where(
+                ProviderService.provider_id.in_(provider_ids),
+                ProviderService.is_active.is_(True),
+                Service.is_active.is_(True),
+            )
+        )
+    ).all() if provider_ids else []
+    services: dict[str, Service] = {}
+    offered_by: dict[str, set[uuid.UUID]] = {}
+    for svc, pid in rows:
+        services[str(svc.id)] = svc
+        offered_by.setdefault(str(svc.id), set()).add(pid)
+    # Polish name + the canonical (Russian) one: the client may write in either
+    labels = [
+        (sid, " / ".join(dict.fromkeys(n for n in (svc.name_pl, svc.name) if n)))
+        for sid, svc in sorted(services.items(), key=lambda kv: kv[1].name)
+    ]
+    try:
+        picked = await pick_services(text, labels)
+    except TaskMatchUnavailable:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Task search unavailable, pick a category")
+    if not picked:
+        return TaskMatchOut(by="none")
+    fitting = set().union(*(offered_by[sid] for sid in picked))
+    return TaskMatchOut(
+        by="task",
+        services=[TaskMatchService(id=services[sid].id, name=_resolve_service_name(services[sid], lang)) for sid in picked],
+        provider_ids=[pid for pid in provider_ids if pid in fitting],
+    )
 
 
 @app.post("/api/geocode", response_model=GeocodeOut)
