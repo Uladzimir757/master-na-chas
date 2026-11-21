@@ -138,9 +138,13 @@ export default function BookingFlow() {
       setSelectedService(null);
       try {
         const svc = await api.listProviderServices(selectedProvider.id, locale);
-        // services that fit the job from «Co trzeba zrobić?» go first
-        const fits = new Set(taskDraft()?.serviceIds ?? []);
-        svc.sort((a, b) => Number(fits.has(b.id)) - Number(fits.has(a.id)));
+        // services that fit the job from «Co trzeba zrobić?» go first, the
+        // model's best one on top (it ranks them); the rest keep their order
+        const rank = (id: string) => {
+          const i = taskDraft()?.serviceIds.indexOf(id) ?? -1;
+          return i < 0 ? Number.MAX_SAFE_INTEGER : i;
+        };
+        svc.sort((a, b) => rank(a.id) - rank(b.id));
         setProviderServices(svc);
         if (svc.length === 1) {
           setSelectedService(svc[0]);
