@@ -485,6 +485,23 @@ CREATE TABLE review (
 
 CREATE INDEX idx_review_provider ON review (provider_id, created_at DESC);
 
+-- Карта клиента у мастера (22.11.2026): личные заметки и личный чёрный список.
+-- Видит только этот мастер (и его сотрудники с правом clients_manage); другим
+-- мастерам и платформе отметки не видны. Ключ — номер телефона клиента в E.164
+-- (как в booking.client_phone). Чёрный список только предупреждает, заказы
+-- не блокирует.
+CREATE TABLE client_note (
+    provider_id    uuid NOT NULL REFERENCES provider(id) ON DELETE CASCADE,
+    client_phone   text NOT NULL,
+    note           text,
+    blocked        boolean NOT NULL DEFAULT false,
+    block_reason   text CHECK (block_reason IN ('no_payment', 'no_access', 'rude', 'other')),
+    block_comment  text,
+    blocked_at     timestamptz,
+    updated_at     timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (provider_id, client_phone)
+);
+
 -- ----------------------------------------------------------------------------
 -- Seed example: two tenants sharing the same engine
 -- ----------------------------------------------------------------------------

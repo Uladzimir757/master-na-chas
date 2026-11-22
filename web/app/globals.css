@@ -113,3 +113,11 @@ select:not(:disabled) {
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+/* Приложение (Android 15+ рисует страницу под статус-баром): шапка не должна
+   сливаться с часами и значками. Капаситор кладёт высоту статус-бара в
+   --safe-area-inset-top, новые WebView отдают её же в env(); берём большее.
+   В обычном браузере оба равны 0 — ничего не меняется. */
+body {
+  padding-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+}

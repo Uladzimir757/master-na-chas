@@ -28,6 +28,11 @@ export type CalEvent =
       client_confirmation: "confirmed" | "problem" | null;
       client_problem: string | null;
       notes: string | null;
+      // личные отметки мастера о клиенте (карта клиента, чёрный список)
+      client_blacklisted: boolean;
+      client_blacklist_reason: string | null;
+      client_blacklist_comment: string | null;
+      client_note: string | null;
     }
   | { kind: "block"; id: string; start_at: string; end_at: string; reason: string | null };
 
@@ -51,6 +56,10 @@ export function toEvents(bookings: Booking[], blocks: CalendarBlock[]): CalEvent
     travel_minutes: b.travel_minutes ?? null,
     client_confirmation: b.client_confirmation ?? null,
     client_problem: b.client_problem ?? null,
+    client_blacklisted: b.client_blacklisted ?? false,
+    client_blacklist_reason: b.client_blacklist_reason ?? null,
+    client_blacklist_comment: b.client_blacklist_comment ?? null,
+    client_note: b.client_note ?? null,
     notes: b.notes ?? null,
   }));
   const blockEvents: CalEvent[] = blocks.map((b) => ({

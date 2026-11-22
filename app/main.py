@@ -101,6 +101,18 @@ from app.models import (
     WorkingHoursException,
 )
 from app.admin_analytics import AdminOverviewOut, build_overview
+from app.clients import (
+    BLOCK_REASON_TEXT,
+    ClientBlockIn,
+    ClientCardOut,
+    ClientNoteIn,
+    ClientRowOut,
+    flags_for as client_flags,
+    get_card as client_get_card,
+    list_clients as client_list,
+    save_note as client_save_note,
+    set_blocked as client_set_blocked,
+)
 from app.admin_reviews import MIN_REVIEWS_FOR_RATING, AdminReviewOut, list_admin_reviews, public_rating
 from app.geo_watchdog import run_geo_watchdog
 from app.notifications import notify_client, notify_master, reply_telegram, run_in_background
@@ -997,6 +1009,18 @@ async def _notify_master_of_booking(db: AsyncSession, booking: Booking, service_
         "Tell the master that a client has just booked a new job and give the job, the time and how to reach the client."
         " If client_description is given, include what the client wrote about the job."
     )
+    flag = (
+        (await client_flags(db, booking.provider_id, {booking.client_phone})).get(booking.client_phone)
+        if booking.client_phone and booking.client_phone_visible
+        else None
+    )
+    if flag is not None and flag.blocked:
+        # личный чёрный список мастера: только предупреждение, заказ не блокируется
+        facts["client_warning"] = BLOCK_REASON_TEXT.get(flag.reason or "other", "other reason")
+        purpose += (
+            " If client_warning is given, start by warning the master that he put this client on his own"
+            " blacklist and say why (the value of client_warning)."
+        )
     if booking.confirm_deadline_at is not None:
         facts["minutes_to_confirm"] = _minutes_left(booking, now)
         purpose += " Say he must confirm it in the app within the given minutes or it is cancelled automatically."
@@ -1216,13 +1240,33 @@ async def arrival_preview(
     return ArrivalPreviewOut(expected_arrival_at=arrival, previous_end_at=previous_end, late_minutes=late)
 
 
+async def _booking_outs(db: AsyncSession, provider_id: uuid.UUID, bookings: list[Booking]) -> list[BookingOut]:
+    """BookingOut для кабинета мастера с его отметками о клиенте (заметка и
+    личный чёрный список, app/clients.py). Только для заказов, где клиент
+    разрешил показать номер: иначе отметка по номеру раскрыла бы его."""
+    flags = await client_flags(
+        db, provider_id, {b.client_phone for b in bookings if b.client_phone and b.client_phone_visible}
+    )
+    outs: list[BookingOut] = []
+    for b in bookings:
+        out = BookingOut.model_validate(b)
+        flag = flags.get(b.client_phone) if b.client_phone and b.client_phone_visible else None
+        if flag is not None:
+            out.client_blacklisted = flag.blocked
+            out.client_blacklist_reason = flag.reason if flag.blocked else None
+            out.client_blacklist_comment = flag.comment if flag.blocked else None
+            out.client_note = flag.note
+        outs.append(out)
+    return outs
+
+
 @app.patch("/api/bookings/{booking_id}/status", response_model=BookingOut)
 async def update_booking_status(
     booking_id: uuid.UUID,
     payload: BookingStatusUpdate,
     db: AsyncSession = Depends(get_db),
     master_user_id: str = Depends(require_master_user_id),
-) -> Booking:
+) -> BookingOut:
     # require_master_user_id only proves *someone* is logged in — without the
     # provider_id check below, any logged-in master could confirm or cancel
     # any OTHER master's bookings just by knowing (or listing) the booking's
@@ -1293,7 +1337,7 @@ async def update_booking_status(
     if payload.status == BookingStatus.completed and not was_completed and booking.client_phone:
         await _issue_review_invite(db, booking, provider)
 
-    return booking
+    return (await _booking_outs(db, provider.id, [booking]))[0]
 
 
 @app.post("/api/providers/me/bookings", response_model=BookingOut, status_code=status.HTTP_201_CREATED)
@@ -1301,7 +1345,7 @@ async def create_manual_booking(
     payload: ManualBookingCreate,
     db: AsyncSession = Depends(get_db),
     master_user_id: str = Depends(require_master_user_id),
-) -> Booking:
+) -> BookingOut:
     """The master adding an appointment himself from the calendar — see
     ManualBookingCreate's docstring for exactly how this differs from the
     public POST /api/bookings (no past-time/is_active/busy-toggle checks:
@@ -1347,7 +1391,7 @@ async def create_manual_booking(
             raise HTTPException(status.HTTP_409_CONFLICT, "You already have a booking during this time") from exc
         raise
     await db.refresh(booking)
-    return booking
+    return (await _booking_outs(db, provider.id, [booking]))[0]
 
 
 @app.patch("/api/bookings/{booking_id}/reschedule", response_model=BookingOut)
@@ -1356,7 +1400,7 @@ async def reschedule_booking(
     payload: BookingRescheduleUpdate,
     db: AsyncSession = Depends(get_db),
     master_user_id: str = Depends(require_master_user_id),
-) -> Booking:
+) -> BookingOut:
     """Move or resize an existing booking on the calendar (drag-and-drop) —
     same ownership check as update_booking_status (404, not 403, for
     someone else's booking, so a guessed id doesn't even confirm it
@@ -1413,7 +1457,7 @@ async def reschedule_booking(
                 must_include=_manage_url(booking) if booking.manage_token else None,
             )
         )
-    return booking
+    return (await _booking_outs(db, provider.id, [booking]))[0]
 
 
 # ============================================================================
@@ -2231,7 +2275,7 @@ async def get_my_calendar(
         .all()
     )
     return CalendarOut(
-        bookings=[BookingOut.model_validate(b) for b in bookings],
+        bookings=await _booking_outs(db, provider.id, list(bookings)),
         blocks=[ProviderBlockOut.model_validate(b) for b in blocks],
     )
 
@@ -3093,6 +3137,67 @@ async def _collect_analytics(
     ]
     masters.sort(key=lambda x: (-x.completed, x.name))
     return services, masters
+
+
+# ============================================================================
+# Карта клиента у мастера (app/clients.py): история, заметки, личный чёрный
+# список. Только право clients_manage (хозяин, управляющий); отметки видит
+# один мастер, заказы они не блокируют.
+# ============================================================================
+
+
+def _client_phone_or_422(raw: str) -> str:
+    try:
+        phone = normalize_phone(raw)
+    except ValueError:
+        phone = None
+    if phone is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid phone number")
+    return phone
+
+
+@app.get("/api/providers/me/clients", response_model=list[ClientRowOut])
+async def list_my_clients(
+    q: str | None = Query(default=None, max_length=60),
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> list[ClientRowOut]:
+    provider = await _get_own_provider(master_user_id, db, "clients_manage")
+    return await client_list(db, provider.id, q)
+
+
+@app.get("/api/providers/me/clients/card", response_model=ClientCardOut)
+async def get_my_client_card(
+    phone: str = Query(max_length=30),
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> ClientCardOut:
+    provider = await _get_own_provider(master_user_id, db, "clients_manage")
+    return await client_get_card(db, provider.id, _client_phone_or_422(phone))
+
+
+@app.put("/api/providers/me/clients/note")
+async def put_my_client_note(
+    payload: ClientNoteIn,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    provider = await _get_own_provider(master_user_id, db, "clients_manage")
+    await client_save_note(db, provider.id, _client_phone_or_422(payload.phone), payload.note)
+    return {"ok": True}
+
+
+@app.put("/api/providers/me/clients/blacklist")
+async def put_my_client_blacklist(
+    payload: ClientBlockIn,
+    master_user_id: str = Depends(require_master_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    provider = await _get_own_provider(master_user_id, db, "clients_manage")
+    await client_set_blocked(
+        db, provider.id, _client_phone_or_422(payload.phone), payload.blocked, payload.reason, payload.comment
+    )
+    return {"ok": True}
 
 
 @app.get("/api/providers/me/analytics", response_model=AnalyticsOut)

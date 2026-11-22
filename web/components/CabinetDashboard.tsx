@@ -41,9 +41,10 @@ import MyAvatar from "@/components/MyAvatar";
 import MyAbout from "@/components/MyAbout";
 import ClientChangeLimit from "@/components/ClientChangeLimit";
 import GeoKeepAlive from "@/components/GeoKeepAlive";
+import ClientsPanel from "@/components/ClientsPanel";
 
 type CabinetTab =
-  "calendar" | "services" | "settings" | "analytics" | "team" | "password";
+  "calendar" | "services" | "settings" | "analytics" | "clients" | "team" | "password";
 
 function locationStatusText(
   status: LocationSharingStatus,
@@ -71,6 +72,7 @@ const TAB_PERMISSION: Record<string, string> = {
   services: "services_edit",
   settings: "settings_edit",
   analytics: "analytics_view",
+  clients: "clients_manage",
   team: "staff_manage",
 };
 
@@ -532,6 +534,9 @@ export default function CabinetDashboard({
           ...(can("analytics_view")
             ? [{ id: "analytics" as const, label: t.tabAnalytics }]
             : []),
+          ...(can("clients_manage")
+            ? [{ id: "clients" as const, label: t.tabClients }]
+            : []),
           ...(can("staff_manage")
             ? [{ id: "team" as const, label: t.tabTeam }]
             : []),
@@ -543,6 +548,7 @@ export default function CabinetDashboard({
 
       {tab === "calendar" && <MasterCalendar />}
       {tab === "analytics" && <AnalyticsPanel />}
+      {tab === "clients" && <ClientsPanel />}
       {tab === "team" && <StaffManager />}
 
       {tab === "services" && (

@@ -84,6 +84,12 @@ class BookingOut(BaseModel):
     # клиент после «выполнено»: 'confirmed' | 'problem' | None, и его текст
     client_confirmation: str | None = None
     client_problem: str | None = None
+    # Личные отметки мастера о клиенте (app/clients.py): заметка и чёрный
+    # список. Заполняются только в ответах кабинета, из ORM не берутся.
+    client_blacklisted: bool = False
+    client_blacklist_reason: str | None = None
+    client_blacklist_comment: str | None = None
+    client_note: str | None = None
 
     class Config:
         from_attributes = True

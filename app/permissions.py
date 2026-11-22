@@ -22,12 +22,13 @@ PERMISSIONS = (
     "hours_edit",       # рабочие часы и исключения
     "settings_edit",    # настройки профиля, адрес
     "analytics_view",   # аналитика по работам
+    "clients_manage",   # карты клиентов: заметки и чёрный список
     "staff_manage",     # сотрудники и их права
 )
 
 _LIMITED = ["calendar_view", "bookings_status"]
 _WORKER = _LIMITED + ["bookings_create", "blocks_manage"]
-_MANAGER = _WORKER + ["services_edit", "hours_edit", "settings_edit", "analytics_view"]
+_MANAGER = _WORKER + ["services_edit", "hours_edit", "settings_edit", "analytics_view", "clients_manage"]
 
 ROLE_DEFAULTS: dict[str, list[str]] = {
     ROLE_WORKER_LIMITED: _LIMITED,

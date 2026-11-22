@@ -277,6 +277,42 @@ export const TRANSLATIONS_FIXTURE: Record<string, string> = {
   myBookingTimedOut: "Мастер не подтвердил заказ вовремя, и он отменён. Выберите другого мастера.",
   bookAnotherMaster: "Выбрать другого мастера",
   analyticsColTimedOut: "Не подтверждено вовремя",
+  tabClients: "Клиенты",
+  clientsHint: "Карта клиента — ваши личные заметки. Больше их никто не видит.",
+  clientsSearch: "Поиск по имени или номеру",
+  clientsLoadError: "Не удалось загрузить клиентов.",
+  clientsEmpty: "Клиентов пока нет. Они появятся после первых заказов.",
+  clientBlacklistBadge: "Чёрный список",
+  clientStatOrders: "Заказов",
+  clientStatDone: "Выполнено",
+  clientStatCancelled: "Отменено",
+  clientStatNoShow: "Не пришёл",
+  clientStatRevenue: "Оборот (zł)",
+  clientLastOrder: "Последний заказ",
+  clientBack: "← Клиенты",
+  clientOnBlacklist: "Этот клиент в вашем чёрном списке",
+  clientNoteTitle: "Заметки и предпочтения",
+  clientNotePlaceholder: "Например: собака дома, звонить перед приездом, удобнее после обеда",
+  clientNoteSave: "Сохранить заметку",
+  clientNoteSaved: "Сохранено",
+  clientSaveError: "Не удалось сохранить. Попробуйте ещё раз.",
+  clientBlacklistTitle: "Чёрный список",
+  clientBlacklistHint: "Это видите только вы. Новый заказ от этого клиента придёт с предупреждением, но не будет заблокирован.",
+  clientBlacklistAdd: "Добавить в чёрный список",
+  clientBlacklistRemove: "Убрать из чёрного списка",
+  clientBlacklistReasonLabel: "Причина",
+  clientReasonNoPayment: "Не заплатил",
+  clientReasonNoAccess: "Не открыл дверь / не было дома",
+  clientReasonRude: "Грубил или вёл себя агрессивно",
+  clientReasonOther: "Другая причина",
+  clientBlacklistCommentPlaceholder: "Комментарий (необязательно)",
+  clientBlacklistConfirm: "Занести в чёрный список",
+  clientBlacklistCancel: "Отмена",
+  clientHistoryTitle: "История заказов",
+  clientHistoryEmpty: "Заказов нет",
+  clientWarningInOrder: "Внимание: клиент из вашего чёрного списка",
+  clientNoteInOrder: "Ваша заметка о клиенте",
+  permClientsManage: "Карты клиентов и чёрный список",
   chooseMasterButton: "Выбрать",
   backToMasters: "← выбрать другого мастера",
   masterServicesLoadError: "Не удалось загрузить услуги этого мастера.",
@@ -562,6 +598,11 @@ export interface CabinetBookingFixture {
   status: CabinetBookingStatus;
   confirm_deadline_at?: string | null;
   travel_minutes?: number | null;
+  // личные отметки мастера о клиенте (карта клиента)
+  client_blacklisted?: boolean;
+  client_blacklist_reason?: string | null;
+  client_blacklist_comment?: string | null;
+  client_note?: string | null;
 }
 
 export function cabinetBooking(overrides: Partial<CabinetBookingFixture> = {}): CabinetBookingFixture {
@@ -600,6 +641,7 @@ export const ALL_PERMISSIONS = [
   "hours_edit",
   "settings_edit",
   "analytics_view",
+  "clients_manage",
   "staff_manage",
 ];
 

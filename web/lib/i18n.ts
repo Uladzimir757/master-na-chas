@@ -384,6 +384,42 @@ export interface Translations {
   jobPriceShort: string;
   tabTeam: string;
   tabAnalytics: string;
+  tabClients: string;
+  clientsHint: string;
+  clientsSearch: string;
+  clientsLoadError: string;
+  clientsEmpty: string;
+  clientBlacklistBadge: string;
+  clientStatOrders: string;
+  clientStatDone: string;
+  clientStatCancelled: string;
+  clientStatNoShow: string;
+  clientStatRevenue: string;
+  clientLastOrder: string;
+  clientBack: string;
+  clientOnBlacklist: string;
+  clientNoteTitle: string;
+  clientNotePlaceholder: string;
+  clientNoteSave: string;
+  clientNoteSaved: string;
+  clientSaveError: string;
+  clientBlacklistTitle: string;
+  clientBlacklistHint: string;
+  clientBlacklistAdd: string;
+  clientBlacklistRemove: string;
+  clientBlacklistReasonLabel: string;
+  clientReasonNoPayment: string;
+  clientReasonNoAccess: string;
+  clientReasonRude: string;
+  clientReasonOther: string;
+  clientBlacklistCommentPlaceholder: string;
+  clientBlacklistConfirm: string;
+  clientBlacklistCancel: string;
+  clientHistoryTitle: string;
+  clientHistoryEmpty: string;
+  clientWarningInOrder: string;
+  clientNoteInOrder: string;
+  permClientsManage: string;
   staffAddTitle: string;
   staffNameLabel: string;
   staffEmailLabel: string;
@@ -921,6 +957,42 @@ export function buildTranslations(map: TranslationMap): Translations {
     jobPriceShort: pick(map, "jobPriceShort"),
     tabTeam: pick(map, "tabTeam"),
     tabAnalytics: pick(map, "tabAnalytics"),
+    tabClients: pick(map, "tabClients"),
+    clientsHint: pick(map, "clientsHint"),
+    clientsSearch: pick(map, "clientsSearch"),
+    clientsLoadError: pick(map, "clientsLoadError"),
+    clientsEmpty: pick(map, "clientsEmpty"),
+    clientBlacklistBadge: pick(map, "clientBlacklistBadge"),
+    clientStatOrders: pick(map, "clientStatOrders"),
+    clientStatDone: pick(map, "clientStatDone"),
+    clientStatCancelled: pick(map, "clientStatCancelled"),
+    clientStatNoShow: pick(map, "clientStatNoShow"),
+    clientStatRevenue: pick(map, "clientStatRevenue"),
+    clientLastOrder: pick(map, "clientLastOrder"),
+    clientBack: pick(map, "clientBack"),
+    clientOnBlacklist: pick(map, "clientOnBlacklist"),
+    clientNoteTitle: pick(map, "clientNoteTitle"),
+    clientNotePlaceholder: pick(map, "clientNotePlaceholder"),
+    clientNoteSave: pick(map, "clientNoteSave"),
+    clientNoteSaved: pick(map, "clientNoteSaved"),
+    clientSaveError: pick(map, "clientSaveError"),
+    clientBlacklistTitle: pick(map, "clientBlacklistTitle"),
+    clientBlacklistHint: pick(map, "clientBlacklistHint"),
+    clientBlacklistAdd: pick(map, "clientBlacklistAdd"),
+    clientBlacklistRemove: pick(map, "clientBlacklistRemove"),
+    clientBlacklistReasonLabel: pick(map, "clientBlacklistReasonLabel"),
+    clientReasonNoPayment: pick(map, "clientReasonNoPayment"),
+    clientReasonNoAccess: pick(map, "clientReasonNoAccess"),
+    clientReasonRude: pick(map, "clientReasonRude"),
+    clientReasonOther: pick(map, "clientReasonOther"),
+    clientBlacklistCommentPlaceholder: pick(map, "clientBlacklistCommentPlaceholder"),
+    clientBlacklistConfirm: pick(map, "clientBlacklistConfirm"),
+    clientBlacklistCancel: pick(map, "clientBlacklistCancel"),
+    clientHistoryTitle: pick(map, "clientHistoryTitle"),
+    clientHistoryEmpty: pick(map, "clientHistoryEmpty"),
+    clientWarningInOrder: pick(map, "clientWarningInOrder"),
+    clientNoteInOrder: pick(map, "clientNoteInOrder"),
+    permClientsManage: pick(map, "permClientsManage"),
     staffAddTitle: pick(map, "staffAddTitle"),
     staffNameLabel: pick(map, "staffNameLabel"),
     staffEmailLabel: pick(map, "staffEmailLabel"),

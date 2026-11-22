@@ -489,3 +489,21 @@ class Review(Base):
         UniqueConstraint("booking_id"),
         CheckConstraint("rating BETWEEN 1 AND 5", name="review_rating_range"),
     )
+
+
+class ClientNote(Base):
+    """Карта клиента у мастера: личные заметки и личный чёрный список.
+    Видит только этот мастер и его сотрудники с правом clients_manage.
+    Ключ — телефон клиента в E.164 (booking.client_phone). Чёрный список —
+    только предупреждение, заказы не блокирует."""
+
+    __tablename__ = "client_note"
+
+    provider_id: Mapped[uuid.UUID] = _uuid_col(primary_key=True, fk="provider.id")
+    client_phone: Mapped[str] = mapped_column(String, primary_key=True)
+    note: Mapped[str | None] = mapped_column(Text)
+    blocked: Mapped[bool] = mapped_column(default=False, server_default="false")
+    block_reason: Mapped[str | None] = mapped_column(String)
+    block_comment: Mapped[str | None] = mapped_column(Text)
+    blocked_at: Mapped[datetime | None] = mapped_column(TZDateTime)
+    updated_at: Mapped[datetime] = mapped_column(TZDateTime, server_default=func.now())

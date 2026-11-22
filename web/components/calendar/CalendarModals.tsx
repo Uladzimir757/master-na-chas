@@ -562,6 +562,27 @@ export function EventDetailsModal({
           {event.client_confirmation === "confirmed" && (
             <p className="mb-3 text-sm font-medium text-accent-2">✓ {t.clientConfirmedJob}</p>
           )}
+          {event.client_blacklisted && (
+            <div className="mb-3 rounded-lg border border-danger/40 bg-danger/5 p-2.5 text-sm" role="alert">
+              <p className="font-semibold text-danger">{t.clientWarningInOrder}</p>
+              <p className="text-ink">
+                {event.client_blacklist_reason === "no_payment"
+                  ? t.clientReasonNoPayment
+                  : event.client_blacklist_reason === "no_access"
+                    ? t.clientReasonNoAccess
+                    : event.client_blacklist_reason === "rude"
+                      ? t.clientReasonRude
+                      : t.clientReasonOther}
+              </p>
+              {event.client_blacklist_comment && <p className="mt-1 text-ink">«{event.client_blacklist_comment}»</p>}
+            </div>
+          )}
+          {event.client_note && (
+            <div className="mb-3 rounded-lg border border-line bg-bg p-2.5 text-sm">
+              <p className="font-semibold text-ink-2">{t.clientNoteInOrder}</p>
+              <p className="whitespace-pre-line text-ink">{event.client_note}</p>
+            </div>
+          )}
           {event.client_confirmation === "problem" && (
             <div className="mb-3 rounded-lg border border-danger/40 bg-danger/5 p-2.5 text-sm" role="alert">
               <p className="font-semibold text-danger">{t.clientReportedProblem}</p>

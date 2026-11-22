@@ -258,6 +258,49 @@ export interface Booking {
   // клиент после «выполнено»: подтвердил / сообщил о проблеме
   client_confirmation?: "confirmed" | "problem" | null;
   client_problem?: string | null;
+  // личные отметки мастера о клиенте (карта клиента, чёрный список)
+  client_blacklisted?: boolean;
+  client_blacklist_reason?: string | null;
+  client_blacklist_comment?: string | null;
+  client_note?: string | null;
+}
+
+export type BlockReason = "no_payment" | "no_access" | "rude" | "other";
+
+export interface ClientRow {
+  phone: string;
+  name: string;
+  orders: number;
+  completed: number;
+  cancelled: number;
+  no_show: number;
+  revenue: string;
+  last_at: string;
+  blocked: boolean;
+  has_note: boolean;
+}
+
+export interface ClientCard {
+  phone: string;
+  name: string;
+  orders: number;
+  completed: number;
+  cancelled: number;
+  no_show: number;
+  revenue: string;
+  last_at: string | null;
+  note: string | null;
+  blocked: boolean;
+  block_reason: BlockReason | null;
+  block_comment: string | null;
+  blocked_at: string | null;
+  history: {
+    id: string;
+    start_at: string;
+    service_name: string;
+    status: BookingStatus;
+    price: string | null;
+  }[];
 }
 
 export interface StaffMember {
@@ -981,6 +1024,26 @@ export const api = {
         providerId ? `&provider_id=${providerId}` : ""
       }`,
     ),
+  listClients: () => request<ClientRow[]>("/api/providers/me/clients"),
+  getClientCard: (phone: string) =>
+    request<ClientCard>(
+      `/api/providers/me/clients/card?phone=${encodeURIComponent(phone)}`,
+    ),
+  saveClientNote: (phone: string, note: string) =>
+    request<{ ok: true }>("/api/providers/me/clients/note", {
+      method: "PUT",
+      body: JSON.stringify({ phone, note }),
+    }),
+  setClientBlacklist: (
+    phone: string,
+    blocked: boolean,
+    reason?: BlockReason,
+    comment?: string,
+  ) =>
+    request<{ ok: true }>("/api/providers/me/clients/blacklist", {
+      method: "PUT",
+      body: JSON.stringify({ phone, blocked, reason, comment }),
+    }),
   adminAnalyticsOverview: (from: string, to: string, providerId?: string) =>
     request<AdminOverview>(
       `/admin/analytics/overview?date_from=${from}&date_to=${to}${

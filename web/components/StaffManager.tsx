@@ -37,6 +37,7 @@ function permLabel(t: Translations, perm: string): string {
     hours_edit: t.permHoursEdit,
     settings_edit: t.permSettingsEdit,
     analytics_view: t.permAnalyticsView,
+    clients_manage: t.permClientsManage,
     staff_manage: t.permStaffManage,
   };
   return map[perm] ?? perm;
