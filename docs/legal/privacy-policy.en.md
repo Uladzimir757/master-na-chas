@@ -36,6 +36,9 @@ Payment for the Master's Services takes place **off-platform**, directly between
 | Review content | rating, text comment, up to 3 photos | building platform trust, public display of reviews | Art. 6(1)(f) — legitimate interest of ZR and other users in review credibility |
 | Communication data | SMS content with review link, notifications | handling the booking/review process | Art. 6(1)(b) |
 | Technical data | IP address, device identifier, language preference | platform operation and security | Art. 6(1)(f) |
+| Consent to the Terms and Policy | date and time the box in the booking form was ticked | documenting acceptance of the Terms | Art. 6(1)(b), 6(1)(f) — legitimate interest (proof of contract) |
+| Confirmation of completed work | answer “done / there is a problem” and the problem description | settling the service, handling complaints | Art. 6(1)(b), 6(1)(f) |
+| Data remembered on the Client's device | order history (in the app), name and phone to prefill the form, chosen city, position rounded to ~100 m | convenience; the data is **not sent to the server** unless the Client uses the distance feature | Art. 6(1)(a)/(f) |
 
 ### B. Master data
 
@@ -47,10 +50,18 @@ Payment for the Master's Services takes place **off-platform**, directly between
 | Telegram identifier (chat_id) | linked via a one-time link, never entered manually | sending new-booking notifications | Art. 6(1)(b) |
 | Push token (FCM) | mobile device identifier | sending push notifications | Art. 6(1)(b) |
 | Analytics data | booking stats, rating, review count | analytics panel for the Master and platform admin | Art. 6(1)(f) |
+| Consent to the Terms | date and time of acceptance at first login | documenting acceptance | Art. 6(1)(b), 6(1)(f) |
+| Private notes and blacklist about Clients | preference note, reason for an entry (e.g. did not pay, did not open the door), comment — entered by the Master | supporting the Master's work; visible only to him, not shared with other Masters or used by the Operator; an entry only warns | data created by the Master (as controller) — Art. 6(1)(f) on the Master's side |
+
+> **To verify with counsel (new features, 27.11.2026):** (a) whether a Master keeping private notes and a blacklist in the Panel makes the Operator a processor (data processing agreement, Art. 28 GDPR); (b) whether the automatic cancellation after 15 minutes and hiding of reviews need additional provisions (Art. 22 GDPR — decisions supported by hints but made by a human); (c) validity of accepting the Terms by ticking a box with a stored timestamp.
 
 ### C. Technical data (all users) — see also the Cookie Policy (Section V)
 
 IP address, device/browser type, login-session data (e.g. session token), language preference (pl/ru/uk/en), usage data for platform security and proper operation — Art. 6(1)(f).
+
+### D. Review moderation and automatic hints
+
+To protect the credibility of ratings, the platform administrator sees reviews together with automatic hints (the same phone number posted 2 or more reviews; a review posted less than an hour after the order was placed; a Client number matching the Master's number) and may hide a review. Hints have no automatic effect — a human decides. Orders entered by a Master in the calendar do not generate a review invitation. Basis: Art. 6(1)(f). An order not confirmed by the Master within 15 minutes is cancelled automatically (Art. 6(1)(b)); this is neither profiling nor a decision significantly affecting the Client.
 
 ## IV. Who we share data with (recipients / processors)
 

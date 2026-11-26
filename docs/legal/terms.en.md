@@ -22,6 +22,8 @@ Last updated: [●]
 2. The Operator is **not a party** to the contract for the Master's Service and does **not perform** these services — the Operator's role is limited to providing the tool (calendar, booking, communication, review system) that lets Clients and Masters conclude and perform such a contract.
 3. Platform use is free for Clients. Terms for a Master's payment for Platform access (e.g. a subscription) are set out in a separate Master agreement/terms.
 4. Using the Platform requires an internet-connected device and, for the mobile app, a compatible operating system.
+5. A Client accepts the Terms and the Privacy Policy by ticking the box in the booking form; a Master — at first login to the Master Panel. The Operator records the date and time of acceptance.
+6. Searching for a service by task description (“What needs to be done?”) and voice input are auxiliary features: a search result is a suggestion, not a guarantee that a given Master will do the job; the Client checks and submits the request himself. The description text (and a short voice recording when the microphone button is used) is passed to the AI service provider for speech recognition or service matching and is not stored (details — Privacy Policy).
 
 ## §3. Master accounts
 
@@ -29,6 +31,8 @@ Last updated: [●]
 2. The Master is responsible for the accuracy of their profile data (service scope, prices, duration) and for keeping their availability calendar up to date.
 3. The Master undertakes to perform Master Services with due care, in compliance with applicable law (including, where required, holding necessary qualifications, e.g. electrical-work certification) and industry good practice.
 4. The Operator may suspend or delete a Master's account for breach of these Terms, in particular: providing false information, repeated justified Client complaints, or breaching Client-safety rules.
+5. A Master may keep private notes about Clients and a personal “blacklist” in the Panel (e.g. non-payment, not being at the place of service, inappropriate behaviour). Notes and entries are visible only to that Master, are not shared with other Masters or published, serve only as a warning and do not block orders. The Master is responsible for the truthfulness and justification of entries and for their lawfulness (in particular data protection and non-discrimination law).
+6. A Master must not manipulate ratings and reviews, in particular order or post reviews about himself (including through related persons), encourage false reviews, or enter orders in the calendar to obtain a review. An order entered by the Master in the calendar does not entitle anyone to leave a review.
 
 ## §4. Booking a Master's Service
 
@@ -36,6 +40,8 @@ Last updated: [●]
 2. Upon booking confirmation, a contract for the Master's Service is concluded directly between the Client and the Master — the Operator is not a party to that contract.
 3. Scope, price, and duration of the Master's Service are set by the Master and shown to the Client before booking; the final price may be refined by the Master after on-site assessment (e.g. additional defects found) — the Master informs the Client before starting any additional work.
 4. Payment for the Master's Service is settled **off-platform**, directly between the Client and the Master, in a form agreed by the parties (e.g. cash, bank transfer, BLIK). The Operator does not intermediate payments and is not responsible for their settlement.
+5. A Booking is confirmed **only manually** by the Master. If the Master does not confirm within **15 minutes** (for an order placed outside the Master's working hours — within 15 minutes of the start of his working hours), the Booking is **automatically cancelled** and the Client is informed. When confirming, the Master gives an approximate travel time, which is information and not a commitment to arrive at a specific time.
+6. After a Master marks a Service as completed, the Client is asked to confirm the work was done or to report a problem (with a description). A problem report is passed on to the Master and does not resolve a dispute; the Operator is not a party to it.
 
 ## §5. Cancellation and rescheduling
 
@@ -51,6 +57,8 @@ Last updated: [●]
 3. Reviews are publicly visible on the Master's profile and are intended to build trust on the Platform.
 4. The Operator may remove a review that: breaches the law (e.g. defamatory content, third-party personal data, profanity), contravenes these Terms, or is reasonably suspected of not relating to an actually-performed service.
 5. A Master may submit a reasoned objection to a review to the Operator — it will be reviewed within [● days].
+6. As part of moderation, the Operator may hide a review; a hidden review is not publicly visible and does not count towards the Master's rating. The Operator uses automatic hints for this (e.g. the same phone number posting several reviews, a review posted shortly after the order was placed, a Client number matching the Master's number); hints are only a signal, a human makes the decision.
+7. A Master's average rating is shown publicly only from **3 reviews**; until then the Master is labelled as new.
 
 ## §7. Complaints about a Master's Service
 

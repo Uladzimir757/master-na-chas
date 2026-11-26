@@ -81,6 +81,8 @@ Czego **nie** zbieramy: adresu wykonania zlecenia jako osobnego pola (Klient mo�
 | Rola i uprawnienia pracownika | Mistrz | zarządzanie dostępem | |
 | Zlecenia, ceny, ceny końcowe, statystyki | praca w systemie | panel Mistrza | Mistrz widzi swoje; superadministrator — wszystkie |
 | Ocena, opinie o nim | Klienci | ocena | zob. pkt 7 |
+| **Zgoda na regulamin** (`master_user.terms_accepted_at`) | Mistrz przy wejściu do panelu | dowód akceptacji warunków | ekran z polem wyboru przy pierwszym logowaniu; obecni Mistrzowie zobaczą go przy najbliższym logowaniu |
+| **Prywatne notatki i czarna lista o Klientach** (telefon Klienta, notatka, powód, komentarz) | Mistrz | własna kartoteka, ostrzeżenie o nowym zamówieniu | widoczne tylko dla tego Mistrza, platforma i inni Mistrzowie ich nie widzą; zamówienie nie jest blokowane. Zob. pytanie 36 |
 
 ### 4.3. Dane techniczne i cookies
 
@@ -149,6 +151,8 @@ Pliki w `docs/legal/` (wersja polska — wiążąca, rosyjska i angielska — t�
 
 **Do zestawienia z obecnym produktem** (co pojawiło się po napisaniu projektów): wyszukiwanie Mistrza po zadaniu (tekst trafia do OpenAI), treści powiadomień od LLM z imieniem i telefonem Klienta, lokalizacja Mistrza w tle na Androidzie z „budzeniem" pushem, pokazywanie punktu Mistrza Klientowi, pole zgody na widoczność telefonu Klienta i ustawienie widoczności telefonu Mistrza, ochrona oceny (ukrywanie opinii, próg 3 opinii), telefon Mistrza u zlecai, timer automatycznego anulowania, zasady anulowania/przekładania przez Klienta, potwierdzanie wykonania przez Klienta, pracownicy Mistrza i ich uprawnienia, to że SMS na razie nie działają, a strona je obiecuje (blok „Masz już zamówienie?" i podpowiedź przy polu telefonu).
 
+**Stan na 27.11.2026:** na stronie są podstrony regulaminu i polityki (po polsku i angielsku, z oznaczeniem „wersja robocza”), w formularzu zamówienia obowiązkowe pole zgody (czas zapisywany w zamówieniu), Mistrz akceptuje warunki przy wejściu do panelu. Projekty regulaminu i polityki uzupełniono o: ręczne potwierdzanie i automatyczne anulowanie po 15 minutach, wyszukiwanie po zadaniu i głos, potwierdzenie wykonania przez Klienta, ochronę ocen (ukrywanie opinii, próg 3 opinii, zakaz manipulacji), kartę klienta i czarną listę, dane na urządzeniu Klienta.
+
 ## 10. Pytania do prawnika
 
 **A. Umowa z Mistrzem (najpilniejsze)**
@@ -199,6 +203,8 @@ Pliki w `docs/legal/` (wersja polska — wiążąca, rosyjska i angielska — t�
 33. Forma (spółka), VAT, ewidencja przychodu przy abonamencie/prowizji, zobowiązania umowne wobec Mistrzów i Klientów do czasu rejestracji (obecnie wszystko prowadzi osoba fizyczna).
 34. Nazwa i znak: znak towarowy, sprawdzenie nazwy **ZR / Złota Rączka** pod kątem kolizji.
 35. Licencje oprogramowania open source w zależnościach (dane OSM wymagają wskazania źródła „© OpenStreetMap"; na formularzu odległości jest już ono umieszczone).
+36. **Karta klienta i czarna lista u Mistrza**: prywatne zapisy Mistrza o Klientach są przechowywane u nas. Kto jest tu administratorem danych — Mistrz, a my tylko hostingiem (czy potrzebna umowa powierzenia, art. 28 RODO)? Czy dopuszczalne są powody „nie zapłacił / nie otworzył drzwi / niegrzeczny” i dowolny komentarz, jak informować Klienta (art. 14 RODO), okres przechowywania, prawo Klienta do dostępu i usunięcia.
+37. **Zapis zgody**: czy wystarczy zaznaczenie pola z datą i godziną (bez wersji dokumentu i IP) dla regulaminu i polityki; czy potrzebna jest wersja tekstu; jak przyjmować zmiany regulaminu od obecnych Mistrzów.
 
 ## 11. Czego potrzeba od właściciela przed spotkaniem z prawnikiem
 

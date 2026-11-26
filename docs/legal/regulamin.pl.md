@@ -23,6 +23,8 @@ Ostatnia aktualizacja: [●]
 2. Operator **nie jest stroną** umowy o świadczenie Usługi Mistrza i **nie świadczy** tych usług — rola Operatora ogranicza się do udostępnienia narzędzia (kalendarz, rezerwacja, komunikacja, system opinii) umożliwiającego Klientowi i Mistrzowi zawarcie i wykonanie takiej umowy.
 3. Korzystanie z Platformy przez Klienta jest bezpłatne. Zasady płatności Mistrza za dostęp do Platformy (np. abonament) określa odrębny regulamin/umowa z Mistrzem.
 4. Do korzystania z Platformy niezbędne jest urządzenie z dostępem do internetu oraz, w przypadku aplikacji mobilnej, zgodny system operacyjny.
+5. Klient akceptuje Regulamin i Politykę Prywatności, zaznaczając odpowiednie pole w formularzu Rezerwacji; Mistrz — przy pierwszym logowaniu do Panelu Mistrza. Operator zapisuje datę i godzinę akceptacji.
+6. Wyszukiwanie usługi po opisie zadania („Co trzeba zrobić?”) oraz wprowadzanie tekstu głosem są funkcjami pomocniczymi: wynik wyszukiwania jest sugestią, a nie gwarancją, że dany Mistrz wykona zadanie; Klient sprawdza i sam wysyła zgłoszenie. Tekst opisu (i krótkie nagranie głosu przy użyciu przycisku mikrofonu) są przekazywane dostawcy usługi AI w celu rozpoznania mowy lub dopasowania usług i nie są przechowywane (szczegóły — Polityka Prywatności).
 
 ## §3. Konto Mistrza
 
@@ -30,6 +32,8 @@ Ostatnia aktualizacja: [●]
 2. Mistrz odpowiada za prawdziwość danych podanych na swoim profilu (zakres usług, ceny, czas realizacji) oraz za aktualizację kalendarza dostępności.
 3. Mistrz zobowiązuje się do świadczenia Usług Mistrza z zachowaniem należytej staranności, zgodnie z obowiązującymi przepisami (w tym, w razie potrzeby, z posiadaniem wymaganych uprawnień, np. SEP dla prac elektrycznych) oraz dobrymi praktykami branżowymi.
 4. Operator może zablokować lub usunąć konto Mistrza w przypadku naruszenia Regulaminu, w szczególności: podania nieprawdziwych danych, powtarzających się uzasadnionych reklamacji Klientów, naruszenia zasad bezpieczeństwa Klientów.
+5. Mistrz może prowadzić w Panelu prywatne notatki o Klientach i własną „czarną listę” (np. brak płatności, nieobecność w miejscu realizacji, niewłaściwe zachowanie). Notatki i wpisy są widoczne wyłącznie dla danego Mistrza, nie są udostępniane innym Mistrzom ani publikowane, mają charakter wyłącznie ostrzeżenia i nie blokują zamówień. Mistrz odpowiada za prawdziwość i zasadność wpisów oraz za ich zgodność z prawem (w szczególności z przepisami o ochronie danych osobowych i zakazem dyskryminacji).
+6. Mistrzowi zabrania się manipulowania ocenami i opiniami, w szczególności zamawiania lub wystawiania opinii o sobie samym (także przez osoby powiązane), zachęcania do fałszywych opinii oraz wprowadzania zamówień w kalendarzu w celu uzyskania opinii. Zamówienie wprowadzone przez Mistrza w kalendarzu nie uprawnia do wystawienia opinii.
 
 ## §4. Rezerwacja Usługi Mistrza
 
@@ -37,6 +41,8 @@ Ostatnia aktualizacja: [●]
 2. Z chwilą potwierdzenia Rezerwacji dochodzi do zawarcia umowy o świadczenie Usługi Mistrza bezpośrednio między Klientem i Mistrzem — Operator nie jest stroną tej umowy.
 3. Zakres, cena i czas realizacji Usługi Mistrza są określane przez Mistrza i prezentowane Klientowi przed Rezerwacją; ostateczna cena może zostać doprecyzowana przez Mistrza po ocenie zakresu prac na miejscu (np. w razie dodatkowych usterek) — o czym Mistrz informuje Klienta przed przystąpieniem do dodatkowych prac.
 4. Rozliczenie za Usługę Mistrza odbywa się **poza Platformą**, bezpośrednio między Klientem i Mistrzem, w formie uzgodnionej przez strony (np. gotówka, przelew, BLIK). Operator nie pośredniczy w płatnościach i nie ponosi odpowiedzialności za ich rozliczenie.
+5. Potwierdzenie Rezerwacji następuje **wyłącznie ręcznie** przez Mistrza. Jeśli Mistrz nie potwierdzi Rezerwacji w ciągu **15 minut** (a w przypadku zamówienia złożonego poza godzinami pracy Mistrza — w ciągu 15 minut od początku jego godzin pracy), Rezerwacja jest **automatycznie anulowana**, a Klient otrzymuje o tym informację. Potwierdzając, Mistrz wskazuje orientacyjny czas dojazdu, który jest informacją, a nie zobowiązaniem do przybycia o określonej godzinie.
+6. Po oznaczeniu przez Mistrza Usługi jako wykonanej Klient jest proszony o potwierdzenie wykonania pracy albo zgłoszenie problemu (z opisem). Zgłoszenie problemu jest przekazywane Mistrzowi i nie rozstrzyga sporu; Operator nie jest jego stroną.
 
 ## §5. Odwołanie i zmiana terminu
 
@@ -52,6 +58,8 @@ Ostatnia aktualizacja: [●]
 3. Opinie są publicznie widoczne na profilu Mistrza i mają na celu budowanie zaufania na Platformie.
 4. Operator może usunąć opinię, która: narusza prawo (np. zawiera treści zniesławiające, dane osobowe osób trzecich, wulgaryzmy), jest sprzeczna z Regulaminem, lub w stosunku do której zachodzi uzasadnione podejrzenie, że nie dotyczy faktycznie wykonanej usługi.
 5. Mistrz ma prawo zgłosić Operatorowi zastrzeżenia do opinii wraz z uzasadnieniem — rozpatrzenie zgłoszenia następuje w terminie [● dni].
+6. Operator, w ramach moderacji, może ukryć opinię; opinia ukryta nie jest publicznie widoczna i nie wlicza się do oceny Mistrza. Operator korzysta przy tym z automatycznych wskazówek (np. ten sam numer telefonu wystawiający wiele opinii, opinia wystawiona krótko po złożeniu zamówienia, numer Klienta zgodny z numerem Mistrza); wskazówki są tylko sygnałem, decyzję podejmuje człowiek.
+7. Średnia ocena Mistrza jest publicznie wyświetlana dopiero od **3 opinii**; do tego czasu Mistrz oznaczany jest jako nowy.
 
 ## §7. Reklamacje dotyczące Usługi Mistrza
 

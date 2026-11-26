@@ -40,6 +40,9 @@ Rozliczenie za Usługę Mistrza odbywa się **poza platformą**, bezpośrednio m
 | Treść opinii | ocena, komentarz tekstowy, do 3 zdjęć | budowanie zaufania na platformie, wyświetlanie opinii publicznie | art. 6(1)(f) — uzasadniony interes ZR i innych użytkowników w wiarygodności opinii |
 | Dane komunikacyjne | treść SMS z linkiem do opinii, powiadomienia | obsługa procesu rezerwacji/opinii | art. 6(1)(b) |
 | Dane techniczne | adres IP, identyfikator urządzenia, preferencje językowe | działanie i bezpieczeństwo platformy | art. 6(1)(f) |
+| Zgoda na Regulamin i Politykę | data i godzina zaznaczenia pola w formularzu Rezerwacji | udokumentowanie akceptacji Regulaminu | art. 6(1)(b), 6(1)(f) — uzasadniony interes (dowód zawarcia umowy) |
+| Potwierdzenie wykonania usługi | odpowiedź „wykonana / jest problem” i opis problemu | rozliczenie usługi, obsługa reklamacji | art. 6(1)(b), 6(1)(f) |
+| Dane zapamiętane na urządzeniu Klienta | historia zamówień (w aplikacji), imię i telefon do wstępnego wypełnienia formularza, wybrane miasto, położenie zaokrąglone do ok. 100 m | wygoda korzystania; dane **nie są wysyłane na serwer**, o ile Klient nie użyje funkcji odległości | art. 6(1)(a)/(f) |
 
 ### B. Dane Mistrzów
 
@@ -51,10 +54,18 @@ Rozliczenie za Usługę Mistrza odbywa się **poza platformą**, bezpośrednio m
 | Identyfikator Telegram (chat_id) | powiązany przez jednorazowy link, nigdy wpisywany ręcznie | wysyłka powiadomień o nowych rezerwacjach | art. 6(1)(b) |
 | Token powiadomień push (FCM) | identyfikator urządzenia mobilnego | wysyłka powiadomień push | art. 6(1)(b) |
 | Dane analityczne | statystyki rezerwacji, ocena, liczba opinii | panel analityczny dla Mistrza i admina platformy | art. 6(1)(f) |
+| Zgoda na Regulamin | data i godzina akceptacji przy pierwszym logowaniu | udokumentowanie akceptacji | art. 6(1)(b), 6(1)(f) |
+| Prywatne notatki i czarna lista o Klientach | notatka o preferencjach, powód wpisu (np. nie zapłacił, nie otworzył drzwi), komentarz — wprowadzane przez Mistrza | wsparcie pracy Mistrza; widoczne tylko dla niego, nieudostępniane innym Mistrzom ani używane przez Operatora; wpis tylko ostrzega | dane tworzone przez Mistrza (jako administratora) — art. 6(1)(f) po stronie Mistrza |
+
+> **Do weryfikacji z prawnikiem (nowe funkcje, 27.11.2026):** (a) czy prowadzenie prywatnych notatek i czarnej listy przez Mistrza w Panelu czyni Operatora podmiotem przetwarzającym (umowa powierzenia, art. 28 RODO); (b) czy automatyczne anulowanie po 15 minutach i ukrywanie opinii wymagają dodatkowych zapisów (art. 22 RODO — decyzje wspierane wskazówkami, ale podejmowane przez człowieka); (c) ważność akceptacji Regulaminu przez zaznaczenie pola i zapis daty.
 
 ### C. Dane techniczne (wszyscy użytkownicy) — patrz też Polityka cookies (sekcja V)
 
 Adres IP, typ urządzenia/przeglądarki, dane sesji logowania (np. token sesji), preferencje językowe (pl/ru/uk/en), dane o sposobie korzystania z platformy w celu zapewnienia bezpieczeństwa i poprawnego działania usługi — art. 6(1)(f).
+
+### D. Moderacja opinii i automatyczne wskazówki
+
+Aby chronić wiarygodność ocen, administrator platformy widzi opinie wraz z automatycznymi wskazówkami (ten sam numer telefonu wystawił 2 lub więcej opinii; opinia wystawiona w mniej niż godzinę po złożeniu zamówienia; numer Klienta zgodny z numerem Mistrza) i może ukryć opinię. Wskazówki nie powodują automatycznych skutków — decyzję podejmuje człowiek. Zamówienia wprowadzone przez Mistrza w kalendarzu nie generują zaproszenia do opinii. Podstawa: art. 6(1)(f). Zamówienie bez potwierdzenia przez Mistrza w ciągu 15 minut jest automatycznie anulowane (art. 6(1)(b)); nie jest to profilowanie ani decyzja istotnie wpływająca na Klienta.
 
 ## IV. Komu udostępniamy dane (odbiorcy / podwykonawcy)
 
