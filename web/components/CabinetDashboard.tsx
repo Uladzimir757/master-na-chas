@@ -20,6 +20,7 @@ import ClosedPeriods from "@/components/ClosedPeriods";
 import AnalyticsPanel from "@/components/AnalyticsPanel";
 import StaffManager from "@/components/StaffManager";
 import {
+  Button,
   Card,
   Centered,
   CompactButton,
@@ -111,11 +112,16 @@ export default function CabinetDashboard({
   // права текущего сотрудника (роль + чекбоксы) -> какие вкладки показывать;
   // сервер всё равно проверяет каждое действие (403), это только UI.
   const [perms, setPerms] = useState<string[] | null>(null);
+  const [termsOk, setTermsOk] = useState(true); // false — мастер ещё не принял регламент
+  const [termsTick, setTermsTick] = useState(false);
   const [pushStatus, setPushStatus] = useState<NativePushStatus | null>(null);
   useEffect(() => {
     api
       .me()
-      .then((m) => setPerms(m.permissions))
+      .then((m) => {
+        setPerms(m.permissions);
+        setTermsOk(m.terms_accepted !== false);
+      })
       .catch(() => setPerms([]));
     // В приложении — FCM-токен этого устройства к вошедшему мастеру
     // (no-op в браузере, lib/native.ts).
@@ -504,6 +510,39 @@ export default function CabinetDashboard({
 
   if (!loaded || !settings) {
     return <Centered>{t.cabinetLoading}</Centered>;
+  }
+
+  if (!termsOk) {
+    return (
+      <Card surface>
+        <h1 className="mb-2 text-xl font-semibold">{t.masterTermsTitle}</h1>
+        <p className="mb-4 text-ink-2">{t.masterTermsText}</p>
+        <label className="mb-4 flex items-start gap-2 text-base">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-5 w-5 shrink-0 accent-accent"
+            checked={termsTick}
+            onChange={(e) => setTermsTick(e.target.checked)}
+          />
+          <span>
+            {t.consentPrefix}{" "}
+            <a href="/regulamin/" target="_blank" rel="noopener" className="underline">
+              {t.footerTerms}
+            </a>{" "}
+            {t.consentAnd}{" "}
+            <a href="/polityka-prywatnosci/" target="_blank" rel="noopener" className="underline">
+              {t.footerPrivacy}
+            </a>
+          </span>
+        </label>
+        <Button
+          disabled={!termsTick}
+          onClick={() => api.acceptTerms().then(() => setTermsOk(true)).catch(() => undefined)}
+        >
+          {t.masterTermsContinue}
+        </Button>
+      </Card>
+    );
   }
 
   return (

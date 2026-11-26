@@ -872,6 +872,7 @@ async def create_booking(request: Request, payload: BookingCreate, db: AsyncSess
         client_name=payload.client_name,
         client_phone=payload.client_phone,
         client_phone_visible=payload.client_phone_visible,
+        terms_accepted_at=now if payload.terms_accepted else None,
         start_at=payload.start_at,
         end_at=end_at,
         notes=payload.notes,
@@ -1493,11 +1494,23 @@ async def whoami(master_user_id: str = Depends(require_master_user_id), db: Asyn
         "name": user.name,
         "role": user.role,
         "permissions": effective_permissions(user.role, user.permissions),
+        "terms_accepted": user.terms_accepted_at is not None,
         # Свежий токен при каждой проверке: приложение зовёт /auth/me на
         # каждом запуске, так что вход живёт до «Выход», а не 30 дней с
         # момента ввода пароля (docs/app-auto-open-cabinet-task.md).
         "token": make_token("master", master_user_id),
     }
+
+
+@app.post("/auth/accept-terms")
+async def accept_terms(master_user_id: str = Depends(require_master_user_id), db: AsyncSession = Depends(get_db)) -> dict:
+    user = await db.get(MasterUser, uuid.UUID(master_user_id))
+    if user is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not logged in")
+    if user.terms_accepted_at is None:
+        user.terms_accepted_at = datetime.now(timezone.utc)
+        await db.commit()
+    return {"ok": True}
 
 
 @app.post("/auth/change-password")

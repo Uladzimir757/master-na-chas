@@ -562,6 +562,9 @@ export interface Translations {
   consentPrefix: string;
   consentAnd: string;
   consentRequired: string;
+  masterTermsTitle: string;
+  masterTermsText: string;
+  masterTermsContinue: string;
 }
 
 export function buildTranslations(map: TranslationMap): Translations {
@@ -1151,5 +1154,8 @@ export function buildTranslations(map: TranslationMap): Translations {
     consentPrefix: pick(map, "consentPrefix"),
     consentAnd: pick(map, "consentAnd"),
     consentRequired: pick(map, "consentRequired"),
+    masterTermsTitle: pick(map, "masterTermsTitle"),
+    masterTermsText: pick(map, "masterTermsText"),
+    masterTermsContinue: pick(map, "masterTermsContinue"),
   };
 }

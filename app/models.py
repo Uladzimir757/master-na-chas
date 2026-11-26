@@ -341,6 +341,8 @@ class Booking(Base):
     travel_minutes: Mapped[int | None] = mapped_column(SmallInteger)
     # клиент разрешил показать свой номер мастеру (галочка в форме заказа)
     client_phone_visible: Mapped[bool] = mapped_column(default=True)
+    # клиент поставил галочку «Regulamin и Polityka prywatności» (26.11.2026)
+    terms_accepted_at: Mapped[datetime | None] = mapped_column(TZDateTime)
     # Клиент после «выполнено» от мастера: 'confirmed' | 'problem' | None
     # (POST /api/reviews/invite/{id}/confirm).
     client_confirmation: Mapped[str | None] = mapped_column(String)
@@ -361,6 +363,8 @@ class MasterUser(Base):
     provider_id: Mapped[uuid.UUID] = _uuid_col(fk="provider.id")
     email: Mapped[str] = mapped_column(String, unique=True)
     password_hash: Mapped[str] = mapped_column(String)
+    # мастер принял регламент (экран при входе в кабинет), NULL = ещё нет
+    terms_accepted_at: Mapped[datetime | None] = mapped_column(TZDateTime)
     # nullable, filled only by the /telegram/webhook deep-link handshake —
     # never set by hand, never in config. See TelegramLinkToken below.
     telegram_chat_id: Mapped[str | None] = mapped_column(String)

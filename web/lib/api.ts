@@ -187,6 +187,7 @@ export interface BookingCreate {
   client_phone?: string;
   // галочка «показать мой номер мастеру»
   client_phone_visible?: boolean;
+  terms_accepted?: boolean;
   notes?: string;
   city_id?: string;
 }
@@ -728,6 +729,7 @@ export const api = {
   // Every check also renews the saved token (the API hands back a fresh one),
   // and a 401 drops it — so the app's auto-open of the cabinet
   // (lib/autoOpenCabinet.ts) never loops on a dead token.
+  acceptTerms: () => request<{ ok: boolean }>("/auth/accept-terms", { method: "POST" }),
   me: async () => {
     try {
       const res = await request<{
@@ -735,6 +737,7 @@ export const api = {
         name: string | null;
         role: string;
         permissions: string[];
+        terms_accepted?: boolean;
         token?: string;
       }>("/auth/me");
       if (res.token) setToken("master", res.token);

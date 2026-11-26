@@ -226,6 +226,7 @@ export default function SlotPicker({
         client_name: clientName.trim(),
         client_phone: normalizePhone(clientPhone) ?? undefined,
         client_phone_visible: phoneVisible,
+        terms_accepted: consent,
         notes: notes.trim() || undefined,
         city_id: cityId,
       });

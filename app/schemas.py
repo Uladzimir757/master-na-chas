@@ -38,6 +38,8 @@ class BookingCreate(BaseModel):
     # галочка «показать мой номер мастеру»; без неё мастер номера не видит
     # (SMS клиенту всё равно уходят)
     client_phone_visible: bool = True
+    # галочка «принимаю Regulamin и Politykę prywatności»; время пишем в заказ
+    terms_accepted: bool = False
     # «Opisz, co trzeba zrobić» — клиент пишет или надиктовывает (20.11.2026),
     # мастер видит в окне заказа и в уведомлении о новом заказе
     notes: str | None = Field(default=None, max_length=1000)

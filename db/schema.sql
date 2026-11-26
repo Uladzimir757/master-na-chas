@@ -320,6 +320,7 @@ CREATE TABLE booking (
     confirm_notices_sent  smallint NOT NULL DEFAULT 0,
     cancel_reason         text,      -- 'provider_timeout' = мастер не ответил вовремя
     travel_minutes        smallint CHECK (travel_minutes IS NULL OR travel_minutes > 0),  -- время доезда, мастер при подтверждении
+    terms_accepted_at     timestamptz,  -- клиент принял регламент и политику (галочка в форме)
     client_phone_visible  boolean NOT NULL DEFAULT true,  -- клиент разрешил показать свой номер мастеру
     -- клиент подтвердил выполнение / сообщил о проблеме (ссылка после «выполнено»)
     client_confirmation   text CHECK (client_confirmation IN ('confirmed', 'problem')),
@@ -355,6 +356,7 @@ CREATE TABLE master_user (
     provider_id        uuid NOT NULL REFERENCES provider(id) ON DELETE CASCADE,
     email              text NOT NULL UNIQUE,
     password_hash      text NOT NULL,
+    terms_accepted_at  timestamptz,       -- мастер принял регламент; NULL = ещё нет
     telegram_chat_id   text,              -- nullable, filled via telegram_link_token flow
     name               text,
     role               text NOT NULL DEFAULT 'owner',  -- worker_limited | worker | manager | owner
