@@ -556,6 +556,12 @@ export interface Translations {
   myBookingTimedOut: string;
   bookAnotherMaster: string;
   analyticsColTimedOut: string;
+  legalBack: string;
+  footerTerms: string;
+  footerPrivacy: string;
+  consentPrefix: string;
+  consentAnd: string;
+  consentRequired: string;
 }
 
 export function buildTranslations(map: TranslationMap): Translations {
@@ -1139,5 +1145,11 @@ export function buildTranslations(map: TranslationMap): Translations {
     myBookingTimedOut: pick(map, "myBookingTimedOut"),
     bookAnotherMaster: pick(map, "bookAnotherMaster"),
     analyticsColTimedOut: pick(map, "analyticsColTimedOut"),
+    legalBack: pick(map, "legalBack"),
+    footerTerms: pick(map, "footerTerms"),
+    footerPrivacy: pick(map, "footerPrivacy"),
+    consentPrefix: pick(map, "consentPrefix"),
+    consentAnd: pick(map, "consentAnd"),
+    consentRequired: pick(map, "consentRequired"),
   };
 }

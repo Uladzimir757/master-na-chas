@@ -50,6 +50,7 @@ test("a bogus phone blocks the booking", async ({ page }) => {
 
   await page.getByPlaceholder(t.phonePlaceholder).fill("600 111 222");
   await expect(page.getByText(t.phoneInvalid)).toHaveCount(0);
+  await page.getByRole("checkbox", { name: new RegExp(t.footerTerms) }).check();
   await expect(page.getByRole("button", { name: t.submitBooking })).toBeEnabled();
 });
 
@@ -69,7 +70,8 @@ test("the client can hide the number from the master; the master's phone shows a
 
   await page.getByPlaceholder(t.phonePlaceholder).fill("600 111 222");
   await page.getByLabel(t.clientPhoneVisibleLabel).uncheck();
-  await page.getByRole("button", { name: t.submitBooking }).click();
+  await page.getByRole("checkbox", { name: new RegExp(t.footerTerms) }).check();
+  await page.getByRole("button", { name: t.submitBooking }).click()
 
   await expect(page.getByText(t.bookingCreatedTitle)).toBeVisible();
   expect(sent.client_phone).toBe("+48600111222");

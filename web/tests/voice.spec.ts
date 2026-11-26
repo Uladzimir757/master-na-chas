@@ -110,7 +110,8 @@ test("hold to talk → server text → appended to the description; the client s
 
   await page.getByPlaceholder(t.namePlaceholder).fill("Iwan");
   await page.getByPlaceholder(t.phonePlaceholder).fill("+48123456789");
-  await page.getByRole("button", { name: t.submitBooking }).click();
+  await page.getByRole("checkbox", { name: new RegExp(t.footerTerms) }).check();
+  await page.getByRole("button", { name: t.submitBooking }).click()
   await expect.poll(() => bookings.length).toBe(1);
   expect(bookings[0].notes).toBe("Mam część. Cieknie kran w kuchni");
 });

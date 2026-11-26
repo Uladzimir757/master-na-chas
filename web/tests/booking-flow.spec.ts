@@ -30,7 +30,8 @@ for (const status of ["pending", "confirmed"] as const) {
 
     await page.getByPlaceholder(t.namePlaceholder).fill("Иван");
     await page.getByPlaceholder(t.phonePlaceholder).fill("+48123456789");
-    await page.getByRole("button", { name: t.submitBooking }).click();
+    await page.getByRole("checkbox", { name: new RegExp(t.footerTerms) }).check();
+    await page.getByRole("button", { name: t.submitBooking }).click()
 
     await expect(page.getByText(t.bookingCreatedTitle)).toBeVisible();
     await expect(page.getByRole("region", { name: t.orderSummaryTitle })).toContainText(SERVICE.name);

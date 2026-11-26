@@ -81,6 +81,7 @@ export default function SlotPicker({
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [phoneVisible, setPhoneVisible] = useState(true);
+  const [consent, setConsent] = useState(false);
   // «Opisz, co trzeba zrobić» — typed or dictated (20.11.2026)
   // the job typed or said in «Co trzeba zrobić?» on the home page
   const [notes, setNotes] = useState(() => (taskDraft()?.text ?? "").slice(0, 1000));
@@ -214,7 +215,7 @@ export default function SlotPicker({
   }, [slotsForSelectedDay, t]);
 
   async function submitBooking() {
-    if (!selectedSlot || clientName.trim().length === 0 || phoneBad) return;
+    if (!selectedSlot || clientName.trim().length === 0 || phoneBad || !consent) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -515,9 +516,27 @@ export default function SlotPicker({
                 />
                 <VoiceButton onText={(text) => setNotes((n) => appendDictation(n, text).slice(0, 1000))} />
               </div>
+              <label className="flex items-start gap-2 text-base">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-5 w-5 shrink-0 accent-accent"
+                  checked={consent}
+                  onChange={(e) => setConsent(e.target.checked)}
+                />
+                <span>
+                  {t.consentPrefix}{" "}
+                  <a href="/regulamin/" target="_blank" rel="noopener" className="underline">
+                    {t.footerTerms}
+                  </a>{" "}
+                  {t.consentAnd}{" "}
+                  <a href="/polityka-prywatnosci/" target="_blank" rel="noopener" className="underline">
+                    {t.footerPrivacy}
+                  </a>
+                </span>
+              </label>
               <Button
                 className="mt-1"
-                disabled={clientName.trim().length === 0 || phoneBad || submitting}
+                disabled={clientName.trim().length === 0 || phoneBad || !consent || submitting}
                 onClick={submitBooking}
               >
                 {submitting ? t.submitting : t.submitBooking}

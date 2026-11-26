@@ -71,6 +71,16 @@ export default function Home() {
             {t.cabinetLink}
           </Link>
         )}
+        {ready && (
+          <nav className="flex flex-wrap justify-center gap-x-6 text-sm text-ink-3">
+            <Link href="/regulamin/" className="min-h-11 py-3 underline-offset-4 hover:text-accent-2 hover:underline">
+              {t.footerTerms}
+            </Link>
+            <Link href="/polityka-prywatnosci/" className="min-h-11 py-3 underline-offset-4 hover:text-accent-2 hover:underline">
+              {t.footerPrivacy}
+            </Link>
+          </nav>
+        )}
       </div>
     </main>
   );

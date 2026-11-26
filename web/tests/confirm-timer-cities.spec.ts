@@ -69,7 +69,8 @@ test.describe("city step on the home page", () => {
     await expect(page.getByRole("heading", { name: SERVICE.name })).toBeVisible();
     await page.getByRole("button", { name: new RegExp(formatTime(SLOT_A.start_at, "pl")) }).click();
     await page.getByPlaceholder(t.namePlaceholder).fill("Иван");
-    await page.getByRole("button", { name: t.submitBooking }).click();
+    await page.getByRole("checkbox", { name: new RegExp(t.footerTerms) }).check();
+    await page.getByRole("button", { name: t.submitBooking }).click()
 
     await expect(page.getByText(t.bookingConfirmWithin(15))).toBeVisible();
     expect(sent.city_id).toBe(GDYNIA.id);
@@ -117,7 +118,8 @@ test.describe("city step on the home page", () => {
     await page.getByRole("button", { name: t.chooseMasterButton }).click();
     await page.getByRole("button", { name: new RegExp(formatTime(SLOT_A.start_at, "pl")) }).click();
     await page.getByPlaceholder(t.namePlaceholder).fill("Иван");
-    await page.getByRole("button", { name: t.submitBooking }).click();
+    await page.getByRole("checkbox", { name: new RegExp(t.footerTerms) }).check();
+    await page.getByRole("button", { name: t.submitBooking }).click()
 
     const starts = new Date(new Date(deadline).getTime() - 15 * 60_000).toISOString();
     await expect(page.getByText(t.bookingConfirmAfter(formatTime(starts, "pl")))).toBeVisible();

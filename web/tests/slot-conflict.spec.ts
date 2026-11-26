@@ -19,7 +19,8 @@ test("a 409 on submit surfaces the taken-slot message and lets the visitor pick 
 
   await page.getByRole("button", { name: new RegExp(labelA) }).click();
   await page.getByPlaceholder(t.namePlaceholder).fill("Иван");
-  await page.getByRole("button", { name: t.submitBooking }).click();
+  await page.getByRole("checkbox", { name: new RegExp(t.footerTerms) }).check();
+  await page.getByRole("button", { name: t.submitBooking }).click()
 
   await expect(page.getByText(t.slotTakenError)).toBeVisible();
 
@@ -28,7 +29,8 @@ test("a 409 on submit surfaces the taken-slot message and lets the visitor pick 
   const slotBButton = page.getByRole("button", { name: new RegExp(labelB) });
   await expect(slotBButton).toBeVisible();
   await slotBButton.click();
-  await page.getByRole("button", { name: t.submitBooking }).click();
+  await page.getByRole("checkbox", { name: new RegExp(t.footerTerms) }).check();
+  await page.getByRole("button", { name: t.submitBooking }).click()
 
   await expect(page.getByText(t.bookingCreatedTitle)).toBeVisible();
 });
